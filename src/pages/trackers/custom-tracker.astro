@@ -52,10 +52,6 @@ const related = [
   { name: "Sleep Tracker", url: "/sleep-tracker", icon: "bed" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
-const relatedWithIcons = related.map(tracker => ({
-  ...tracker,
-  icon: iconMap[tracker.name] || 'track_changes',
-}));
 ---
 
 <Layout seoTitle="Custom Tracker" seoDescription="Create your own tracker for any purpose. No login, no accounts, data stays in your browser.">
@@ -72,7 +68,6 @@ const relatedWithIcons = related.map(tracker => ({
         <HowToUse steps={steps} />
         <Benefits benefits={benefits} />
         <FAQ faqs={faqs} />
-        <RelatedTrackers related={relatedWithIcons} />
       </section>
     </main>
   </TrackerPageWrapper>

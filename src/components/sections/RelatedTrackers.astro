@@ -1,29 +1,12 @@
 ---
 const { related = [] } = Astro.props;
-const iconMap = {
-  'Habit Tracker': 'check_circle',
-  'Reading Tracker': 'menu_book',
-  'Custom Tracker': 'tune',
-  'Finance Tracker': 'attach_money',
-  'Health Tracker': 'favorite',
-  'Workout Tracker': 'fitness_center',
-  'Meal Tracker': 'restaurant',
-  'Sleep Tracker': 'bed',
-  'Task Tracker': 'assignment',
-  'Movie Watch Tracker': 'movie',
-  'Garden Harvest Tracker': 'eco',
-};
-const relatedWithIcons = related.map(tracker => ({
-  ...tracker,
-  icon: iconMap[tracker.name] || 'track_changes',
-}));
 ---
 <section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
   <h2 class="text-xl font-bold mb-4 text-gray-900">Related Trackers</h2>
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-    {relatedWithIcons.map(tracker => (
+    {related.map(tracker => (
       <a href={tracker.url} class="flex items-center gap-2 bg-gray-50 rounded-md border border-gray-200 p-3 text-blue-600 hover:bg-blue-50 hover:underline transition">
-        <span class="material-icons text-gray-500 text-xl">{tracker.icon ? tracker.icon : 'track_changes'}</span>
+        <span class="material-icons text-gray-500 text-xl">{tracker.icon || 'track_changes'}</span>
         {tracker.name}
       </a>
     ))}

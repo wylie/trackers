@@ -28,6 +28,19 @@ const faqs = [
   { question: "Do I need an account?", answer: "No, SimpleTrackers.io does not require registration or login." },
   { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
 ];
+const iconMap = {
+  'Habit Tracker': 'check_circle',
+  'Reading Tracker': 'menu_book',
+  'Custom Tracker': 'tune',
+  'Finance Tracker': 'attach_money',
+  'Health Tracker': 'favorite',
+  'Workout Tracker': 'fitness_center',
+  'Meal Tracker': 'restaurant',
+  'Sleep Tracker': 'bed',
+  'Task Tracker': 'assignment',
+  'Movie Watch Tracker': 'movie',
+  'Garden Harvest Tracker': 'eco',
+};
 const related = [
   { name: "Habit Tracker", url: "/habit-tracker" },
   { name: "Reading Tracker", url: "/reading-tracker" },
@@ -39,6 +52,10 @@ const related = [
   { name: "Sleep Tracker", url: "/sleep-tracker" },
   { name: "Task Tracker", url: "/task-tracker" }
 ];
+const relatedWithIcons = related.map(tracker => ({
+  ...tracker,
+  icon: iconMap[tracker.name] || 'track_changes',
+}));
 ---
 
 <Layout seoTitle="Custom Tracker" seoDescription="Create your own tracker for any purpose. No login, no accounts, data stays in your browser.">
@@ -55,7 +72,7 @@ const related = [
         <HowToUse steps={steps} />
         <Benefits benefits={benefits} />
         <FAQ faqs={faqs} />
-        <RelatedTrackers related={related} />
+        <RelatedTrackers related={relatedWithIcons} />
       </section>
     </main>
   </TrackerPageWrapper>

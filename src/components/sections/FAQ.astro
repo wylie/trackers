@@ -2,14 +2,14 @@
 const { faqs = [] } = Astro.props;
 ---
 
-<section>
-  <h2>FAQ</h2>
+<section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
+  <h2 class="text-xl font-bold mb-2 text-gray-900">FAQ</h2>
   <dl>
     {faqs && faqs.map(faq => (
-      <>
-        <dt>{faq.question}</dt>
-        <dd>{faq.answer}</dd>
-      </>
+      <div class="mb-4">
+        <dt class="font-semibold text-gray-900">{faq.question}</dt>
+        <dd class="text-gray-700 text-base leading-relaxed">{faq.answer}</dd>
+      </div>
     ))}
   </dl>
 </section>

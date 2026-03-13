@@ -1,13 +1,13 @@
 ---
 const { related = [] } = Astro.props;
 ---
-<section>
-  <h2>Related Trackers</h2>
-  <ul>
+<section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
+  <h2 class="text-xl font-bold mb-4 text-gray-900">Related Trackers</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
     {related && related.map(tracker => (
-      <li><a href={tracker.url}>{tracker.name}</a></li>
+      <a href={tracker.url} class="block bg-gray-50 rounded-md border border-gray-200 p-3 text-blue-600 hover:bg-blue-50 hover:underline transition">{tracker.name}</a>
     ))}
-  </ul>
+  </div>
 </section>
 
 <style>

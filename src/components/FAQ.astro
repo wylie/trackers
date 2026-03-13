@@ -1,0 +1,14 @@
+---
+const { faqs } = Astro.props;
+---
+<section class="faq" aria-label="Frequently Asked Questions">
+  <h2>FAQ</h2>
+  <dl>
+    {faqs && faqs.map(faq => (
+      <div>
+        <dt>{faq.question}</dt>
+        <dd>{faq.answer}</dd>
+      </div>
+    ))}
+  </dl>
+</section>

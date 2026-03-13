@@ -1,17 +1,42 @@
 ---
+import Layout from '../components/Layout.astro';
+import TrackerList from '../components/TrackerList.astro';
 
+const trackers = [
+  { label: 'Reading Tracker', url: '/trackers/reading-tracker' },
+  { label: 'Habit Tracker', url: '/trackers/habit-tracker' },
+  { label: 'Movie Watch Tracker', url: '/trackers/movie-watch-tracker' },
+  { label: 'Custom Tracker', url: '/trackers/custom-tracker' },
+  { label: 'Finance Tracker', url: '/trackers/finance-tracker' },
+  { label: 'Health Tracker', url: '/trackers/health-tracker' },
+  { label: 'Workout Tracker', url: '/trackers/workout-tracker' },
+  { label: 'Meal Tracker', url: '/trackers/meal-tracker' },
+  { label: 'Sleep Tracker', url: '/trackers/sleep-tracker' },
+  { label: 'Task Tracker', url: '/trackers/task-tracker' },
+  { label: 'Garden Harvest Tracker', url: '/trackers/garden-harvest-tracker' }
+];
+const features = [
+  { label: 'Private: Data stays in your browser' },
+  { label: 'No login or account required' },
+  { label: 'Accessible and easy to use' },
+  { label: 'Export to CSV' },
+  { label: 'Clear all data with confirmation' },
+  { label: 'Open source and free' }
+];
+const legalLinks = [
+  { label: 'About', url: '/about' },
+  { label: 'Contact', url: '/contact' },
+  { label: 'Privacy Policy', url: '/privacy' },
+  { label: 'Terms of Service', url: '/terms' }
+];
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout seoTitle="SimpleTrackers.io" seoDescription="Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.">
+  <main class="max-w-2xl mx-auto w-full px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">Welcome to SimpleTrackers.io</h1>
+    <p class="mb-8 text-lg text-gray-700">Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.</p>
+    <TrackerList title="Trackers" items={trackers} />
+    <TrackerList title="Features" items={features} />
+    <TrackerList title="Legal & Trust" items={legalLinks} />
+  </main>
+</Layout>

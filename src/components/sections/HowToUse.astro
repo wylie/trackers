@@ -1,0 +1,25 @@
+---
+const { steps } = Astro.props;
+---
+<section>
+  <h2>How to Use</h2>
+  <ol>
+    {steps.map(step => <li>{step}</li>)}
+  </ol>
+</section>
+
+<style>
+  section {
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  ol {
+    padding-left: 1.5rem;
+  }
+  li {
+    margin-bottom: 0.5rem;
+  }
+</style>

@@ -1,0 +1,25 @@
+---
+const { benefits } = Astro.props;
+---
+<section>
+  <h2>Benefits</h2>
+  <ul>
+    {benefits.map(benefit => <li>{benefit}</li>)}
+  </ul>
+</section>
+
+<style>
+  section {
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  ul {
+    padding-left: 1.5rem;
+  }
+  li {
+    margin-bottom: 0.5rem;
+  }
+</style>

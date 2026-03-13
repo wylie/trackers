@@ -1,0 +1,31 @@
+---
+const { related = [] } = Astro.props;
+---
+<section>
+  <h2>Related Trackers</h2>
+  <ul>
+    {related && related.map(tracker => (
+      <li><a href={tracker.url}>{tracker.name}</a></li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  section {
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  ul {
+    padding-left: 1.5rem;
+  }
+  li {
+    margin-bottom: 0.5rem;
+  }
+  a {
+    color: var(--primary-color, #0070f3);
+    text-decoration: underline;
+  }
+</style>

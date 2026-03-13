@@ -1,0 +1,10 @@
+---
+const { count = 3 } = Astro.props;
+const skeletonItems = Array.from({ length: count }).map((_, i) => (
+  <div class="skeleton-card" />
+));
+---
+
+<div class="skeleton-loader">
+  {skeletonItems}
+</div>

@@ -1,0 +1,38 @@
+---
+const { fields = [], values = {}, formId = 'tracker-form', submitLabel = 'Save', clearLabel = 'Clear All' } = Astro.props;
+---
+
+<form class="tracker-form" id={formId}>
+  {fields.map((field) => {
+    const fieldId = `${formId}-${field.name}`;
+    const value = values[field.name] ?? '';
+
+    return (
+      <div class="form-field">
+        <label for={fieldId}>{field.label}</label>
+
+        {field.type === 'dropdown' && field.options ? (
+          <select name={field.name} id={fieldId}>
+            {field.options.map((opt) => (
+              <option value={opt} selected={value === opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={field.type}
+            name={field.name}
+            id={fieldId}
+            value={value}
+          />
+        )}
+      </div>
+    );
+  })}
+
+  <div class="form-actions">
+    <button type="submit">{submitLabel}</button>
+    <button type="reset" data-clear-button>{clearLabel}</button>
+  </div>
+</form>

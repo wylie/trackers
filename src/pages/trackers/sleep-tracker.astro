@@ -1,0 +1,62 @@
+---
+import Layout from '../../components/Layout.astro';
+import TrackerPageWrapper from '../../components/TrackerPageWrapper.astro';
+
+import TrackerCard from '../../components/TrackerCard.astro';
+import Introduction from '../../components/sections/Introduction.astro';
+import HowToUse from '../../components/sections/HowToUse.astro';
+import Benefits from '../../components/sections/Benefits.astro';
+import FAQ from '../../components/sections/FAQ.astro';
+import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
+
+const steps = [
+  "Add a new sleep entry.",
+  "Track your sleep patterns.",
+  "Edit or delete entries as needed.",
+  "Your data is saved locally in your browser.",
+  "No account or login required."
+];
+const benefits = [
+  "Simple, distraction-free interface",
+  "Private: your data never leaves your device",
+  "No registration or login required",
+  "Improve your sleep habits"
+];
+const faqs = [
+  { question: "Is my data private?", answer: "Yes, all data is stored locally in your browser." },
+  { question: "Do I need an account?", answer: "No, SimpleTrackers.io does not require registration or login." },
+  { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
+];
+const related = [
+  { name: "Habit Tracker", url: "/habit-tracker" },
+  { name: "Reading Tracker", url: "/reading-tracker" },
+  { name: "Custom Tracker", url: "/custom-tracker" },
+  { name: "Movie Watch Tracker", url: "/movie-watch-tracker" },
+  { name: "Finance Tracker", url: "/finance-tracker" },
+  { name: "Health Tracker", url: "/health-tracker" },
+  { name: "Workout Tracker", url: "/workout-tracker" },
+  { name: "Meal Tracker", url: "/meal-tracker" },
+  { name: "Task Tracker", url: "/task-tracker" }
+];
+---
+
+<Layout seoTitle="Sleep Tracker" seoDescription="Track your sleep patterns privately and easily. No login, no accounts, data stays in your browser.">
+  <TrackerPageWrapper>
+    <main>
+      <h1>Sleep Tracker</h1>
+      <section>
+        <TrackerCard
+          title="Sleep Log"
+          description="Log your sleep, patterns, and notes."
+          client:load
+            storageKey="sleep-tracker-entries"
+          />
+        <Introduction introduction="Track your sleep patterns privately and easily. No login, no accounts, data stays in your browser." />
+        <HowToUse steps={steps} />
+        <Benefits benefits={benefits} />
+        <FAQ faqs={faqs} />
+        <RelatedTrackers related={related} />
+      </section>
+    </main>
+  </TrackerPageWrapper>
+</Layout>

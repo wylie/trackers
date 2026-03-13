@@ -1,0 +1,13 @@
+---
+const { title, items = [] } = Astro.props;
+---
+<section class="mb-8">
+  <h2 class="text-xl font-bold mb-4 text-gray-900">{title}</h2>
+  <ul class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {items.map(item => (
+      <li class="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-base font-medium text-gray-700 hover:bg-blue-50 transition">
+        {item.url ? <a href={item.url} class="text-blue-700 hover:text-blue-900">{item.label}</a> : item.label}
+      </li>
+    ))}
+  </ul>
+</section>

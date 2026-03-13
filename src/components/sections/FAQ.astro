@@ -1,0 +1,33 @@
+---
+const { faqs = [] } = Astro.props;
+---
+
+<section>
+  <h2>FAQ</h2>
+  <dl>
+    {faqs && faqs.map(faq => (
+      <>
+        <dt>{faq.question}</dt>
+        <dd>{faq.answer}</dd>
+      </>
+    ))}
+  </dl>
+</section>
+
+<style>
+  section {
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  dt {
+    font-weight: bold;
+    margin-top: 1rem;
+  }
+  dd {
+    margin-left: 1rem;
+    margin-bottom: 0.5rem;
+  }
+</style>

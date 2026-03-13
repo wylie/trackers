@@ -1,0 +1,23 @@
+---
+import Header from './Header.astro';
+import Footer from './Footer.astro';
+import SEO from './SEO.astro';
+const { seoTitle, seoDescription } = Astro.props;
+
+---
+<SEO title={seoTitle} description={seoDescription} />
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="/src/styles/tailwind.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+    <Header />
+  </head>
+  <body class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
+    <main id="main-content" class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+      <slot />
+    </main>
+    <footer class="flex-shrink-0 w-full">
+      <Footer />
+    </footer>
+  </body>
+</html>

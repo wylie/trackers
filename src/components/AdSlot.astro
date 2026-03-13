@@ -1,0 +1,8 @@
+---
+const { location, dev = false } = Astro.props;
+---
+{dev && (
+  <div class="ad-slot-placeholder" aria-label="Ad Space" role="region">
+    <span>Ad Space ({location})</span>
+  </div>
+)}

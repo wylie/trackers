@@ -1,0 +1,55 @@
+---
+import Layout from '../../components/Layout.astro';
+import TrackerPageWrapper from '../../components/TrackerPageWrapper.astro';
+
+import TrackerCard from '../../components/TrackerCard.astro';
+import Introduction from '../../components/sections/Introduction.astro';
+import HowToUse from '../../components/sections/HowToUse.astro';
+import Benefits from '../../components/sections/Benefits.astro';
+import FAQ from '../../components/sections/FAQ.astro';
+import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
+
+const steps = [
+  "Enter the book title and pages read.",
+  "Click 'Add Entry' to log your reading.",
+  "Your data is saved locally in your browser.",
+  "No account or login required."
+];
+const benefits = [
+  "Simple, distraction-free interface",
+  "Private: your data never leaves your device",
+  "No registration or login required",
+  "Track progress and stay motivated"
+];
+const faqs = [
+  { question: "Is my data private?", answer: "Yes, all data is stored locally in your browser." },
+  { question: "Do I need an account?", answer: "No, SimpleTrackers.io does not require registration or login." },
+  { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
+];
+const related = [
+  { name: "Garden Harvest Tracker", url: "/garden-harvest-tracker" },
+  { name: "Habit Tracker", url: "/habit-tracker" },
+  { name: "Mood Tracker", url: "/mood-tracker" }
+];
+---
+
+<Layout seoTitle="Reading Tracker" seoDescription="Track your reading habits privately and easily. No login, no accounts, data stays in your browser.">
+  <TrackerPageWrapper>
+    <main>
+      <h1>Reading Tracker</h1>
+      <section>
+        <TrackerCard
+          title="Reading Log"
+          description="Log your books, progress, and notes."
+          client:load
+          storageKey="reading-tracker-entries"
+        />
+        <Introduction introduction="Track your reading habits privately and easily. No login, no accounts, data stays in your browser."  />
+        <HowToUse steps={steps} />
+        <Benefits benefits={benefits} />
+        <FAQ faqs={faqs} />
+        <RelatedTrackers related={related} />
+      </section>
+    </main>
+  </TrackerPageWrapper>
+</Layout>

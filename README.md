@@ -1,43 +1,71 @@
-# Astro Starter Kit: Minimal
 
-```sh
-npm create astro@latest -- --template minimal
-```
+# SimpleTrackers.io
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+A production-ready Astro website offering simple, private, browser-based tracking tools. No login required, data stays in your browser.
 
-## 🚀 Project Structure
+## Project Features
+- 10 tracker tools, each with its own page
+- Clean, modern, card-first design
+- Responsive, accessible, SEO-optimized
+- LocalStorage for all data
+- No backend, no authentication
+- Modular, easy to expand
+- AdSense-ready layout (dev placeholders)
+- Legal and trust pages
 
-Inside of your Astro project, you'll see the following folders and files:
+## Trackers
+- Reading Tracker
+- Habit Tracker
+- Plant Watering Tracker
+- Bird Sighting Tracker
+- Workout Log
+- Cycling Mileage Tracker
+- Garden Harvest Log
+- Pet Medication Tracker
+- Movie Watch Tracker
+- Custom Tracker (user-defined fields)
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+## Setup Instructions
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+### Prerequisites
+- Node.js v22+
+- npm
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+### Local Development
+1. Clone the repo
+2. Install dependencies:
+	```bash
+	npm install
+	```
+3. Start the dev server:
+	```bash
+	npm run dev
+	```
+4. Visit http://localhost:4321
 
-Any static assets, like images, can be placed in the `public/` directory.
+### GitHub Workflow
+- Commit changes to main branch
+- Use feature branches for new trackers/components
+- PRs require review
 
-## 🧞 Commands
+### Vercel Deployment
+- Connect repo to Vercel
+- Deploy main branch
+- Astro builds for static hosting
 
-All commands are run from the root of the project, from a terminal:
+## File Structure
+- `/src/pages` — tracker pages & legal pages
+- `/src/components` — reusable UI components
+- `/public` — static assets
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+## Privacy
+- No accounts
+- Data stored in browser
+- No external database
+- AdSense placeholders only in dev
 
-## 👀 Want to learn more?
+## License
+MIT
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+---
+For questions or feedback, see `/contact` page.

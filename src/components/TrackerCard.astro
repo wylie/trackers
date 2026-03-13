@@ -1,0 +1,85 @@
+---
+const { title, description, storageKey, fieldNames = ["item", "notes"], addLabel = "Add New Item" } = Astro.props;
+---
+
+<section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
+  <h2 id="tracker-title" class="text-lg font-semibold mb-2 text-gray-900">{title}</h2>
+  <p class="text-gray-700 mb-4">{description}</p>
+  <form id="tracker-form" class="flex flex-col gap-2 mb-4">
+    <input type="text" id="tracker-item" placeholder="Item" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    <button type="submit" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">{addLabel}</button>
+  </form>
+  <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
+</section>
+
+<script define:vars={{ storageKey }}>
+  const trackerType = storageKey;
+  console.log(storageKey, trackerType);
+  const form = document.getElementById("tracker-form");
+  const itemInput = document.getElementById("tracker-item");
+  const notesInput = document.getElementById("tracker-notes");
+  const list = document.getElementById("tracker-list");
+
+  function getAllEntries() {
+    try {
+      return JSON.parse(localStorage.getItem("simpletrackers.io")) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getEntries() {
+    const allEntries = getAllEntries();
+    return allEntries[storageKey] || [];
+  }
+
+  function saveEntries(entries) {
+    const allEntries = getAllEntries();
+    allEntries[storageKey] = entries;
+    localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+  }
+
+  function renderEntries() {
+    list.innerHTML = "";
+    const entries = getEntries();
+    entries.forEach((entry, idx) => {
+      const li = document.createElement("li");
+      li.className = "mb-3";
+      li.innerHTML = `
+        <div class=\"bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
+          <div class=\"flex items-center gap-2 mb-1\">
+            <span class=\"flex-1 text-gray-800 font-medium\">${entry.item}</span>
+            <span class=\"text-xs text-gray-500\">${entry.date ? new Date(entry.date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+            <button class=\"px-2 py-1 text-xs bg-gray-200 rounded hover:bg-red-200 text-red-700\" aria-label=\"Delete\" data-idx=\"${idx}\">Delete</button>
+          </div>
+          <div class=\"text-gray-700 text-sm\">${entry.notes}</div>
+        </div>
+      `;
+      li.querySelector("button").onclick = () => {
+        const entries = getEntries();
+        entries.splice(idx, 1);
+        saveEntries(entries);
+        renderEntries();
+      };
+      list.appendChild(li);
+    });
+  }
+
+
+  form.onsubmit = e => {
+    e.preventDefault();
+    const item = itemInput.value.trim();
+    const notes = notesInput.value.trim();
+    if (!item) return;
+    const date = new Date().toISOString();
+    const entries = getEntries();
+    entries.push({ item, notes, date });
+    saveEntries(entries);
+    itemInput.value = "";
+    notesInput.value = "";
+    renderEntries();
+  };
+
+  renderEntries();
+</script>

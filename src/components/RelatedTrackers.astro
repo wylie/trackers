@@ -1,0 +1,11 @@
+---
+const { related = [] } = Astro.props;
+const relatedItems = related.map(tracker => (
+  <li><a href={tracker.url}>{tracker.name}</a></li>
+));
+---
+<nav class="related-trackers" aria-label="Related trackers">
+  <ul>
+    {relatedItems}
+  </ul>
+</nav>

@@ -38,12 +38,13 @@ const related = [
     <main>
       <h1>Reading Tracker</h1>
       <section>
-        <TrackerCard
-          title="Reading Log"
-          description="Log your books, progress, and notes."
-          client:load
-          storageKey="reading-tracker-entries"
-        />
+          <TrackerCard
+            title="Reading Log"
+            description="Log your books, progress, and notes."
+            client:load
+            storageKey="reading-tracker-entries"
+            icon="menu_book"
+          />
         <Introduction introduction="Track your reading habits privately and easily. No login, no accounts, data stays in your browser."  />
         <HowToUse steps={steps} />
         <Benefits benefits={benefits} />

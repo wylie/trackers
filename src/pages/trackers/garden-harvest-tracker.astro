@@ -45,11 +45,12 @@ const related = [
     <main>
       <h1>Garden Harvest Tracker</h1>
       <section>
-        <TrackerCard
+          <TrackerCard
           title="Garden Harvest Log"
           description="Log your garden harvests, dates, types, and notes."
           storageKey="garden-harvest-tracker-entries"
           client:load
+            icon="eco"
         />
         <Introduction introduction="Free, private, browser-based garden harvest tracker. No login required." />
         <HowToUse steps={steps} />

@@ -3,7 +3,10 @@ const { title, description, storageKey, fieldNames = ["item", "notes"], addLabel
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
-  <h2 id="tracker-title" class="text-lg font-semibold mb-2 text-gray-900">{title}</h2>
+  <h2 id="tracker-title" class="flex items-center gap-2 text-lg font-semibold mb-2 text-gray-900">
+    <span class="material-icons text-gray-500 text-xl">{icon}</span>
+    {title}
+  </h2>
   <p class="text-gray-700 mb-4">{description}</p>
   <form id="tracker-form" class="flex flex-col gap-2 mb-4">
     <input type="text" id="tracker-item" placeholder="Item" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />

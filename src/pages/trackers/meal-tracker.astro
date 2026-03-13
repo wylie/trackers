@@ -45,12 +45,12 @@ const related = [
     <main>
       <h1>Meal Tracker</h1>
       <section>
-        <TrackerCard
+          <TrackerCard
           title="Meal Log"
           description="Log your meals, nutrition, and notes."
           storageKey="meal-tracker-entries"
           client:load
-        />
+            icon="restaurant" />
         <Introduction introduction="Track your meals privately and easily. No login, no accounts, data stays in your browser." />
         <HowToUse steps={steps} />
         <Benefits benefits={benefits} />

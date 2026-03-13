@@ -45,10 +45,11 @@ const related = [
       <h1>Finance Tracker</h1>
       <section>
         <TrackerCard
-          title="Finance Log"
           description="Log your expenses, income, and notes."
           storageKey="finance-tracker-entries"
           client:load
+            title="Finance Log"
+            icon="attach_money"
         />
         <Introduction introduction="Track your finances privately and easily. No login, no accounts, data stays in your browser." />
         <HowToUse steps={steps} />

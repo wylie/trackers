@@ -46,11 +46,12 @@ const related = [
     <main>
       <h1>Task Tracker</h1>
       <section>
-        <TrackerCard
+          <TrackerCard
           title="Task Log"
           description="Log your tasks, progress, and notes."
           storageKey="task-tracker-entries"
           client:load
+            icon="assignment"
         />
         <Introduction introduction="Track your tasks privately and easily. No login, no accounts, data stays in your browser." />
         <HowToUse steps={steps} />

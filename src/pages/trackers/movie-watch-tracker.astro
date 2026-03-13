@@ -45,11 +45,12 @@ const related = [
     <main>
       <h1>Movie Watch Tracker</h1>
       <section>
-        <TrackerCard
+          <TrackerCard
           title="Movie Log"
           description="Log movies you've watched, ratings, and notes."
           storageKey="movie-watch-tracker-entries"
           client:load
+            icon="movie"
         />
         <Introduction introduction="Track movies you've watched privately and easily. No login, no accounts, data stays in your browser." />
         <HowToUse steps={steps} />

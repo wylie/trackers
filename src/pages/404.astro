@@ -4,12 +4,8 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 const { title, description } = Astro.props;
 ---
-<Layout>
-  <Header />
-  <main>
-    <h1>{title}</h1>
-    <p>{description}</p>
-    <a href="/">Return to homepage</a>
-  </main>
-  <Footer />
-</Layout>
+<main>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <a href="/trackers">Return to homepage</a>
+</main>

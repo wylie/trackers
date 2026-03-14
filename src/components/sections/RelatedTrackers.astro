@@ -10,7 +10,6 @@ const { related = [] } = Astro.props;
         return (
           <a href={tracker.url || '#'} class="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition">
             <span class="material-icons icon-blue">{icon}</span>
-                        <span class="material-icons icon-blue">{icon}</span>
             {tracker && tracker.name ? tracker.name : 'Unknown Tracker'}
           </a>
         );

@@ -27,14 +27,9 @@ const faqs = [
   { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
 ];
 const related = [
-  { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
-  { name: "Reading Tracker", url: "/reading-tracker", icon: "menu_book" },
-  { name: "Custom Tracker", url: "/custom-tracker", icon: "tune" },
-  { name: "Movie Watch Tracker", url: "/movie-watch-tracker", icon: "movie" },
   { name: "Health Tracker", url: "/health-tracker", icon: "favorite" },
-  { name: "Workout Tracker", url: "/workout-tracker", icon: "fitness_center" },
   { name: "Meal Tracker", url: "/meal-tracker", icon: "restaurant" },
-  { name: "Sleep Tracker", url: "/sleep-tracker", icon: "bed" },
+  { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
 ---
@@ -42,20 +37,25 @@ const related = [
 <Layout seoTitle="Finance Tracker" seoDescription="Track your finances privately and easily. No login, no accounts, data stays in your browser.">
   <TrackerPageWrapper>
     <main>
-      <h1 class="text-3xl font-bold text-gray-900 mb-6">Finance Tracker</h1>
-      <section>
+      <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Finance Tracker</h1>
+        <p class="text-gray-700 text-lg mb-6">Track your finances privately and easily. No login, no accounts, data stays in your browser.</p>
         <TrackerCard
           description="Log your expenses, income, and notes."
           storageKey="finance-tracker-entries"
-            title="Finance Log"
-            icon="attach_money"
+          title="Finance Log"
+          icon="attach_money"
         />
-        <Introduction introduction="Track your finances privately and easily. No login, no accounts, data stays in your browser." />
-        <HowToUse steps={steps} />
-        <Benefits benefits={benefits} />
-        <FAQ faqs={faqs} />
-        <RelatedTrackers related={related} />
-      </section>
+        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <HowToUse steps={steps} />
+            <Benefits benefits={benefits} />
+          </div>
+          <div class="mt-4 col-span-1 md:col-span-2">
+            <RelatedTrackers related={related} />
+          </div>
+        </section>
+      </div>
     </main>
   </TrackerPageWrapper>
 </Layout>

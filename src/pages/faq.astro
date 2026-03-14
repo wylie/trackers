@@ -1,0 +1,22 @@
+---
+import Layout from '../components/Layout.astro';
+import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
+import FAQ from '../components/sections/FAQ.astro';
+
+const faqs = [
+  { question: "Is my data private?", answer: "Yes, all data is stored locally in your browser." },
+  { question: "Do I need an account?", answer: "No, SimpleTrackers.io does not require registration or login." },
+  { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
+];
+---
+
+<Layout seoTitle="FAQ" seoDescription="Frequently Asked Questions about SimpleTrackers.io">
+  <TrackerPageWrapper>
+    <main>
+      <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Frequently Asked Questions</h1>
+        <FAQ faqs={faqs} />
+      </div>
+    </main>
+  </TrackerPageWrapper>
+</Layout>

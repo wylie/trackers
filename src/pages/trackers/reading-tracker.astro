@@ -27,30 +27,35 @@ const faqs = [
   { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
 ];
 const related = [
-  { name: "Garden Harvest Tracker", url: "/garden-harvest-tracker", icon: "local_florist" },
   { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
-  { name: "Mood Tracker", url: "/mood-tracker", icon: "mood" }
+  { name: "Movie Watch Tracker", url: "/movie-watch-tracker", icon: "movie" },
+  { name: "Task Tracker", url: "/task-tracker", icon: "assignment" },
+  { name: "Custom Tracker", url: "/custom-tracker", icon: "tune" }
 ];
 ---
 
 <Layout seoTitle="Reading Tracker" seoDescription="Track your reading habits privately and easily. No login, no accounts, data stays in your browser.">
   <TrackerPageWrapper>
     <main>
-      <h1 class="text-3xl font-bold text-gray-900 mb-6">Reading Tracker</h1>
-      <section>
-            <TrackerCard
-            title="Reading Log"
-            description="Log your books, progress, and notes."
-              // client:load
-            storageKey="reading-tracker-entries"
-            icon="menu_book"
-          />
-        <Introduction introduction="Track your reading habits privately and easily. No login, no accounts, data stays in your browser."  />
-        <HowToUse steps={steps} />
-        <Benefits benefits={benefits} />
-        <FAQ faqs={faqs} />
-        <RelatedTrackers related={related} />
-      </section>
+      <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Reading Tracker</h1>
+        <p class="text-gray-700 text-lg mb-6">Track your reading habits privately and easily. No login, no accounts, data stays in your browser.</p>
+        <TrackerCard
+          title="Reading Log"
+          description="Log your books, progress, and notes."
+          storageKey="reading-tracker-entries"
+          icon="menu_book"
+        />
+        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <HowToUse steps={steps} />
+            <Benefits benefits={benefits} />
+          </div>
+          <div class="mt-4 col-span-1 md:col-span-2">
+            <RelatedTrackers related={related} />
+          </div>
+        </section>
+      </div>
     </main>
   </TrackerPageWrapper>
 </Layout>

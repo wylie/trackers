@@ -14,10 +14,10 @@ const { seoTitle, seoDescription } = Astro.props;
     <Header />
   </head>
   <body class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
-    <main id="main-content" class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+    <main id="main-content" class="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
       <slot />
     </main>
-    <footer class="flex-shrink-0 w-full">
+    <footer class="mt-auto w-full">
       <Footer />
     </footer>
   </body>

@@ -23,20 +23,13 @@ const features = [
   { label: 'Clear all data with confirmation' },
   { label: 'Open source and free' }
 ];
-const legalLinks = [
-  { label: 'About', url: '/about' },
-  { label: 'Contact', url: '/contact' },
-  { label: 'Privacy Policy', url: '/privacy' },
-  { label: 'Terms of Service', url: '/terms' }
-];
 ---
 
 <Layout seoTitle="SimpleTrackers.io" seoDescription="Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.">
-  <main class="max-w-2xl mx-auto w-full px-4 py-8">
-    <h1 class="text-3xl font-bold mb-4">Welcome to SimpleTrackers.io</h1>
+  <main class="max-w-4xl mx-auto w-full px-4 py-8">
+    <h1 class="text-4xl font-bold mb-4">Welcome to SimpleTrackers.io</h1>
     <p class="mb-8 text-lg text-gray-700">Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.</p>
     <TrackerList title="Trackers" items={trackers} />
     <TrackerList title="Features" items={features} />
-    <TrackerList title="Legal & Trust" items={legalLinks} />
   </main>
 </Layout>

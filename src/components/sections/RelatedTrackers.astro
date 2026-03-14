@@ -1,14 +1,19 @@
 ---
 const { related = [] } = Astro.props;
 ---
-<section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
+<section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6 w-full">
   <h2 class="text-xl font-bold mb-4 text-gray-900">Related Trackers</h2>
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
     {related && Array.isArray(related) && related.length > 0 && (
       related.map(tracker => {
         const icon = tracker && tracker.icon ? tracker.icon : 'track_changes';
+        // Ensure tracker URLs always include 'trackers/' prefix
+        let url = tracker.url || '#';
+        if (url && !url.startsWith('/trackers/')) {
+          url = '/trackers' + (url.startsWith('/') ? url : '/' + url);
+        }
         return (
-          <a href={tracker.url || '#'} class="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition">
+          <a href={url} class="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition">
             <span class="material-icons icon-blue">{icon}</span>
             {tracker && tracker.name ? tracker.name : 'Unknown Tracker'}
           </a>

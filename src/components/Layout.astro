@@ -11,14 +11,20 @@ const { seoTitle, seoDescription } = Astro.props;
     <!-- Astro injects CSS automatically -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <Header />
   </head>
   <body class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
+    <Header />
     <main id="main-content" class="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
       <slot />
     </main>
-    <footer class="mt-auto w-full">
-      <Footer />
-    </footer>
+    <Footer />
   </body>
 </html>
+
+<style>
+  body {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+  }
+</style>

@@ -1,0 +1,54 @@
+---
+import Layout from '../../components/Layout.astro';
+import TrackerPageWrapper from '../../components/TrackerPageWrapper.astro';
+
+import TrackerCard from '../../components/TrackerCard.astro';
+import HowToUse from '../../components/sections/HowToUse.astro';
+import Benefits from '../../components/sections/Benefits.astro';
+import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
+
+const steps = [
+  "Enter the book title and pages read.",
+  "Click 'Add Entry' to log your reading.",
+  "Your data is saved locally in your browser.",
+  "No account or login required."
+];
+const benefits = [
+  "Simple, distraction-free interface",
+  "Private: your data never leaves your device",
+  "No registration or login required",
+  "Track progress and stay motivated"
+];
+const related = [
+  { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
+  { name: "Movie Watch Tracker", url: "/movie-watch-tracker", icon: "movie" },
+  { name: "Task Tracker", url: "/task-tracker", icon: "assignment" },
+  { name: "Custom Tracker", url: "/custom-tracker", icon: "tune" }
+];
+---
+
+<Layout seoTitle="Video Game Tracker" seoDescription="Track your gaming habits privately and easily. No login, no accounts, data stays in your browser.">
+  <TrackerPageWrapper>
+    <main>
+      <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Video Game Tracker</h1>
+        <p class="text-gray-700 text-lg mb-6">Track your gaming habits privately and easily. No login, no accounts, data stays in your browser.</p>
+        <TrackerCard
+          title="Video Game Log"
+          description="Log your games, progress, and notes."
+          storageKey="video-game-tracker-entries"
+          icon="sports_esports"
+        />
+        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <HowToUse steps={steps} />
+            <Benefits benefits={benefits} />
+          </div>
+          <div class="-mt-6 col-span-1 md:col-span-2">
+            <RelatedTrackers related={related} />
+          </div>
+        </section>
+      </div>
+    </main>
+  </TrackerPageWrapper>
+</Layout>

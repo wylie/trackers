@@ -1,24 +1,23 @@
 ---
 const { title, items = [] } = Astro.props;
+const iconMap = {
+  'Reading Tracker': 'menu_book',
+  'Habit Tracker': 'check_circle',
+  'Movie Watch Tracker': 'movie',
+  'Custom Tracker': 'tune',
+  'Finance Tracker': 'attach_money',
+  'Health Tracker': 'favorite',
+  'Workout Tracker': 'fitness_center',
+  'Meal Tracker': 'restaurant',
+  'Sleep Tracker': 'bed',
+  'Task Tracker': 'assignment',
+  'Garden Harvest Tracker': 'eco',
+};
 ---
 <section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
   <h2 class="text-xl font-bold mb-4 text-gray-900">{title}</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
     {items.map(item => {
-      // Icon mapping
-      const iconMap = {
-        'Reading Tracker': 'menu_book',
-        'Habit Tracker': 'check_circle',
-        'Movie Watch Tracker': 'movie',
-        'Custom Tracker': 'tune',
-        'Finance Tracker': 'attach_money',
-        'Health Tracker': 'favorite',
-        'Workout Tracker': 'fitness_center',
-        'Meal Tracker': 'restaurant',
-        'Sleep Tracker': 'bed',
-        'Task Tracker': 'assignment',
-        'Garden Harvest Tracker': 'eco',
-      };
       const icon = iconMap[item.label] || null;
       return (
         <a href={item.url || '#'} class="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition">
@@ -26,12 +25,12 @@ const { title, items = [] } = Astro.props;
           {item.label}
         </a>
       );
-    </section>
-    <style>
-      .icon-blue {
-        color: #2563eb;
-      }
-    </style>
     })}
   </div>
 </section>
+
+<style>
+  .icon-blue {
+    color: #2563eb;
+  }
+</style>

@@ -18,9 +18,45 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
   <form id="tracker-form" class="flex flex-col gap-2 mb-4">
     <input type="text" id="tracker-item" placeholder="Item" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
     <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    <div class="flex items-center gap-2 mb-2">
+      <label for="tracker-rating" class="text-gray-700">Rating:</label>
+      <div id="tracker-rating-stars" class="flex gap-1"></div>
+      <input type="hidden" id="tracker-rating" value="0" />
+    </div>
     <button type="submit" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">{addLabel}</button>
   </form>
   <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
+<style>
+  :global(.star) {
+    font-size: 1.3rem;
+    color: #ccc !important;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  :global(button.star) {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    padding: 0;
+    line-height: 1;
+  }
+  :global(button.star:focus) {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
+  }
+  :global(.star.active) {
+    color: #999 !important;
+  }
+  :global(.star.hovered) {
+    color: #999 !important;
+  }
+  :global(.star.inactive) {
+    color: #999 !important;
+  }
+</style>
 </section>
 
 <script define:vars={{ storageKey }}>
@@ -64,6 +100,9 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
             <button class=\"px-2 py-1 text-xs bg-gray-200 rounded hover:bg-red-200 text-red-700\" aria-label=\"Delete\" data-idx=\"${idx}\">Delete</button>
           </div>
           <div class=\"text-gray-700 text-sm\">${entry.notes}</div>
+          <div class=\"flex items-center gap-1 mt-2\">
+            ${renderStars(entry.rating || 0)}
+          </div>
         </div>
       `;
       li.querySelector("button").onclick = () => {
@@ -77,17 +116,159 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
   }
 
 
+  function renderStars(rating, hoverIdx = -1, interactive = false) {
+    let starsHtml = "";
+    let displayRating = hoverIdx >= 0 ? hoverIdx : rating;
+    for (let i = 1; i <= 5; i++) {
+      let cls = "star";
+      let icon = "star_border";
+      if (hoverIdx >= 0 && i <= hoverIdx) {
+        cls += " hovered";
+        icon = "star";
+      } else if (i <= rating) {
+        cls += " active";
+        icon = "star";
+      } else {
+        cls += " inactive";
+      }
+      if (interactive) {
+        starsHtml += `<button type="button" class="material-icons ${cls}" data-rating="${i}" aria-label="Set rating to ${i}">${icon}</button>`;
+      } else {
+        starsHtml += `<span class="material-icons ${cls}">${icon}</span>`;
+      }
+    }
+    return starsHtml;
+  }
+
+  // Interactive star rating for form
+  const ratingStars = document.getElementById("tracker-rating-stars");
+  const ratingInput = document.getElementById("tracker-rating");
+  let selectedRating = 0;
+  let hoveredRating = 0;
+
+  function ensureInteractiveStars() {
+    if (!ratingStars || ratingStars.children.length === 5) return;
+    ratingStars.innerHTML = "";
+    for (let i = 1; i <= 5; i++) {
+      const star = document.createElement("button");
+      star.type = "button";
+      star.className = "material-icons star inactive";
+      star.dataset.rating = String(i);
+      star.setAttribute("aria-label", `Set rating to ${i}`);
+      star.textContent = "star_border";
+      ratingStars.appendChild(star);
+    }
+  }
+
+  function updateStars() {
+    if (!ratingStars) return;
+    ensureInteractiveStars();
+    const displayRating = hoveredRating > 0 ? hoveredRating : selectedRating;
+    Array.from(ratingStars.children).forEach((star, index) => {
+      const starValue = index + 1;
+      const isFilled = starValue <= displayRating;
+      const isHovered = hoveredRating > 0 && starValue <= hoveredRating;
+      star.className = `material-icons star ${isHovered ? "hovered" : isFilled ? "active" : "inactive"}`;
+      star.textContent = isFilled ? "star" : "star_border";
+    });
+    if (ratingInput) {
+      ratingInput.value = selectedRating;
+    }
+  }
+
+  function getRatingFromEvent(e) {
+    if (!ratingStars) return 0;
+    const buttons = Array.from(ratingStars.querySelectorAll("[data-rating]"));
+    if (!buttons.length) return 0;
+
+    const targetEl = e.target instanceof Element ? e.target : e.target?.parentElement;
+    const directStar = targetEl?.closest("[data-rating]");
+    if (directStar) return Number(directStar.dataset.rating);
+
+    const x = e.clientX;
+    for (const button of buttons) {
+      const rect = button.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right) {
+        return Number(button.dataset.rating);
+      }
+    }
+
+    // Allow slight misses in the gap between buttons by snapping to nearest center.
+    let nearest = buttons[0];
+    let minDist = Infinity;
+    for (const button of buttons) {
+      const rect = button.getBoundingClientRect();
+      const center = rect.left + rect.width / 2;
+      const dist = Math.abs(x - center);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = button;
+      }
+    }
+    return Number(nearest.dataset.rating);
+  }
+
+  if (ratingStars) {
+    updateStars();
+    ratingStars.addEventListener("pointermove", function(e) {
+      const rating = getRatingFromEvent(e);
+      if (rating > 0) {
+        hoveredRating = rating;
+        updateStars();
+      }
+    });
+    function resetHoveredStars() {
+      hoveredRating = 0;
+      updateStars();
+    }
+    ratingStars.addEventListener("mouseleave", resetHoveredStars);
+    ratingStars.addEventListener("pointerleave", resetHoveredStars);
+    ratingStars.addEventListener("focusout", function() {
+      requestAnimationFrame(() => {
+        if (!ratingStars.contains(document.activeElement)) {
+          resetHoveredStars();
+        }
+      });
+    });
+    function selectFromEvent(e) {
+      const rating = getRatingFromEvent(e);
+      if (rating > 0) {
+        selectedRating = rating;
+        hoveredRating = 0;
+        updateStars();
+      }
+    }
+    ratingStars.addEventListener("pointerdown", selectFromEvent);
+    ratingStars.addEventListener("click", selectFromEvent);
+    ratingStars.addEventListener("keydown", function(e) {
+      const star = e.target.closest("[data-rating]");
+      if (star && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        selectedRating = Number(star.dataset.rating);
+        hoveredRating = 0;
+        updateStars();
+      }
+    });
+  }
+
   form.onsubmit = e => {
     e.preventDefault();
     const item = itemInput.value.trim();
     const notes = notesInput.value.trim();
+    const rating = parseFloat(ratingInput?.value) || 0;
     if (!item) return;
     const date = new Date().toISOString();
     const entries = getEntries();
-    entries.push({ item, notes, date });
+    entries.push({ item, notes, rating, date });
     saveEntries(entries);
     itemInput.value = "";
     notesInput.value = "";
+    selectedRating = 0;
+    hoveredRating = 0;
+    if (ratingInput) {
+      ratingInput.value = 0;
+    }
+    updateStars();
     renderEntries();
   };
 

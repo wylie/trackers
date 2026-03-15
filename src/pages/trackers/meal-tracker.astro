@@ -8,7 +8,6 @@ import Benefits from '../../components/sections/Benefits.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
 
 const steps = [
-  "Add a new meal.",
   "Track your nutrition.",
   "Edit or delete meals as needed.",
   "Your data is saved locally in your browser.",
@@ -35,7 +34,6 @@ const related = [
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Meal Tracker</h1>
         <p class="text-gray-700 text-lg mb-6">Track your meals privately and easily. No login, no accounts, data stays in your browser.</p>
         <TrackerCard
-          title="Meal Log"
           description="Log your meals, nutrition, and notes."
           storageKey="meal-tracker-entries"
           icon="restaurant"
@@ -48,6 +46,7 @@ const related = [
           <div class="-mt-6 col-span-1 md:col-span-2">
             <RelatedTrackers related={related} />
           </div>
+           rating={0}  // Added rating support
         </section>
       </div>
     </main>

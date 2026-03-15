@@ -38,6 +38,10 @@ const related = [
           description="Log your games, progress, and notes."
           storageKey="video-game-tracker-entries"
           icon="sports_esports"
+          itemPlaceholder="Video Game"
+          enablePublisherField={true}
+          publisherPlaceholder="Publisher"
+          autoPopulatePublisher={true}
           autocompleteEndpoint="/api/igdb/suggest"
         />
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">

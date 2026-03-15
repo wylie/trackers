@@ -39,6 +39,10 @@ const related = [
           description="Log movies you've watched, ratings, and notes."
           storageKey="movie-watch-tracker-entries"
           icon="movie"
+          itemPlaceholder="Title"
+          enableDirectorField={true}
+          directorPlaceholder="Director"
+          autoPopulateDirector={true}
           enableOmdbAutocomplete={true}
           omdbApiKey={import.meta.env.PUBLIC_OMDB_API_KEY ?? ""}
         />

@@ -28,12 +28,30 @@ async function getIgdbAccessToken(clientId: string, clientSecret: string): Promi
   return cachedAccessToken;
 }
 
-function formatGameTitle(game: { name?: string; first_release_date?: number }): string {
-  if (!game?.name) return "";
-  if (!game.first_release_date) return game.name;
-  const year = new Date(game.first_release_date * 1000).getUTCFullYear();
-  if (!Number.isFinite(year)) return game.name;
-  return `${game.name} (${year})`;
+function formatGameSuggestion(game: {
+  name?: string;
+  first_release_date?: number;
+  involved_companies?: Array<{ publisher?: boolean; company?: { name?: string } }>;
+}) {
+  if (!game?.name) return null;
+  let label = game.name;
+  if (game.first_release_date) {
+    const year = new Date(game.first_release_date * 1000).getUTCFullYear();
+    if (Number.isFinite(year)) {
+      label = `${game.name} (${year})`;
+    }
+  }
+  const publisherEntry = Array.isArray(game.involved_companies)
+    ? game.involved_companies.find((company) => company?.publisher && company?.company?.name)
+    : null;
+  const publisher = publisherEntry?.company?.name || "";
+
+  return {
+    label,
+    value: game.name,
+    publisher,
+    subtitle: publisher
+  };
 }
 
 export const GET: APIRoute = async ({ url }) => {
@@ -55,7 +73,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   const escapedQuery = query.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const body = `search "${escapedQuery}"; fields name,first_release_date; where version_parent = null; limit 8;`;
+  const body = `search "${escapedQuery}"; fields name,first_release_date,involved_companies.publisher,involved_companies.company.name; where version_parent = null; limit 8;`;
 
   const igdbRes = await fetch("https://api.igdb.com/v4/games", {
     method: "POST",
@@ -73,7 +91,7 @@ export const GET: APIRoute = async ({ url }) => {
 
   const games = await igdbRes.json();
   const suggestions = Array.isArray(games)
-    ? games.map(formatGameTitle).filter(Boolean).slice(0, 8)
+    ? games.map(formatGameSuggestion).filter(Boolean).slice(0, 8)
     : [];
 
   return new Response(JSON.stringify({ suggestions }), {

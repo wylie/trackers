@@ -379,23 +379,49 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   function renderEntries() {
     list.innerHTML = "";
     const entries = getEntries();
-    entries.forEach((entry, idx) => {
+    entries.slice().reverse().forEach((entry, displayIdx) => {
+      const idx = entries.length - 1 - displayIdx;
       const li = document.createElement("li");
       li.className = "mb-3";
-      const authorHtml = entry.author ? `<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>` : "";
-      const directorHtml = entry.director ? `<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>` : "";
-      const publisherHtml = entry.publisher ? `<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>` : "";
+      const entryDate = entry.date ? new Date(entry.date) : null;
+      const dateDesktop = entryDate
+        ? entryDate.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        : "";
+      const dateMobile = entryDate
+        ? entryDate.toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "2-digit",
+            hour: "numeric",
+            minute: "2-digit"
+          })
+        : "";
+      const metadataLines = [];
+      if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
+      if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
+      if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
+      const metadataHtml = metadataLines.length
+        ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
+        : "";
       li.innerHTML = `
         <div class=\"bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
-          <div class=\"flex items-center gap-2 mb-1\">
-            <span class=\"flex-1 text-gray-800 font-medium\">${entry.item}</span>
-            <span class=\"text-xs text-gray-500\">${entry.date ? new Date(entry.date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
-            <button class=\"px-2 py-1 text-xs bg-gray-200 rounded hover:bg-red-200 text-red-700\" aria-label=\"Delete\" data-idx=\"${idx}\">Delete</button>
+          <div class=\"mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between\">
+            <div class=\"min-w-0\">
+              <span class=\"text-gray-800 font-medium leading-tight break-words\">${entry.item}</span>
+              ${metadataHtml}
+            </div>
+            <div class=\"flex items-center justify-between gap-2 sm:justify-end sm:gap-3\">
+              <span class=\"text-[11px] sm:text-xs text-gray-500 leading-tight\" title=\"${dateDesktop}\">${dateMobile}</span>
+              <button class=\"px-2 py-1 text-xs bg-gray-200 rounded hover:bg-red-200 text-red-700 shrink-0\" aria-label=\"Delete\" data-idx=\"${idx}\">Delete</button>
+            </div>
           </div>
-          ${authorHtml}
-          ${directorHtml}
-          ${publisherHtml}
-          <div class=\"text-gray-700 text-sm\">${entry.notes}</div>
+          <div class=\"text-gray-700 text-sm leading-relaxed\">${entry.notes}</div>
           <div class=\"flex items-center gap-1 mt-2\">
             ${renderStars(entry.rating || 0)}
           </div>

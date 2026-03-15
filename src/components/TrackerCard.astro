@@ -1,5 +1,14 @@
 ---
-const { title, description, storageKey, icon = 'track_changes', fieldNames = ["item", "notes"], addLabel = "Add New Item" } = Astro.props;
+const {
+  title,
+  description,
+  storageKey,
+  icon = 'track_changes',
+  fieldNames = ["item", "notes"],
+  addLabel = "Add New Item",
+  enableOmdbAutocomplete = false,
+  omdbApiKey = ""
+} = Astro.props;
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
@@ -16,7 +25,25 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
   </h2>
   <p class="text-gray-700 mb-4">{description}</p>
   <form id="tracker-form" class="flex flex-col gap-2 mb-4">
-    <input type="text" id="tracker-item" placeholder="Item" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    <div class="relative">
+      <input
+        type="text"
+        id="tracker-item"
+        placeholder="Item"
+        autocomplete={enableOmdbAutocomplete ? "off" : "on"}
+        aria-autocomplete={enableOmdbAutocomplete ? "list" : undefined}
+        aria-expanded={enableOmdbAutocomplete ? "false" : undefined}
+        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+      />
+      {enableOmdbAutocomplete && (
+        <div
+          id="tracker-item-suggestions"
+          class="hidden absolute left-0 right-0 top-[calc(100%+0.3rem)] z-20 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden"
+        >
+          <ul id="tracker-item-suggestions-list" class="max-h-64 overflow-y-auto py-1"></ul>
+        </div>
+      )}
+    </div>
     <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
     <div class="flex items-center gap-2 mb-2">
       <label for="tracker-rating" class="text-gray-700">Rating:</label>
@@ -56,16 +83,34 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
   :global(.star.inactive) {
     color: #999 !important;
   }
+  :global(.omdb-option) {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    color: #1f2937;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    cursor: pointer;
+  }
+  :global(.omdb-option:hover),
+  :global(.omdb-option.is-active) {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
 </style>
 </section>
 
-<script define:vars={{ storageKey }}>
+<script define:vars={{ storageKey, enableOmdbAutocomplete, omdbApiKey }}>
   const trackerType = storageKey;
   console.log(storageKey, trackerType);
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const notesInput = document.getElementById("tracker-notes");
   const list = document.getElementById("tracker-list");
+  const itemSuggestions = document.getElementById("tracker-item-suggestions");
+  const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
 
   function getAllEntries() {
     try {
@@ -84,6 +129,129 @@ const { title, description, storageKey, icon = 'track_changes', fieldNames = ["i
     const allEntries = getAllEntries();
     allEntries[storageKey] = entries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+  }
+
+  if (enableOmdbAutocomplete && itemInput && itemSuggestions && omdbApiKey) {
+    let autocompleteTimer = null;
+    let currentSuggestions = [];
+    let activeSuggestionIdx = -1;
+
+    async function fetchOmdbSuggestions(query) {
+      const url = `https://www.omdbapi.com/?apikey=${encodeURIComponent(omdbApiKey)}&type=movie&s=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data || data.Response === "False" || !Array.isArray(data.Search)) return [];
+      return data.Search.slice(0, 8).map((movie) => `${movie.Title} (${movie.Year})`);
+    }
+
+    function hideSuggestions() {
+      itemSuggestions.classList.add("hidden");
+      itemInput.setAttribute("aria-expanded", "false");
+      activeSuggestionIdx = -1;
+    }
+
+    function showSuggestions() {
+      itemSuggestions.classList.remove("hidden");
+      itemInput.setAttribute("aria-expanded", "true");
+    }
+
+    function applyActiveState() {
+      if (!itemSuggestionsList) return;
+      const options = Array.from(itemSuggestionsList.querySelectorAll(".omdb-option"));
+      options.forEach((option, idx) => {
+        option.classList.toggle("is-active", idx === activeSuggestionIdx);
+      });
+    }
+
+    function chooseSuggestion(index) {
+      if (index < 0 || index >= currentSuggestions.length) return;
+      itemInput.value = currentSuggestions[index];
+      hideSuggestions();
+    }
+
+    function renderSuggestions(items) {
+      if (!itemSuggestionsList) return;
+      itemSuggestionsList.innerHTML = "";
+      currentSuggestions = items;
+      activeSuggestionIdx = -1;
+
+      items.forEach((title) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "omdb-option";
+        button.textContent = title;
+        button.setAttribute("data-title", title);
+        li.appendChild(button);
+        itemSuggestionsList.appendChild(li);
+      });
+
+      if (items.length) {
+        showSuggestions();
+      } else {
+        hideSuggestions();
+      }
+    }
+
+    itemInput.addEventListener("input", function() {
+      const query = itemInput.value.trim();
+      clearTimeout(autocompleteTimer);
+
+      if (query.length < 2) {
+        renderSuggestions([]);
+        return;
+      }
+
+      autocompleteTimer = setTimeout(async () => {
+        try {
+          const suggestions = await fetchOmdbSuggestions(query);
+          if (itemInput.value.trim() === query) {
+            renderSuggestions(suggestions);
+          }
+        } catch {
+          renderSuggestions([]);
+        }
+      }, 250);
+    });
+
+    itemInput.addEventListener("keydown", function(e) {
+      if (!currentSuggestions.length) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        activeSuggestionIdx = Math.min(activeSuggestionIdx + 1, currentSuggestions.length - 1);
+        applyActiveState();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeSuggestionIdx = Math.max(activeSuggestionIdx - 1, 0);
+        applyActiveState();
+      } else if (e.key === "Enter" && activeSuggestionIdx >= 0) {
+        e.preventDefault();
+        chooseSuggestion(activeSuggestionIdx);
+      } else if (e.key === "Escape") {
+        hideSuggestions();
+      }
+    });
+
+    if (itemSuggestionsList) {
+      itemSuggestionsList.addEventListener("pointerdown", function(e) {
+        const option = e.target.closest(".omdb-option");
+        if (!option) return;
+        e.preventDefault();
+        const value = option.getAttribute("data-title");
+        const idx = currentSuggestions.indexOf(value);
+        if (idx >= 0) {
+          chooseSuggestion(idx);
+        }
+      });
+    }
+
+    document.addEventListener("pointerdown", function(e) {
+      if (!itemSuggestions.contains(e.target) && e.target !== itemInput) {
+        hideSuggestions();
+      }
+    });
   }
 
   function renderEntries() {

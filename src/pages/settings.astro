@@ -1,0 +1,251 @@
+---
+import Layout from '../components/Layout.astro';
+import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
+---
+
+<Layout seoTitle="Settings" seoDescription="Manage your local tracker data: download a backup or clear all saved data.">
+  <TrackerPageWrapper>
+    <main>
+      <div class="max-w-3xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+        <p class="text-gray-700 text-lg mb-6">Manage your locally saved tracker data.</p>
+
+        <section id="local-data-settings" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+          <h2 class="text-xl font-semibold text-gray-900 mb-2">Local Data</h2>
+          <p class="text-gray-700 mb-4">Your entries are stored in this browser only.</p>
+
+          <div id="data-summary" class="text-sm text-gray-600 mb-4">Checking local data...</div>
+
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">Backup</h3>
+            <div id="settings-backup-actions" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button id="settings-download-data" type="button" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">
+                Download Data (JSON)
+              </button>
+              <button id="settings-upload-data" type="button" class="w-full px-4 py-2 bg-gray-700 text-white rounded-md font-medium hover:bg-gray-800 transition">
+                Upload Data (Restore)
+              </button>
+              <input id="settings-upload-data-input" type="file" accept=".json,application/json" class="hidden" />
+            </div>
+            <fieldset id="settings-upload-mode" class="mt-3">
+              <legend class="text-sm font-semibold text-gray-800">Upload Mode</legend>
+              <div class="mt-2 flex flex-col sm:flex-row gap-3 text-sm text-gray-700">
+                <label class="inline-flex items-center gap-2">
+                  <input id="settings-upload-merge" type="radio" name="upload-mode" value="merge" checked />
+                  Merge with existing data
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input id="settings-upload-overwrite" type="radio" name="upload-mode" value="overwrite" />
+                  Overwrite existing data
+                </label>
+              </div>
+            </fieldset>
+            <p class="mt-2 text-sm text-gray-500">Choose merge to combine backups, or overwrite to replace all current local data.</p>
+          </div>
+
+          <div class="rounded-md border border-red-200 bg-red-50 p-4">
+            <h3 class="text-sm font-semibold text-red-800 mb-2">Danger Zone</h3>
+            <p class="text-sm text-red-700 mb-3">Permanently delete all locally saved tracker data from this browser.</p>
+            <div id="settings-danger-actions" class="pt-1">
+              <button id="settings-clear-all-data-btn" type="button" class="inline-flex justify-center w-full px-4 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition">
+                Clear All Data
+              </button>
+            </div>
+          </div>
+
+          <p class="text-sm text-gray-500 mt-4">Clear is permanent for this browser unless you restore from a backup file.</p>
+          <p id="settings-message" class="mt-3 text-sm hidden"></p>
+        </section>
+      </div>
+    </main>
+  </TrackerPageWrapper>
+</Layout>
+
+<script>
+  const STORAGE_KEY = "simpletrackers.io";
+
+  function getData() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function countEntries(data) {
+    return Object.values(data).reduce((total, value) => {
+      return total + (Array.isArray(value) ? value.length : 0);
+    }, 0);
+  }
+
+  function uniqueEntries(entries) {
+    const seen = new Set();
+    const next = [];
+    for (const entry of entries) {
+      const key = JSON.stringify(entry);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      next.push(entry);
+    }
+    return next;
+  }
+
+  function mergeData(existingData, uploadedData) {
+    const merged = { ...existingData };
+    for (const [trackerKey, uploadedValue] of Object.entries(uploadedData)) {
+      const existingValue = merged[trackerKey];
+      if (Array.isArray(existingValue) && Array.isArray(uploadedValue)) {
+        merged[trackerKey] = uniqueEntries([...uploadedValue, ...existingValue]);
+      } else {
+        merged[trackerKey] = uploadedValue;
+      }
+    }
+    return merged;
+  }
+
+  function refreshSummary(summaryEl) {
+    const data = getData();
+    const trackerCount = Object.keys(data).length;
+    const entryCount = countEntries(data);
+    summaryEl.textContent = `Saved trackers: ${trackerCount} • Total entries: ${entryCount}`;
+  }
+
+  function initSettingsPage() {
+    const root = document.getElementById("local-data-settings");
+    if (!root || root.dataset.bound === "true") return;
+
+    const backupActions = root.querySelector("#settings-backup-actions");
+    const uploadModeFieldset = root.querySelector("#settings-upload-mode");
+    const dangerActions = root.querySelector("#settings-danger-actions");
+    if (!backupActions || !uploadModeFieldset || !dangerActions) return;
+
+    if (!backupActions.querySelector("#settings-upload-data")) {
+      const uploadBtn = document.createElement("button");
+      uploadBtn.id = "settings-upload-data";
+      uploadBtn.type = "button";
+      uploadBtn.className = "w-full px-4 py-2 bg-gray-700 text-white rounded-md font-medium hover:bg-gray-800 transition";
+      uploadBtn.textContent = "Upload Data (Restore)";
+      backupActions.appendChild(uploadBtn);
+    }
+
+    if (!backupActions.querySelector("#settings-upload-data-input")) {
+      const uploadInput = document.createElement("input");
+      uploadInput.id = "settings-upload-data-input";
+      uploadInput.type = "file";
+      uploadInput.accept = ".json,application/json";
+      uploadInput.className = "hidden";
+      backupActions.appendChild(uploadInput);
+    }
+
+    if (!dangerActions.querySelector("#settings-clear-all-data-btn")) {
+      const clearBtn = document.createElement("button");
+      clearBtn.id = "settings-clear-all-data-btn";
+      clearBtn.type = "button";
+      clearBtn.className = "inline-flex justify-center w-full px-4 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition";
+      clearBtn.textContent = "Clear All Data";
+      dangerActions.appendChild(clearBtn);
+    }
+
+    if (!uploadModeFieldset.querySelector('input[name="upload-mode"]')) {
+      uploadModeFieldset.innerHTML = `
+        <legend class="text-sm font-semibold text-gray-800">Upload Mode</legend>
+        <div class="mt-2 flex flex-col sm:flex-row gap-3 text-sm text-gray-700">
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="upload-mode" value="merge" checked />
+            Merge with existing data
+          </label>
+          <label class="inline-flex items-center gap-2">
+            <input type="radio" name="upload-mode" value="overwrite" />
+            Overwrite existing data
+          </label>
+        </div>
+      `;
+    }
+
+    const summary = root.querySelector("#data-summary");
+    const message = root.querySelector("#settings-message");
+    const downloadBtn = root.querySelector("#settings-download-data");
+    const uploadBtn = root.querySelector("#settings-upload-data");
+    const uploadInput = root.querySelector("#settings-upload-data-input");
+    const clearBtn = root.querySelector("#settings-clear-all-data-btn");
+
+    if (!summary || !message || !downloadBtn || !uploadBtn || !uploadInput || !clearBtn) return;
+    root.dataset.bound = "true";
+
+    const setMessage = (text, isError = false) => {
+      message.textContent = text;
+      message.classList.remove("hidden");
+      message.className = `mt-3 text-sm ${isError ? "text-red-600" : "text-green-700"}`;
+    };
+
+    downloadBtn.addEventListener("click", () => {
+      const data = getData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `simpletrackers-backup-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMessage("Downloaded local data backup.");
+    });
+
+    uploadBtn.addEventListener("click", () => {
+      uploadInput.click();
+    });
+
+    uploadInput.addEventListener("change", async (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          setMessage("Upload failed: JSON root must be an object.", true);
+          return;
+        }
+
+        const uploadModeInput = root.querySelector('input[name="upload-mode"]:checked');
+        const uploadMode = uploadModeInput instanceof HTMLInputElement ? uploadModeInput.value : "merge";
+
+        if (uploadMode === "overwrite") {
+          const ok = window.confirm("Overwrite all current local tracker data with uploaded data?");
+          if (!ok) return;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          setMessage("Upload complete: existing data was overwritten.");
+        } else {
+          const ok = window.confirm("Merge uploaded data with your current local data?");
+          if (!ok) return;
+          const merged = mergeData(getData(), parsed);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          setMessage("Upload complete: data was merged.");
+        }
+
+        refreshSummary(summary);
+      } catch {
+        setMessage("Upload failed: invalid JSON file.", true);
+      } finally {
+        uploadInput.value = "";
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      const ok = window.confirm("Delete all locally saved tracker data from this browser?");
+      if (!ok) return;
+      localStorage.removeItem(STORAGE_KEY);
+      refreshSummary(summary);
+      setMessage("All local tracker data has been cleared.");
+    });
+
+    refreshSummary(summary);
+  }
+
+  initSettingsPage();
+  document.addEventListener("astro:page-load", initSettingsPage);
+</script>

@@ -18,7 +18,9 @@ const {
   autoPopulateDirector = false,
   enablePublisherField = false,
   publisherPlaceholder = "Publisher",
-  autoPopulatePublisher = false
+  autoPopulatePublisher = false,
+  enableReadingProgress = false,
+  autoPopulateTotalPages = false
 } = Astro.props;
 const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoint);
 ---
@@ -80,20 +82,51 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
         class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
       />
     )}
+    {enableReadingProgress && (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="sm:col-span-2 flex items-center gap-2 mt-1">
+          <input type="checkbox" id="tracker-currently-reading" class="h-4 w-4 accent-blue-600" checked />
+          <label for="tracker-currently-reading" class="text-sm text-gray-700">Currently reading (not finished)</label>
+        </div>
+        <div id="tracker-reading-progress-fields" class="contents lg:grid lg:grid-cols-3 lg:gap-2 lg:sm:col-span-2">
+          <div class="flex flex-col gap-1">
+            <label for="tracker-started-date" class="text-sm text-gray-700">Started Reading</label>
+            <input type="date" id="tracker-started-date" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="tracker-current-page" class="text-sm text-gray-700">Current Page</label>
+            <input type="number" min="0" step="1" id="tracker-current-page" placeholder="0" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+            <label for="tracker-total-pages" class="text-sm text-gray-700">Total Pages</label>
+            <input type="number" min="1" step="1" id="tracker-total-pages" placeholder="0" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+        </div>
+        <div id="tracker-finished-fields" class="sm:col-span-2">
+          <div class="flex flex-col gap-1">
+            <label for="tracker-finished-date" class="text-sm text-gray-700">Finished Reading</label>
+            <input type="date" id="tracker-finished-date" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+        </div>
+      </div>
+    )}
     <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-    <div class="flex items-center gap-2 mb-2">
+    <div id="tracker-rating-row" class="flex items-center gap-2 mb-2">
       <label for="tracker-rating" class="text-gray-700">Rating:</label>
       <div id="tracker-rating-stars" class="flex gap-1"></div>
       <input type="hidden" id="tracker-rating" value="0" />
     </div>
-    <button type="submit" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">{addLabel}</button>
+    <div class="mt-2 flex items-center gap-2">
+      <button id="tracker-submit" type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">{addLabel}</button>
+      <button id="tracker-cancel-edit" type="button" class="hidden px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition">Cancel</button>
+    </div>
   </form>
   <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
 <style>
   :global(.star) {
     font-size: 1.3rem;
     color: #ccc !important;
-    cursor: pointer;
+    cursor: default;
     transition: color 0.2s;
   }
   :global(button.star) {
@@ -105,6 +138,7 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     background: transparent;
     padding: 0;
     line-height: 1;
+    cursor: pointer;
   }
   :global(button.star:focus) {
     outline: 2px solid #93c5fd;
@@ -142,10 +176,13 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     line-height: 1rem;
     margin-top: 0.1rem;
   }
+  .reading-progress-input {
+    height: 44px;
+  }
 </style>
 </section>
 
-<script define:vars={{ storageKey, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages }}>
   const trackerType = storageKey;
   console.log(storageKey, trackerType);
   const form = document.getElementById("tracker-form");
@@ -153,10 +190,103 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
+  const startedDateInput = document.getElementById("tracker-started-date");
+  const finishedDateInput = document.getElementById("tracker-finished-date");
+  const currentlyReadingInput = document.getElementById("tracker-currently-reading");
+  const readingProgressFields = document.getElementById("tracker-reading-progress-fields");
+  const finishedFields = document.getElementById("tracker-finished-fields");
+  const ratingRow = document.getElementById("tracker-rating-row");
+  const currentPageInput = document.getElementById("tracker-current-page");
+  const totalPagesInput = document.getElementById("tracker-total-pages");
   const notesInput = document.getElementById("tracker-notes");
+  const submitButton = document.getElementById("tracker-submit");
+  const cancelEditButton = document.getElementById("tracker-cancel-edit");
   const list = document.getElementById("tracker-list");
   const itemSuggestions = document.getElementById("tracker-item-suggestions");
   const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
+  let ratingStars = null;
+  let ratingInput = null;
+
+  let editingIdx = -1;
+
+  function setEditingMode(isEditing) {
+    if (submitButton) {
+      submitButton.textContent = isEditing ? "Save Changes" : addLabel;
+    }
+    if (cancelEditButton) {
+      cancelEditButton.classList.toggle("hidden", !isEditing);
+    }
+  }
+
+  function clearForm() {
+    itemInput.value = "";
+    if (authorInput) authorInput.value = "";
+    if (directorInput) directorInput.value = "";
+    if (publisherInput) publisherInput.value = "";
+    if (startedDateInput) startedDateInput.value = "";
+    if (finishedDateInput) finishedDateInput.value = "";
+    if (currentlyReadingInput) currentlyReadingInput.checked = enableReadingProgress;
+    if (currentPageInput) currentPageInput.value = "";
+    if (totalPagesInput) totalPagesInput.value = "";
+    notesInput.value = "";
+    selectedRating = 0;
+    hoveredRating = 0;
+    if (ratingInput) ratingInput.value = 0;
+    updateStars();
+    editingIdx = -1;
+    setEditingMode(false);
+    syncReadingModeUI();
+  }
+
+  function startEditing(idx) {
+    const entries = getEntries();
+    const entry = entries[idx];
+    if (!entry) return;
+    editingIdx = idx;
+    itemInput.value = entry.item || "";
+    if (authorInput) authorInput.value = entry.author || "";
+    if (directorInput) directorInput.value = entry.director || "";
+    if (publisherInput) publisherInput.value = entry.publisher || "";
+    if (startedDateInput) startedDateInput.value = entry.startedDate || "";
+    if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
+    if (currentlyReadingInput) currentlyReadingInput.checked = Boolean(entry.currentlyReading);
+    if (currentPageInput) currentPageInput.value = entry.currentPage ?? "";
+    if (totalPagesInput) totalPagesInput.value = entry.totalPages ?? "";
+    notesInput.value = entry.notes || "";
+    selectedRating = Number(entry.rating) || 0;
+    hoveredRating = 0;
+    if (ratingInput) ratingInput.value = selectedRating;
+    updateStars();
+    setEditingMode(true);
+    syncReadingModeUI();
+    itemInput.focus();
+  }
+
+  function syncReadingModeUI() {
+    if (!enableReadingProgress || !currentlyReadingInput) return;
+    const isCurrentlyReading = currentlyReadingInput.checked;
+    if (readingProgressFields) {
+      readingProgressFields.classList.toggle("hidden", !isCurrentlyReading);
+    }
+    if (finishedFields) {
+      finishedFields.classList.toggle("hidden", isCurrentlyReading);
+    }
+    if (ratingRow) {
+      ratingRow.classList.toggle("hidden", isCurrentlyReading);
+    }
+    if (isCurrentlyReading) {
+      if (finishedDateInput) finishedDateInput.value = "";
+      selectedRating = 0;
+      hoveredRating = 0;
+      if (ratingInput) ratingInput.value = 0;
+      updateStars();
+    }
+  }
+
+  if (currentlyReadingInput) {
+    currentlyReadingInput.addEventListener("change", syncReadingModeUI);
+    syncReadingModeUI();
+  }
 
   function getAllEntries() {
     try {
@@ -183,7 +313,7 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     let activeSuggestionIdx = -1;
     function normalizeSuggestion(item) {
       if (typeof item === "string") {
-        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", imdbID: "" };
+        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "" };
       }
       if (item && typeof item === "object") {
         const value = item.value || item.label || "";
@@ -192,9 +322,10 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
         const author = item.author || "";
         const director = item.director || "";
         const publisher = item.publisher || "";
+        const totalPages = item.totalPages || "";
         const imdbID = item.imdbID || "";
         if (value) {
-          return { label, value, subtitle, author, director, publisher, imdbID };
+          return { label, value, subtitle, author, director, publisher, totalPages, imdbID };
         }
       }
       return null;
@@ -284,6 +415,9 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
       }
       if (enablePublisherField && autoPopulatePublisher && publisherInput && suggestion.publisher) {
         publisherInput.value = suggestion.publisher;
+      }
+      if (enableReadingProgress && autoPopulateTotalPages && totalPagesInput && suggestion.totalPages) {
+        totalPagesInput.value = String(suggestion.totalPages);
       }
       hideSuggestions();
     }
@@ -379,6 +513,13 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   function renderEntries() {
     list.innerHTML = "";
     const entries = getEntries();
+    function formatSimpleDate(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(`${dateStr}T00:00:00`);
+      return Number.isNaN(d.getTime())
+        ? dateStr
+        : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
     entries.slice().reverse().forEach((entry, displayIdx) => {
       const idx = entries.length - 1 - displayIdx;
       const li = document.createElement("li");
@@ -406,32 +547,56 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
       if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
+      if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
+        const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
+        const finished = entry.currentlyReading
+          ? "Currently reading"
+          : (entry.finishedDate ? `Finished ${formatSimpleDate(entry.finishedDate)}` : "");
+        metadataLines.push(`<div class=\"text-gray-600 text-sm\">${[started, finished].filter(Boolean).join(" • ")}</div>`);
+      }
+      if (enableReadingProgress && (entry.currentPage || entry.totalPages)) {
+        const current = Number(entry.currentPage) || 0;
+        const total = Number(entry.totalPages) || 0;
+        const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+        const percentText = total > 0 ? ` (${percent}%)` : "";
+        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Progress: ${current}${total > 0 ? ` / ${total} pages` : " pages"}${percentText}</div>`);
+      }
       const metadataHtml = metadataLines.length
         ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
         : "";
+      const showRating = !(enableReadingProgress && entry.currentlyReading);
       li.innerHTML = `
-        <div class=\"bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
-          <div class=\"mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between\">
+        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
+          <div class=\"absolute top-3 right-3 flex items-center gap-1\">
+            <button class=\"p-1.5 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center\" aria-label=\"Edit\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span></button>
+            <button class=\"p-1.5 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center\" aria-label=\"Delete\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span></button>
+          </div>
+          <div class=\"mb-2 pr-12\">
+            <span class=\"text-[11px] sm:text-xs text-gray-500 leading-tight\" title=\"${dateDesktop}\">${dateMobile}</span>
+          </div>
+          <div class=\"mb-2 pr-12\">
             <div class=\"min-w-0\">
               <span class=\"text-gray-800 font-medium leading-tight break-words\">${entry.item}</span>
               ${metadataHtml}
             </div>
-            <div class=\"flex items-center justify-between gap-2 sm:justify-end sm:gap-3\">
-              <span class=\"text-[11px] sm:text-xs text-gray-500 leading-tight\" title=\"${dateDesktop}\">${dateMobile}</span>
-              <button class=\"px-2 py-1 text-xs bg-gray-200 rounded hover:bg-red-200 text-red-700 shrink-0\" aria-label=\"Delete\" data-idx=\"${idx}\">Delete</button>
-            </div>
           </div>
           <div class=\"text-gray-700 text-sm leading-relaxed\">${entry.notes}</div>
-          <div class=\"flex items-center gap-1 mt-2\">
-            ${renderStars(entry.rating || 0)}
-          </div>
+          ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStars(entry.rating || 0)}</div>` : ""}
         </div>
       `;
-      li.querySelector("button").onclick = () => {
+      li.querySelector("[data-action=\"delete\"]").onclick = () => {
         const entries = getEntries();
         entries.splice(idx, 1);
         saveEntries(entries);
+        if (editingIdx === idx) {
+          clearForm();
+        } else if (editingIdx > idx) {
+          editingIdx -= 1;
+        }
         renderEntries();
+      };
+      li.querySelector("[data-action=\"edit\"]").onclick = () => {
+        startEditing(idx);
       };
       list.appendChild(li);
     });
@@ -463,8 +628,8 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   }
 
   // Interactive star rating for form
-  const ratingStars = document.getElementById("tracker-rating-stars");
-  const ratingInput = document.getElementById("tracker-rating");
+  ratingStars = document.getElementById("tracker-rating-stars");
+  ratingInput = document.getElementById("tracker-rating");
   let selectedRating = 0;
   let hoveredRating = 0;
 
@@ -573,46 +738,62 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     });
   }
 
+  if (cancelEditButton) {
+    cancelEditButton.addEventListener("click", function() {
+      clearForm();
+    });
+  }
+
   form.onsubmit = e => {
     e.preventDefault();
     const item = itemInput.value.trim();
     const author = authorInput?.value.trim() || "";
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
+    const startedDate = startedDateInput?.value || "";
+    const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
+    const finishedDate = currentlyReading ? "" : (finishedDateInput?.value || "");
+    const currentPage = Number(currentPageInput?.value || 0);
+    const totalPages = Number(totalPagesInput?.value || 0);
     const notes = notesInput.value.trim();
-    const rating = parseFloat(ratingInput?.value) || 0;
+    const rating = currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0);
     if (!item) return;
-    const date = new Date().toISOString();
     const entries = getEntries();
-    const nextEntry = { item, notes, rating, date };
-    if (enableAuthorField) {
-      nextEntry.author = author;
+    if (editingIdx >= 0 && entries[editingIdx]) {
+      const updatedEntry = {
+        ...entries[editingIdx],
+        item,
+        notes,
+        rating
+      };
+      if (enableAuthorField) updatedEntry.author = author;
+      if (enableDirectorField) updatedEntry.director = director;
+      if (enablePublisherField) updatedEntry.publisher = publisher;
+      if (enableReadingProgress) {
+        updatedEntry.startedDate = startedDate;
+        updatedEntry.finishedDate = finishedDate;
+        updatedEntry.currentlyReading = currentlyReading;
+        updatedEntry.currentPage = currentPage;
+        updatedEntry.totalPages = totalPages;
+      }
+      entries[editingIdx] = updatedEntry;
+    } else {
+      const date = new Date().toISOString();
+      const nextEntry = { item, notes, rating, date };
+      if (enableAuthorField) nextEntry.author = author;
+      if (enableDirectorField) nextEntry.director = director;
+      if (enablePublisherField) nextEntry.publisher = publisher;
+      if (enableReadingProgress) {
+        nextEntry.startedDate = startedDate;
+        nextEntry.finishedDate = finishedDate;
+        nextEntry.currentlyReading = currentlyReading;
+        nextEntry.currentPage = currentPage;
+        nextEntry.totalPages = totalPages;
+      }
+      entries.push(nextEntry);
     }
-    if (enableDirectorField) {
-      nextEntry.director = director;
-    }
-    if (enablePublisherField) {
-      nextEntry.publisher = publisher;
-    }
-    entries.push(nextEntry);
     saveEntries(entries);
-    itemInput.value = "";
-    if (authorInput) {
-      authorInput.value = "";
-    }
-    if (directorInput) {
-      directorInput.value = "";
-    }
-    if (publisherInput) {
-      publisherInput.value = "";
-    }
-    notesInput.value = "";
-    selectedRating = 0;
-    hoveredRating = 0;
-    if (ratingInput) {
-      ratingInput.value = 0;
-    }
-    updateStars();
+    clearForm();
     renderEntries();
   };
 

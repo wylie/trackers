@@ -3,12 +3,58 @@ import Header from './Header.astro';
 import Footer from './Footer.astro';
 import SEO from './SEO.astro';
 import AdSlot from './AdSlot.astro';
-const { seoTitle, seoDescription } = Astro.props;
+const { seoTitle, seoDescription, noindex = false } = Astro.props;
+
+const SITE_NAME = "SimpleTrackers.io";
+const site = (Astro.site?.toString() || "https://www.simpletrackers.io").replace(/\/$/, "");
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, `${site}/`).toString();
+
+function formatPathTitle(path: string) {
+  if (path === "/") return SITE_NAME;
+  const clean = path.replace(/^\/+|\/+$/g, "");
+  const segments = clean.split("/");
+  const last = segments[segments.length - 1] || "";
+  return last
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+const rawTitle = (typeof seoTitle === "string" && seoTitle.trim().length > 0) ? seoTitle.trim() : formatPathTitle(pathname);
+const pageTitle = rawTitle === SITE_NAME ? SITE_NAME : `${rawTitle} | ${SITE_NAME}`;
+const pageDescription = (typeof seoDescription === "string" && seoDescription.trim().length > 0)
+  ? seoDescription.trim()
+  : "Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.";
+
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: `${site}/`
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: pageTitle,
+    url: canonical,
+    description: pageDescription
+  }
+];
 
 ---
-<SEO title={seoTitle} description={seoDescription} />
 <html lang="en">
   <head>
+    <SEO
+      title={pageTitle}
+      description={pageDescription}
+      canonical={canonical}
+      noindex={noindex}
+      siteName={SITE_NAME}
+      jsonLd={jsonLd}
+    />
     <!-- Astro injects CSS automatically -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">

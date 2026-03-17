@@ -2,16 +2,20 @@
 import Layout from '../../components/Layout.astro';
 ---
 
-<Layout>
-  <main>
-    <h1>Accessibility Statement</h1>
-    <section>
-      <h2>Commitment</h2>
-      <p>SimpleTrackers.io is committed to strong accessibility compliance. We use semantic HTML, proper landmarks, labeled inputs, visible focus states, keyboard navigation, and sufficient color contrast.</p>
-    </section>
-    <section>
-      <h2>Feedback</h2>
-      <p>If you encounter accessibility issues, please contact us at <a href="mailto:support@simpletrackers.io">support@simpletrackers.io</a>.</p>
+<Layout seoTitle="Accessibility" seoDescription="Accessibility standards and support information for SimpleTrackers.">
+  <main class="max-w-3xl mx-auto w-full px-4 py-8">
+    <h1 class="text-[30px] leading-[1.2] font-extrabold text-slate-900 mb-2">Accessibility</h1>
+    <p class="text-[18px] leading-[1.45] text-slate-600 mb-6">We aim to make SimpleTrackers usable for everyone.</p>
+
+    <section class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+      <div>
+        <h2 class="text-[18px] font-bold text-slate-900 mb-2">Commitment</h2>
+        <p class="text-[15px] leading-7 text-slate-600">SimpleTrackers uses semantic HTML, proper landmarks, labeled controls, keyboard support, visible focus states, and color contrast aligned with accessibility best practices.</p>
+      </div>
+      <div>
+        <h2 class="text-[18px] font-bold text-slate-900 mb-2">Feedback</h2>
+        <p class="text-[15px] leading-7 text-slate-600">If you encounter accessibility issues, email us at <a href="mailto:support@simpletrackers.io" class="text-blue-700 underline hover:text-blue-800">support@simpletrackers.io</a>.</p>
+      </div>
     </section>
   </main>
 </Layout>

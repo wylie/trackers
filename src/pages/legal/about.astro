@@ -2,20 +2,24 @@
 import Layout from '../../components/Layout.astro';
 ---
 
-<Layout>
-  <main>
-    <h1>About SimpleTrackers.io</h1>
-    <section>
-      <h2>Our Mission</h2>
-      <p>To provide simple, private, browser-based tracking tools for everyday life. No login required, data stays in your browser.</p>
-    </section>
-    <section>
-      <h2>Our Team</h2>
-      <p>SimpleTrackers.io is built by a small team passionate about privacy, simplicity, and accessibility.</p>
-    </section>
-    <section>
-      <h2>Contact</h2>
-      <p>For questions or feedback, visit our <a href="/legal/contact">Contact page</a>.</p>
+<Layout seoTitle="About" seoDescription="Learn about SimpleTrackers, our mission, and how we build simple private tools.">
+  <main class="max-w-3xl mx-auto w-full px-4 py-8">
+    <h1 class="text-[30px] leading-[1.2] font-extrabold text-slate-900 mb-2">About</h1>
+    <p class="text-[18px] leading-[1.45] text-slate-600 mb-6">SimpleTrackers helps you track everyday life with tools that are private, lightweight, and easy to use.</p>
+
+    <section class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+      <div>
+        <h2 class="text-[18px] font-bold text-slate-900 mb-2">Our Mission</h2>
+        <p class="text-[15px] leading-7 text-slate-600">To provide simple, private, browser-based tracking tools for everyday life. No login required, data stays in your browser.</p>
+      </div>
+      <div>
+        <h2 class="text-[18px] font-bold text-slate-900 mb-2">Our Team</h2>
+        <p class="text-[15px] leading-7 text-slate-600">SimpleTrackers is built by a small team focused on privacy, simplicity, and accessibility.</p>
+      </div>
+      <div>
+        <h2 class="text-[18px] font-bold text-slate-900 mb-2">Contact</h2>
+        <p class="text-[15px] leading-7 text-slate-600">For questions or feedback, visit our <a href="/legal/contact" class="text-blue-700 underline hover:text-blue-800">Contact page</a>.</p>
+      </div>
     </section>
   </main>
 </Layout>

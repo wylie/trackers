@@ -5,7 +5,7 @@ import SEO from './SEO.astro';
 import AdSlot from './AdSlot.astro';
 const { seoTitle, seoDescription, noindex = false } = Astro.props;
 
-const SITE_NAME = "SimpleTrackers.io";
+const SITE_NAME = "SimpleTrackers";
 const GA_MEASUREMENT_ID = import.meta.env.PUBLIC_GA_MEASUREMENT_ID || "G-6E8NZ6TNCV";
 const analyticsEnabled = !import.meta.env.DEV && Boolean(GA_MEASUREMENT_ID);
 const site = (Astro.site?.toString() || "https://www.simpletrackers.io").replace(/\/$/, "");
@@ -25,7 +25,9 @@ function formatPathTitle(path: string) {
 }
 
 const rawTitle = (typeof seoTitle === "string" && seoTitle.trim().length > 0) ? seoTitle.trim() : formatPathTitle(pathname);
-const pageTitle = rawTitle === SITE_NAME ? SITE_NAME : `${rawTitle} | ${SITE_NAME}`;
+const normalizedTitle = rawTitle === "SimpleTrackers.io" ? SITE_NAME : rawTitle;
+const pageLabel = pathname === "/" ? "Home" : normalizedTitle;
+const pageTitle = `${pageLabel} | ${SITE_NAME}`;
 const pageDescription = (typeof seoDescription === "string" && seoDescription.trim().length > 0)
   ? seoDescription.trim()
   : "Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.";
@@ -72,9 +74,9 @@ const jsonLd = [
       </>
     )}
   </head>
-  <body class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
+  <body class="flex flex-col min-h-screen bg-gray-100 text-slate-900 font-sans">
     <Header />
-    <main id="main-content" class="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
+    <main id="main-content" class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
       <div class="mb-2">
         <AdSlot location="Top Banner" />
       </div>

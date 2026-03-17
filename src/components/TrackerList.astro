@@ -15,23 +15,35 @@ const iconMap = {
   'Garden Harvest Tracker': 'eco',
 };
 ---
-<section class="mb-8 bg-white rounded-lg shadow border border-gray-200 p-6">
-  <h2 class="text-xl font-bold mb-4 text-gray-900">{title}</h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-    {items.map(item => {
-      const icon = iconMap[item.label] || null;
-      return (
-        <a href={item.url || '#'} class="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition">
-          {icon && <span class="material-icons icon-blue text-blue-600">{icon}</span>}
-          {item.label}
+<section class="mb-10">
+  <h2 class="text-[30px] leading-[1.2] font-extrabold mb-3 text-slate-900">{title}</h2>
+  <div class="text-[18px] leading-[1.45] font-normal text-slate-600 mb-8">
+    A collection of fast, lightweight trackers to help you stay organized.
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5 w-full">
+    {items.map((item) => {
+      const icon = item.icon || iconMap[item.label] || "track_changes";
+      const isFeatured = Boolean(item.featured);
+      const wrapperClass = isFeatured
+        ? "lg:col-span-3"
+        : "lg:col-span-2";
+      const commonClasses = "rounded-xl border border-gray-200 bg-white shadow-sm hover:border-gray-200 hover:shadow-md transition";
+
+      return item.url ? (
+        <a href={item.url} class={`${wrapperClass} ${commonClasses} ${isFeatured ? "p-6 text-left" : "p-5 text-center"}`}>
+          <div class={`${isFeatured ? "flex items-start gap-4" : "flex flex-col items-center gap-3"}`}>
+            <span class="material-symbols-outlined text-blue-600" style={`font-size:${isFeatured ? "30px" : "28px"};font-variation-settings:'opsz' 24;`}>{icon}</span>
+            <div>
+              <div class={`${isFeatured ? "text-[18px]" : "text-[16px]"} font-bold text-slate-900 leading-[1.25]`}>{item.label}</div>
+              {item.description && <p class={`mt-2 text-slate-600 leading-[1.35] ${isFeatured ? "text-[15px]" : "text-[14px]"}`}>{item.description}</p>}
+            </div>
+          </div>
         </a>
+      ) : (
+        <div class={`${wrapperClass} ${commonClasses} p-5`}>
+          <div class="text-[16px] text-slate-600">{item.label}</div>
+        </div>
       );
     })}
   </div>
 </section>
-
-<style>
-  .icon-blue {
-    color: #2563eb;
-  }
-</style>

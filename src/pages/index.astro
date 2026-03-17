@@ -3,34 +3,23 @@ import Layout from '../components/Layout.astro';
 import TrackerList from '../components/TrackerList.astro';
 
 const trackers = [
-  { label: 'Reading Tracker', url: '/trackers/reading-tracker' },
-  { label: 'Habit Tracker', url: '/trackers/habit-tracker' },
-  { label: 'Movie Watch Tracker', url: '/trackers/movie-watch-tracker' },
-  { label: 'Custom Tracker', url: '/trackers/custom-tracker' },
-  { label: 'Finance Tracker', url: '/trackers/finance-tracker' },
-  { label: 'Health Tracker', url: '/trackers/health-tracker' },
-  { label: 'Video Game Tracker', url: '/trackers/video-game-tracker' },
-  { label: 'Workout Tracker', url: '/trackers/workout-tracker' },
-  { label: 'Meal Tracker', url: '/trackers/meal-tracker' },
-  { label: 'Sleep Tracker', url: '/trackers/sleep-tracker' },
-  { label: 'Task Tracker', url: '/trackers/task-tracker' },
-  { label: 'Garden Harvest Tracker', url: '/trackers/garden-harvest-tracker' }
-];
-const features = [
-  { label: 'Private: Data stays in your browser' },
-  { label: 'No login or account required' },
-  { label: 'Accessible and easy to use' },
-  { label: 'Export to CSV' },
-  { label: 'Clear all data with confirmation' },
-  { label: 'Open source and free' }
+  { label: 'Reading Tracker', url: '/trackers/reading-tracker', icon: 'menu_book', description: 'Track your books, notes, and reading progress.', featured: true },
+  { label: 'Habit Tracker', url: '/trackers/habit-tracker', icon: 'check_circle', description: 'Build routines and keep streaks with simple daily logging.', featured: true },
+  { label: 'Movie Watch Tracker', url: '/trackers/movie-watch-tracker', icon: 'movie', description: 'Track watched movies with ratings and notes.' },
+  { label: 'Video Game Tracker', url: '/trackers/video-game-tracker', icon: 'sports_esports', description: 'Log games, ratings, and gameplay notes.' },
+  { label: 'Workout Tracker', url: '/trackers/workout-tracker', icon: 'fitness_center', description: 'Capture workouts and progress over time.' },
+  { label: 'Meal Tracker', url: '/trackers/meal-tracker', icon: 'restaurant', description: 'Log food items, nutrition notes, and ratings.' },
+  { label: 'Sleep Tracker', url: '/trackers/sleep-tracker', icon: 'bed', description: 'Track sleep habits and quality with quick entries.' },
+  { label: 'Task Tracker', url: '/trackers/task-tracker', icon: 'assignment', description: 'Stay organized with focused task tracking.' },
+  { label: 'Finance Tracker', url: '/trackers/finance-tracker', icon: 'attach_money', description: 'Keep an eye on expenses and money goals.' },
+  { label: 'Health Tracker', url: '/trackers/health-tracker', icon: 'favorite', description: 'Track symptoms, health habits, and notes.' },
+  { label: 'Garden Harvest Tracker', url: '/trackers/garden-harvest-tracker', icon: 'eco', description: 'Log produce harvested and seasonal notes.' },
+  { label: 'Custom Tracker', url: '/trackers/custom-tracker', icon: 'tune', description: 'Build your own tracker for anything else.' }
 ];
 ---
 
 <Layout seoTitle="SimpleTrackers.io" seoDescription="Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.">
-  <main class="max-w-4xl mx-auto w-full px-4 py-8">
-    <h1 class="text-4xl font-bold mb-4">Welcome to SimpleTrackers.io</h1>
-    <p class="mb-8 text-lg text-gray-700">Simple, private browser-based trackers for everyday life. No login, no accounts, data stays in your browser.</p>
-    <TrackerList title="Trackers" items={trackers} />
-    <TrackerList title="Features" items={features} />
+  <main class="max-w-5xl mx-auto w-full px-4 py-8">
+    <TrackerList title="Welcome to SimpleTrackers" items={trackers} />
   </main>
 </Layout>

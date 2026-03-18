@@ -28,10 +28,14 @@ const iconMap = {
         ? "lg:col-span-3"
         : "lg:col-span-2";
       const commonClasses = "rounded-xl border border-gray-200 bg-white shadow-sm hover:border-gray-200 hover:shadow-md transition";
+      const cardClass = isFeatured ? "p-5 text-center lg:p-6 lg:text-left" : "p-5 text-center";
+      const contentClass = isFeatured
+        ? "flex flex-col items-center gap-3 lg:flex-row lg:items-start lg:gap-4"
+        : "flex flex-col items-center gap-3";
 
       return item.url ? (
-        <a href={item.url} class={`${wrapperClass} ${commonClasses} ${isFeatured ? "p-6 text-left" : "p-5 text-center"}`}>
-          <div class={`${isFeatured ? "flex items-start gap-4" : "flex flex-col items-center gap-3"}`}>
+        <a href={item.url} class={`${wrapperClass} ${commonClasses} ${cardClass}`}>
+          <div class={contentClass}>
             <span class="material-symbols-outlined text-blue-600" style={`font-size:${isFeatured ? "30px" : "28px"};font-variation-settings:'opsz' 24;`}>{icon}</span>
             <div>
               <div class={`${isFeatured ? "text-[18px]" : "text-[16px]"} font-bold text-slate-900 leading-[1.25]`}>{item.label}</div>

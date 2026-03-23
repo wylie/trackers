@@ -6,76 +6,76 @@ export type RelatedCalculator = {
 
 const calculatorMap: Record<string, RelatedCalculator[]> = {
   "custom-tracker": [
-    { name: "Percentage of a Number Calculator", url: "https://simplecalculators.io/percentage-of-a-number/" },
-    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/" },
-    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/" },
-    { name: "Unit Price Calculator", url: "https://simplecalculators.io/unit-price-calculator/" }
+    { name: "Percentage of a Number Calculator", url: "https://simplecalculators.io/percentage-of-a-number/", icon: "percent" },
+    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/", icon: "percent" },
+    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/", icon: "event" },
+    { name: "Unit Price Calculator", url: "https://simplecalculators.io/unit-price-calculator/", icon: "price_check" }
   ],
   "finance-tracker": [
-    { name: "Budget Calculator", url: "https://simplecalculators.io/budget/" },
-    { name: "Cash Flow Calculator", url: "https://simplecalculators.io/cash-flow-calculator/" },
-    { name: "Net Worth Calculator", url: "https://simplecalculators.io/net-worth/" },
-    { name: "Debt Payoff Calculator", url: "https://simplecalculators.io/debt-payoff-calculator/" }
+    { name: "Budget Calculator", url: "https://simplecalculators.io/budget/", icon: "payments" },
+    { name: "Cash Flow Calculator", url: "https://simplecalculators.io/cash-flow-calculator/", icon: "account_balance_wallet" },
+    { name: "Net Worth Calculator", url: "https://simplecalculators.io/net-worth/", icon: "account_balance_wallet" },
+    { name: "Debt Payoff Calculator", url: "https://simplecalculators.io/debt-payoff-calculator/", icon: "credit_card" }
   ],
   "garden-harvest-tracker": [
-    { name: "Square Footage Calculator", url: "https://simplecalculators.io/square-footage-calculator/" },
-    { name: "Unit Price Calculator", url: "https://simplecalculators.io/unit-price-calculator/" },
-    { name: "Weather Converter", url: "https://simplecalculators.io/weather/" },
-    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/" }
+    { name: "Square Footage Calculator", url: "https://simplecalculators.io/square-footage-calculator/", icon: "square_foot" },
+    { name: "Unit Price Calculator", url: "https://simplecalculators.io/unit-price-calculator/", icon: "price_check" },
+    { name: "Weather Converter", url: "https://simplecalculators.io/weather/", icon: "thermostat" },
+    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/", icon: "event" }
   ],
   "habit-tracker": [
-    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/" },
-    { name: "Week Number Calculator", url: "https://simplecalculators.io/week-number/" },
-    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/" },
-    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/" }
+    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/", icon: "event" },
+    { name: "Week Number Calculator", url: "https://simplecalculators.io/week-number/", icon: "view_week" },
+    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/", icon: "percent" },
+    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/", icon: "timer" }
   ],
   "health-tracker": [
-    { name: "BMI Calculator", url: "https://simplecalculators.io/bmi/" },
-    { name: "BMR Calculator", url: "https://simplecalculators.io/bmr-calculator/" },
-    { name: "Body Fat Calculator", url: "https://simplecalculators.io/body-fat/" },
-    { name: "TDEE Calculator", url: "https://simplecalculators.io/tdee/" }
+    { name: "BMI Calculator", url: "https://simplecalculators.io/bmi/", icon: "monitor_weight" },
+    { name: "BMR Calculator", url: "https://simplecalculators.io/bmr-calculator/", icon: "local_fire_department" },
+    { name: "Body Fat Calculator", url: "https://simplecalculators.io/body-fat/", icon: "monitor_weight" },
+    { name: "TDEE Calculator", url: "https://simplecalculators.io/tdee/", icon: "local_fire_department" }
   ],
   "meal-tracker": [
-    { name: "Calorie Calculator", url: "https://simplecalculators.io/calories/" },
-    { name: "Macro Calculator", url: "https://simplecalculators.io/macro-calculator/" },
-    { name: "Protein Intake Calculator", url: "https://simplecalculators.io/protein-intake/" },
-    { name: "Water Intake Calculator", url: "https://simplecalculators.io/water-intake/" }
+    { name: "Calorie Calculator", url: "https://simplecalculators.io/calories/", icon: "local_fire_department" },
+    { name: "Macro Calculator", url: "https://simplecalculators.io/macro-calculator/", icon: "nutrition" },
+    { name: "Protein Intake Calculator", url: "https://simplecalculators.io/protein-intake/", icon: "nutrition" },
+    { name: "Water Intake Calculator", url: "https://simplecalculators.io/water-intake/", icon: "water_drop" }
   ],
   "movie-watch-tracker": [
-    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/" },
-    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/" },
-    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/" },
-    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/" }
+    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/", icon: "timer" },
+    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/", icon: "event" },
+    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/", icon: "event" },
+    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/", icon: "schedule" }
   ],
   "reading-tracker": [
-    { name: "Percentage of a Number Calculator", url: "https://simplecalculators.io/percentage-of-a-number/" },
-    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/" },
-    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/" },
-    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/" }
+    { name: "Percentage of a Number Calculator", url: "https://simplecalculators.io/percentage-of-a-number/", icon: "percent" },
+    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/", icon: "percent" },
+    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/", icon: "event" },
+    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/", icon: "schedule" }
   ],
   "sleep-tracker": [
-    { name: "Sleep Calculator", url: "https://simplecalculators.io/sleep-calculator/" },
-    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/" },
-    { name: "Hours to Days Calculator", url: "https://simplecalculators.io/hours-to-days-calculator/" },
-    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/" }
+    { name: "Sleep Calculator", url: "https://simplecalculators.io/sleep-calculator/", icon: "bedtime" },
+    { name: "Time Duration Calculator", url: "https://simplecalculators.io/time-duration/", icon: "schedule" },
+    { name: "Hours to Days Calculator", url: "https://simplecalculators.io/hours-to-days-calculator/", icon: "schedule" },
+    { name: "Days Until Calculator", url: "https://simplecalculators.io/days-until-calculator/", icon: "event" }
   ],
   "task-tracker": [
-    { name: "Work Hours Calculator", url: "https://simplecalculators.io/work-hours/" },
-    { name: "Time Card Calculator", url: "https://simplecalculators.io/time-card-calculator/" },
-    { name: "Business Days Calculator", url: "https://simplecalculators.io/business-days/" },
-    { name: "Workdays Between Dates Calculator", url: "https://simplecalculators.io/workdays-between-dates-calculator/" }
+    { name: "Work Hours Calculator", url: "https://simplecalculators.io/work-hours/", icon: "work_history" },
+    { name: "Time Card Calculator", url: "https://simplecalculators.io/time-card-calculator/", icon: "schedule" },
+    { name: "Business Days Calculator", url: "https://simplecalculators.io/business-days/", icon: "calendar_today" },
+    { name: "Workdays Between Dates Calculator", url: "https://simplecalculators.io/workdays-between-dates-calculator/", icon: "calendar_today" }
   ],
   "video-game-tracker": [
-    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/" },
-    { name: "Hours to Days Calculator", url: "https://simplecalculators.io/hours-to-days-calculator/" },
-    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/" },
-    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/" }
+    { name: "Countdown Calculator", url: "https://simplecalculators.io/countdown/", icon: "timer" },
+    { name: "Hours to Days Calculator", url: "https://simplecalculators.io/hours-to-days-calculator/", icon: "schedule" },
+    { name: "Date Difference", url: "https://simplecalculators.io/date-difference/", icon: "event" },
+    { name: "Percent Change Calculator", url: "https://simplecalculators.io/percent-change/", icon: "percent" }
   ],
   "workout-tracker": [
-    { name: "One Rep Max Calculator", url: "https://simplecalculators.io/one-rep-max/" },
-    { name: "Calories Burned Calculator", url: "https://simplecalculators.io/calories-burned/" },
-    { name: "Heart Rate Zone Calculator", url: "https://simplecalculators.io/heart-rate-zone-calculator/" },
-    { name: "Target Heart Rate Calculator", url: "https://simplecalculators.io/target-heart-rate/" }
+    { name: "One Rep Max Calculator", url: "https://simplecalculators.io/one-rep-max/", icon: "sports_gymnastics" },
+    { name: "Calories Burned Calculator", url: "https://simplecalculators.io/calories-burned/", icon: "local_fire_department" },
+    { name: "Heart Rate Zone Calculator", url: "https://simplecalculators.io/heart-rate-zone-calculator/", icon: "favorite" },
+    { name: "Target Heart Rate Calculator", url: "https://simplecalculators.io/target-heart-rate/", icon: "favorite" }
   ]
 };
 

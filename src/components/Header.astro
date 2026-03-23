@@ -30,6 +30,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     <nav aria-label="Main navigation">
       <ul class="flex flex-wrap justify-start md:justify-center gap-3 sm:gap-4">
         <li><a href="/" class={navClass("/")}>Home</a></li>
+        <li><a href="/dashboard" class={navClass("/dashboard")}>Dashboard</a></li>
         <li class="relative group">
           <button class={navClass("/trackers")} type="button">
             Trackers
@@ -44,9 +45,40 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
           </div>
         </li>
         <li><a href="/faq" class={navClass("/faq")}>FAQ</a></li>
-        <li><a href="/dashboard" class={navClass("/dashboard")}>Dashboard</a></li>
         <li><a href="/settings" class={navClass("/settings")}>Settings</a></li>
       </ul>
     </nav>
   </div>
 </header>
+
+<script>
+  // Dropdown hover intent logic for Trackers menu
+  document.addEventListener('DOMContentLoaded', () => {
+    const navLi = document.querySelector('li.group');
+    const dropdown = navLi?.querySelector('div.absolute');
+    const button = navLi?.querySelector('button');
+    let hideTimeout = null;
+
+    if (!navLi || !dropdown || !button) return;
+
+    function showDropdown() {
+      clearTimeout(hideTimeout);
+      dropdown.classList.add('!opacity-100', '!pointer-events-auto');
+      dropdown.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function hideDropdown() {
+      hideTimeout = setTimeout(() => {
+        dropdown.classList.remove('!opacity-100', '!pointer-events-auto');
+        dropdown.classList.add('opacity-0', 'pointer-events-none');
+      }, 120); // 120ms delay for usability
+    }
+
+    navLi.addEventListener('mouseenter', showDropdown);
+    navLi.addEventListener('mouseleave', hideDropdown);
+    dropdown.addEventListener('mouseenter', showDropdown);
+    dropdown.addEventListener('mouseleave', hideDropdown);
+    button.addEventListener('focus', showDropdown);
+    button.addEventListener('blur', hideDropdown);
+  });
+</script>

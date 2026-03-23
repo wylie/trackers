@@ -6,6 +6,8 @@ import TrackerCard from '../../components/TrackerCard.astro';
 import HowToUse from '../../components/sections/HowToUse.astro';
 import Benefits from '../../components/sections/Benefits.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
+import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
+import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
   "Add a new workout.",
@@ -26,6 +28,7 @@ const related = [
   { name: "Meal Tracker", url: "/meal-tracker", icon: "restaurant" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
+const relatedCalculators = getRelatedCalculators("workout-tracker");
 ---
 
 <Layout seoTitle="Workout Tracker" seoDescription="Track your workouts privately and easily. No login, no accounts, data stays in your browser.">
@@ -46,8 +49,9 @@ const related = [
             <HowToUse steps={steps} />
             <Benefits benefits={benefits} />
           </div>
-          <div class="-mt-6 col-span-1 md:col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <RelatedTrackers related={related} />
+            <RelatedCalculators calculators={relatedCalculators} />
           </div>
         </section>
       </div>

@@ -1,0 +1,45 @@
+---
+const { calculators = [] } = Astro.props;
+---
+<section class="mb-8 w-full">
+  <h2 class="text-xl font-bold mb-4 text-gray-900">Related Calculators</h2>
+  <p class="text-[15px] text-slate-600 mb-4">Explore related calculators and converters on SimpleCalculators.io.</p>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+    {calculators && Array.isArray(calculators) && calculators.length > 0 && (
+      calculators.map((calculator) => {
+        const icon = calculator && calculator.icon ? calculator.icon : "calculate";
+        const url = calculator?.url || "#";
+
+        return (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-between gap-2 bg-white rounded-lg border border-gray-200 p-4 text-gray-900 font-medium shadow-sm hover:border-blue-600 hover:bg-blue-50 transition"
+          >
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="material-icons icon-blue">{icon}</span>
+              <span class="truncate">{calculator?.name || "Calculator"}</span>
+            </span>
+            <span class="material-symbols-outlined open-new" aria-hidden="true">open_in_new</span>
+          </a>
+        );
+      })
+    )}
+  </div>
+</section>
+
+<style>
+  .icon-blue {
+    color: #2563eb !important;
+    font-size: 1.5rem;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .open-new {
+    color: #64748b;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+  }
+</style>

@@ -7,6 +7,8 @@ import HowToUse from '../../components/sections/HowToUse.astro';
 import Benefits from '../../components/sections/Benefits.astro';
 import FAQ from '../../components/sections/FAQ.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
+import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
+import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
   "Enter the transaction details (amount, category, date, etc.)",
@@ -26,6 +28,7 @@ const related = [
   { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
+const relatedCalculators = getRelatedCalculators("finance-tracker");
 ---
 
 <Layout seoTitle="Finance Tracker" seoDescription="Track your finances privately and easily. No login, no accounts, data stays in your browser.">
@@ -46,8 +49,9 @@ const related = [
             <HowToUse steps={steps} />
             <Benefits benefits={benefits} />
           </div>
-          <div class="-mt-6 col-span-1 md:col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <RelatedTrackers related={related} />
+            <RelatedCalculators calculators={relatedCalculators} />
           </div>
         </section>
       </div>

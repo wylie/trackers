@@ -208,6 +208,8 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   let ratingInput = null;
 
   let editingIdx = -1;
+  let selectedRating = 0;
+  let hoveredRating = 0;
 
   function setEditingMode(isEditing) {
     if (submitButton) {
@@ -630,8 +632,6 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   // Interactive star rating for form
   ratingStars = document.getElementById("tracker-rating-stars");
   ratingInput = document.getElementById("tracker-rating");
-  let selectedRating = 0;
-  let hoveredRating = 0;
 
   function ensureInteractiveStars() {
     if (!ratingStars || ratingStars.children.length === 5) return;

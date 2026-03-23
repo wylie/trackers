@@ -1,0 +1,639 @@
+---
+import Layout from "../components/Layout.astro";
+import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
+---
+
+<Layout seoTitle="Dashboard Lab" seoDescription="A visual prototype for viewing all tracker data in one place.">
+  <TrackerPageWrapper>
+    <main>
+      <div class="dashboard-lab max-w-5xl mx-auto">
+        <header class="mb-6">
+          <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">Dashboard</h1>
+          <p class="mt-2 text-slate-600 text-lg">All your tracker activity in one place.</p>
+        </header>
+
+        <section class="kpi-grid mb-8" id="kpi-grid">
+          <article class="kpi-card">
+            <div class="kpi-label">Total Entries</div>
+            <div class="kpi-value" id="kpi-total">0</div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-label">Trackers Active</div>
+            <div class="kpi-value" id="kpi-trackers">0</div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-label">Latest Update</div>
+            <div class="kpi-value text-lg" id="kpi-latest">-</div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-label">Most Active</div>
+            <div class="kpi-value text-lg" id="kpi-most-active">-</div>
+          </article>
+        </section>
+
+        <section class="mb-8">
+          <h2 class="section-title">Focus Boards</h2>
+          <p class="section-copy">Tracker-specific cards with mini visualizations for the last 30 days.</p>
+          <div id="focus-boards" class="focus-grid mt-4"></div>
+        </section>
+
+        <section class="mb-8">
+          <h2 class="section-title">Live Stream</h2>
+          <p class="section-copy">Most recent activity across all trackers.</p>
+          <div id="live-stream" class="live-stream mt-4"></div>
+        </section>
+
+        <section class="mb-8">
+          <h2 class="section-title">Tracker Mosaic</h2>
+          <p class="section-copy">Quick jump panels for all active trackers.</p>
+          <div id="tracker-mosaic" class="mosaic-grid mt-4"></div>
+        </section>
+
+        <section id="empty-state" class="empty-state hidden">
+          <h2 class="text-xl font-bold text-slate-900 mb-2">No entries yet</h2>
+          <p class="text-slate-600">Add data in any tracker, then refresh this dashboard.</p>
+        </section>
+      </div>
+    </main>
+  </TrackerPageWrapper>
+</Layout>
+
+<script>
+  const STORAGE_KEY = "simpletrackers.io";
+  const trackerMeta = {
+    "habit-tracker-entries": { label: "Habit Tracker", icon: "check_circle", route: "/trackers/habit-tracker", tone: "tone-green" },
+    "reading-tracker-entries": { label: "Reading Tracker", icon: "menu_book", route: "/trackers/reading-tracker", tone: "tone-blue" },
+    "movie-watch-tracker-entries": { label: "Movie Watch Tracker", icon: "movie", route: "/trackers/movie-watch-tracker", tone: "tone-purple" },
+    "custom-tracker-entries": { label: "Custom Tracker", icon: "tune", route: "/trackers/custom-tracker", tone: "tone-slate" },
+    "finance-tracker-entries": { label: "Finance Tracker", icon: "attach_money", route: "/trackers/finance-tracker", tone: "tone-amber" },
+    "health-tracker-entries": { label: "Health Tracker", icon: "favorite", route: "/trackers/health-tracker", tone: "tone-pink" },
+    "video-game-tracker-entries": { label: "Video Game Tracker", icon: "sports_esports", route: "/trackers/video-game-tracker", tone: "tone-indigo" },
+    "workout-tracker-entries": { label: "Workout Tracker", icon: "fitness_center", route: "/trackers/workout-tracker", tone: "tone-emerald" },
+    "meal-tracker-entries": { label: "Meal Tracker", icon: "restaurant", route: "/trackers/meal-tracker", tone: "tone-orange" },
+    "sleep-tracker-entries": { label: "Sleep Tracker", icon: "bed", route: "/trackers/sleep-tracker", tone: "tone-violet" },
+    "task-tracker-entries": { label: "Task Tracker", icon: "assignment", route: "/trackers/task-tracker", tone: "tone-cyan" },
+    "garden-harvest-tracker-entries": { label: "Garden Harvest Tracker", icon: "eco", route: "/trackers/garden-harvest-tracker", tone: "tone-lime" }
+  };
+
+  function getAllData() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function getEntryTs(entry) {
+    const value = entry?.date ? new Date(entry.date).getTime() : 0;
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function sparkBars(entries, count = 30) {
+    const buckets = Array.from({ length: count }, () => 0);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const windowStart = startOfToday - (count - 1) * msPerDay;
+
+    for (const entry of entries) {
+      const ts = getEntryTs(entry);
+      if (!ts || ts < windowStart || ts > startOfToday + msPerDay - 1) continue;
+      const dayIndex = Math.floor((ts - windowStart) / msPerDay);
+      if (dayIndex >= 0 && dayIndex < count) {
+        buckets[dayIndex] += 1;
+      }
+    }
+
+    const maxVisibleBlocks = 6;
+    return buckets
+      .map((n, index) => {
+        const visibleBlocks = Math.min(n, maxVisibleBlocks);
+        const blocks = Array.from({ length: visibleBlocks }, () => `<span class="spark-block"></span>`).join("");
+        const overflow = n > maxVisibleBlocks ? `<span class="spark-overflow">+</span>` : "";
+        const empty = n === 0 ? `<span class="spark-empty"></span>` : "";
+        return `<span class="spark-day ${index === count - 1 ? "spark-day-last" : ""}">${blocks}${overflow}${empty}</span>`;
+      })
+      .join("");
+  }
+
+  function dotTrail(entries, count = 56) {
+    const dots = Array.from({ length: count }, (_, i) => i < entries.length).reverse();
+    return dots.map((on) => `<span class="dot ${on ? "dot-on" : ""}"></span>`).join("");
+  }
+
+  function renderReadingMini(entries) {
+    const latest = entries.slice().sort((a, b) => getEntryTs(b) - getEntryTs(a))[0] || {};
+    const current = Number(latest.currentPage) || 0;
+    const total = Number(latest.totalPages) || 0;
+    const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+    return `
+      <div class="mini-title">${escapeHtml(latest.item || "Reading in progress")}</div>
+      <div class="mini-copy">${escapeHtml(latest.author || "Unknown author")}</div>
+      <div class="progress-shell mt-2">
+        <div class="progress-fill" style="width:${percent}%"></div>
+      </div>
+      <div class="mini-foot">${current}${total > 0 ? ` / ${total}` : ""} pages${total > 0 ? ` • ${percent}%` : ""}</div>
+    `;
+  }
+
+  function renderFinanceMini(entries) {
+    const latest = entries.slice().sort((a, b) => getEntryTs(b) - getEntryTs(a)).slice(0, 3);
+    const items = latest
+      .map((entry) => {
+        const text = `${entry.item || ""} ${entry.notes || ""}`;
+        const amount = text.match(/[-+]?\$?\d+(?:\.\d{1,2})?/);
+        return `
+          <li>
+            <span>${escapeHtml(entry.item || "Transaction")}</span>
+            <strong>${amount ? escapeHtml(amount[0]) : ""}</strong>
+          </li>
+        `;
+      })
+      .join("");
+    return `<ul class="finance-mini">${items || "<li><span>No entries yet</span><strong></strong></li>"}</ul>`;
+  }
+
+  function renderGenericMini(entries) {
+    const latest = entries.slice().sort((a, b) => getEntryTs(b) - getEntryTs(a))[0] || {};
+    return `
+      <div class="mini-title">${escapeHtml(latest.item || "Latest entry")}</div>
+      <div class="mini-copy">${escapeHtml(latest.notes || "No notes")}</div>
+      <div class="dot-row mt-2">${dotTrail(entries)}</div>
+    `;
+  }
+
+  function focusCard(key, entries) {
+    const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#", tone: "tone-slate" };
+    let body = renderGenericMini(entries);
+    if (key === "reading-tracker-entries") body = renderReadingMini(entries);
+    if (key === "finance-tracker-entries") body = renderFinanceMini(entries);
+
+    return `
+      <article class="focus-card ${meta.tone}">
+        <a href="${meta.route}" class="focus-head">
+          <span class="material-icons">${meta.icon}</span>
+          <span>${escapeHtml(meta.label)}</span>
+          <span class="entry-chip">${entries.length}</span>
+        </a>
+        <div class="spark-row">${sparkBars(entries)}</div>
+        <div class="focus-body">${body}</div>
+      </article>
+    `;
+  }
+
+  function initDashboard() {
+    const data = getAllData();
+    const keys = Object.keys(data).filter((key) => Array.isArray(data[key]) && data[key].length > 0);
+    const total = keys.reduce((sum, key) => sum + data[key].length, 0);
+    const allEntries = keys.flatMap((key) => data[key].map((entry) => ({ key, entry })));
+    const recent = allEntries.slice().sort((a, b) => getEntryTs(b.entry) - getEntryTs(a.entry));
+    const latest = recent[0];
+    const mostActive = keys.map((key) => ({ key, count: data[key].length })).sort((a, b) => b.count - a.count)[0];
+
+    document.getElementById("kpi-total").textContent = String(total);
+    document.getElementById("kpi-trackers").textContent = String(keys.length);
+    document.getElementById("kpi-latest").textContent = latest ? formatDate(latest.entry.date) : "-";
+    document.getElementById("kpi-most-active").textContent = mostActive
+      ? `${trackerMeta[mostActive.key]?.label || mostActive.key} (${mostActive.count})`
+      : "-";
+
+    if (!total) {
+      document.getElementById("empty-state").classList.remove("hidden");
+      return;
+    }
+
+    const focusKeys = keys
+      .slice()
+      .sort((a, b) => data[b].length - data[a].length)
+      .slice(0, 6);
+    document.getElementById("focus-boards").innerHTML = focusKeys.map((key) => focusCard(key, data[key])).join("");
+
+    document.getElementById("live-stream").innerHTML = recent.slice(0, 10).map(({ key, entry }) => {
+      const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#" };
+      return `
+        <a href="${meta.route}" class="live-item">
+          <div class="live-top">
+            <span class="material-icons">${meta.icon}</span>
+            <span>${escapeHtml(meta.label)}</span>
+          </div>
+          <div class="live-title">${escapeHtml(entry.item || "Entry")}</div>
+          <div class="live-copy">${escapeHtml(entry.notes || "No notes")}</div>
+          <div class="live-date">${formatDate(entry.date)}</div>
+        </a>
+      `;
+    }).join("");
+
+    document.getElementById("tracker-mosaic").innerHTML = keys.map((key) => {
+      const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#" };
+      return `
+        <a href="${meta.route}" class="mosaic-item">
+          <span class="material-icons">${meta.icon}</span>
+          <div>
+            <div class="mosaic-title">${escapeHtml(meta.label)}</div>
+            <div class="mosaic-copy">${data[key].length} entries tracked</div>
+          </div>
+        </a>
+      `;
+    }).join("");
+  }
+
+  initDashboard();
+  document.addEventListener("astro:page-load", initDashboard);
+</script>
+
+<style is:global>
+  .dashboard-lab {
+    --ink: #0f172a;
+    --muted: #475569;
+    --line: #cbd5e1;
+    padding-top: 0.7rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 640px) {
+    .kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .kpi-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .kpi-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    padding: 0.85rem 0.9rem;
+  }
+
+  .kpi-label {
+    color: #64748b;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+  }
+
+  .kpi-value {
+    margin-top: 0.25rem;
+    color: var(--ink);
+    font-size: 1.6rem;
+    line-height: 1.2;
+    font-weight: 800;
+  }
+
+  .section-title {
+    color: var(--ink);
+    font-size: 1.7rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .section-copy {
+    color: var(--muted);
+    margin-top: 0.15rem;
+    font-size: 1rem;
+  }
+
+  .focus-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  @media (min-width: 768px) {
+    .focus-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .focus-card {
+    --tone-a: #ffffff;
+    --tone-b: #ffffff;
+    --tone-border: #dbe4ef;
+    --tone-ink: #2563eb;
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    padding: 0.85rem;
+    border: 1px solid #cfd8e3;
+    background: #ffffff;
+    box-shadow: 0 12px 30px -22px rgba(15, 23, 42, 0.7);
+  }
+
+  .focus-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 10px;
+    background: color-mix(in srgb, var(--tone-ink) 35%, white 65%);
+  }
+
+  .focus-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #0f172a;
+    font-weight: 800;
+  }
+
+  .focus-head .material-icons {
+    color: var(--tone-ink);
+    font-size: 1.25rem;
+  }
+
+  .entry-chip {
+    margin-left: auto;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--tone-ink) 30%, #cbd5e1 70%);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--tone-ink) 70%, #334155 30%);
+    background: color-mix(in srgb, var(--tone-ink) 8%, #ffffff 92%);
+  }
+
+  .spark-row {
+    margin-top: 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(30, minmax(0, 1fr));
+    align-items: end;
+    min-height: 52px;
+    height: 56px;
+    padding: 0.24rem 0.3rem;
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  .spark-day {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    min-height: 100%;
+    border-right: 1px solid #e2e8f0;
+    padding: 0 1px;
+  }
+
+  .spark-day-last {
+    border-right: 0;
+  }
+
+  .spark-block {
+    width: 100%;
+    max-width: 8px;
+    height: 7px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--tone-ink) 82%, white 18%);
+  }
+
+  .spark-empty {
+    width: 100%;
+    max-width: 8px;
+    height: 3px;
+    border-radius: 2px;
+    background: #d8e1eb;
+    opacity: 0.75;
+  }
+
+  .spark-overflow {
+    font-size: 10px;
+    line-height: 1;
+    color: color-mix(in srgb, var(--tone-ink) 75%, #334155 25%);
+    font-weight: 700;
+  }
+
+  .focus-body {
+    margin-top: 0.65rem;
+  }
+
+  .mini-title {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .mini-copy {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin-top: 0.1rem;
+  }
+
+  .mini-foot {
+    color: #64748b;
+    font-size: 0.82rem;
+    margin-top: 0.25rem;
+  }
+
+  .progress-shell {
+    background: #dbeafe;
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 8px;
+    border-radius: 999px;
+    background: #2563eb;
+  }
+
+  .finance-mini {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .finance-mini li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid #dbe4ef;
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 0.42rem 0.55rem;
+    font-size: 0.86rem;
+    color: #334155;
+  }
+
+  .dot-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 230px;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #cbd5e1;
+  }
+
+  .dot-on {
+    background: var(--tone-ink);
+  }
+
+  .live-stream {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 768px) {
+    .live-stream {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .live-stream {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .live-item {
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
+    background: #fff;
+    padding: 0.8rem;
+    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+    min-height: 122px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .live-top {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .live-top .material-icons {
+    font-size: 1rem;
+    color: #2563eb;
+  }
+
+  .live-title {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .live-copy {
+    color: #64748b;
+    font-size: 0.87rem;
+    line-height: 1.3;
+    flex: 1;
+  }
+
+  .live-date {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+
+  .mosaic-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 768px) {
+    .mosaic-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .mosaic-item {
+    border: 1px solid #dbe4ef;
+    border-radius: 13px;
+    padding: 0.8rem;
+    background: #fff;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .mosaic-item .material-icons {
+    color: #2563eb;
+    font-size: 1.25rem;
+  }
+
+  .mosaic-title {
+    font-weight: 700;
+  }
+
+  .mosaic-copy {
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+
+  .empty-state {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    padding: 1rem;
+  }
+
+  .tone-green { --tone-a: #f0fdf4; --tone-b: #dcfce7; --tone-border: #86efac; --tone-ink: #16a34a; }
+  .tone-blue { --tone-a: #eff6ff; --tone-b: #dbeafe; --tone-border: #93c5fd; --tone-ink: #2563eb; }
+  .tone-purple { --tone-a: #fdf2f8; --tone-b: #fce7f3; --tone-border: #f9a8d4; --tone-ink: #db2777; }
+  .tone-slate { --tone-a: #f8fafc; --tone-b: #f1f5f9; --tone-border: #cbd5e1; --tone-ink: #475569; }
+  .tone-amber { --tone-a: #fffbeb; --tone-b: #fef3c7; --tone-border: #fcd34d; --tone-ink: #d97706; }
+  .tone-pink { --tone-a: #fdf2f8; --tone-b: #fce7f3; --tone-border: #f9a8d4; --tone-ink: #db2777; }
+  .tone-indigo { --tone-a: #eef2ff; --tone-b: #e0e7ff; --tone-border: #a5b4fc; --tone-ink: #4f46e5; }
+  .tone-emerald { --tone-a: #ecfdf5; --tone-b: #d1fae5; --tone-border: #6ee7b7; --tone-ink: #059669; }
+  .tone-orange { --tone-a: #fff7ed; --tone-b: #ffedd5; --tone-border: #fdba74; --tone-ink: #ea580c; }
+  .tone-violet { --tone-a: #ecfeff; --tone-b: #cffafe; --tone-border: #67e8f9; --tone-ink: #0891b2; }
+  .tone-cyan { --tone-a: #ecfeff; --tone-b: #cffafe; --tone-border: #67e8f9; --tone-ink: #0891b2; }
+  .tone-lime { --tone-a: #f7fee7; --tone-b: #ecfccb; --tone-border: #bef264; --tone-ink: #65a30d; }
+
+  .tone-green .spark-col { background: #22c55e; }
+  .tone-blue .spark-col { background: #3b82f6; }
+  .tone-purple .spark-col { background: #8b5cf6; }
+  .tone-slate .spark-col { background: #64748b; }
+  .tone-amber .spark-col { background: #f59e0b; }
+  .tone-pink .spark-col { background: #ec4899; }
+  .tone-indigo .spark-col { background: #6366f1; }
+  .tone-emerald .spark-col { background: #10b981; }
+  .tone-orange .spark-col { background: #f97316; }
+  .tone-violet .spark-col { background: #7c3aed; }
+  .tone-cyan .spark-col { background: #06b6d4; }
+  .tone-lime .spark-col { background: #84cc16; }
+</style>

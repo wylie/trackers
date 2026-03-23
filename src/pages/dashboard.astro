@@ -12,42 +12,8 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
           <p class="mt-2 text-slate-600 text-lg">All your tracker activity in one place.</p>
         </header>
 
-        <section class="kpi-grid mb-8" id="kpi-grid">
-          <article class="kpi-card">
-            <div class="kpi-label">Total Entries</div>
-            <div class="kpi-value" id="kpi-total">0</div>
-          </article>
-          <article class="kpi-card">
-            <div class="kpi-label">Trackers Active</div>
-            <div class="kpi-value" id="kpi-trackers">0</div>
-          </article>
-          <article class="kpi-card">
-            <div class="kpi-label">Latest Update</div>
-            <div class="kpi-value text-lg" id="kpi-latest">-</div>
-          </article>
-          <article class="kpi-card">
-            <div class="kpi-label">Most Active</div>
-            <div class="kpi-value text-lg" id="kpi-most-active">-</div>
-          </article>
-        </section>
 
-        <section class="mb-8">
-          <h2 class="section-title">Focus Boards</h2>
-          <p class="section-copy">Tracker-specific cards with mini visualizations for the last 30 days.</p>
-          <div id="focus-boards" class="focus-grid mt-4"></div>
-        </section>
-
-        <section class="mb-8">
-          <h2 class="section-title">Live Stream</h2>
-          <p class="section-copy">Most recent activity across all trackers.</p>
-          <div id="live-stream" class="live-stream mt-4"></div>
-        </section>
-
-        <section class="mb-8">
-          <h2 class="section-title">Tracker Mosaic</h2>
-          <p class="section-copy">Quick jump panels for all active trackers.</p>
-          <div id="tracker-mosaic" class="mosaic-grid mt-4"></div>
-        </section>
+        <!-- Removed Focus Boards, Live Stream, and Tracker Mosaic for a cleaner dashboard -->
 
         <section id="empty-state" class="empty-state hidden">
           <div class="flex flex-col items-center justify-center py-12">

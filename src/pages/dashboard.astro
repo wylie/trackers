@@ -36,6 +36,41 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
             <p class="text-slate-500 text-sm">Your data is private and stays on your device. No account required.</p>
           </div>
         </section>
+        <section id="kpi-grid-section" class="hidden">
+          <div class="kpi-grid mb-8">
+            <article class="kpi-card">
+              <div class="kpi-label">Total Entries</div>
+              <div class="kpi-value" id="kpi-total">0</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Trackers Active</div>
+              <div class="kpi-value" id="kpi-trackers">0</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Latest Update</div>
+              <div class="kpi-value text-lg" id="kpi-latest">-</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Most Active</div>
+              <div class="kpi-value text-lg" id="kpi-most-active">-</div>
+            </article>
+          </div>
+        </section>
+        <section id="focus-boards-section" class="hidden">
+          <h2 class="section-title">Focus Boards</h2>
+          <p class="section-copy">Tracker-specific cards with mini visualizations for the last 30 days.</p>
+          <div id="focus-boards" class="focus-grid"></div>
+        </section>
+        <section id="live-stream-section" class="hidden">
+          <h2 class="section-title">Live Stream</h2>
+          <p class="section-copy">Most recent activity across all trackers.</p>
+          <div id="live-stream" class="live-stream mt-4"></div>
+        </section>
+        <section id="tracker-mosaic-section" class="hidden">
+          <h2 class="section-title">Tracker Mosaic</h2>
+          <p class="section-copy">Quick jump panels for all active trackers.</p>
+          <div id="tracker-mosaic" class="mosaic-grid mt-4"></div>
+        </section>
       </div>
     </main>
   </TrackerPageWrapper>
@@ -190,10 +225,63 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
     const mostActive = keys.map((key) => ({ key, count: data[key].length })).sort((a, b) => b.count - a.count)[0];
 
     // Only show the empty state if there is no data
+    const emptyState = document.getElementById("empty-state");
+    const kpiGridSection = document.getElementById("kpi-grid-section");
+    const focusBoardsSection = document.getElementById("focus-boards-section");
+    const focusBoards = document.getElementById("focus-boards");
+    const liveStreamSection = document.getElementById("live-stream-section");
+    const liveStream = document.getElementById("live-stream");
+    const trackerMosaicSection = document.getElementById("tracker-mosaic-section");
+    const trackerMosaic = document.getElementById("tracker-mosaic");
     if (!total) {
-      document.getElementById("empty-state").classList.remove("hidden");
+      emptyState.classList.remove("hidden");
+      kpiGridSection.classList.add("hidden");
+      focusBoardsSection.classList.add("hidden");
+      liveStreamSection.classList.add("hidden");
+      trackerMosaicSection.classList.add("hidden");
     } else {
-      document.getElementById("empty-state").classList.add("hidden");
+      emptyState.classList.add("hidden");
+      kpiGridSection.classList.remove("hidden");
+      focusBoardsSection.classList.remove("hidden");
+      liveStreamSection.classList.remove("hidden");
+      trackerMosaicSection.classList.remove("hidden");
+      // Update KPI values
+      document.getElementById("kpi-total").textContent = String(total);
+      document.getElementById("kpi-trackers").textContent = String(keys.length);
+      document.getElementById("kpi-latest").textContent = latest ? formatDate(latest.entry.date) : "-";
+      document.getElementById("kpi-most-active").textContent = mostActive
+        ? `${trackerMeta[mostActive.key]?.label || mostActive.key} (${mostActive.count})`
+        : "-";
+      // Render focus cards for each tracker
+      focusBoards.innerHTML = keys.map((key) => focusCard(key, data[key])).join("");
+      // Render live stream
+      liveStream.innerHTML = recent.slice(0, 10).map(({ key, entry }) => {
+        const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#" };
+        return `
+          <a href="${meta.route}" class="live-item">
+            <div class="live-top">
+              <span class="material-icons">${meta.icon}</span>
+              <span>${escapeHtml(meta.label)}</span>
+            </div>
+            <div class="live-title">${escapeHtml(entry.item || "Entry")}</div>
+            <div class="live-copy">${escapeHtml(entry.notes || "No notes")}</div>
+            <div class="live-date">${formatDate(entry.date)}</div>
+          </a>
+        `;
+      }).join("");
+      // Render tracker mosaic
+      trackerMosaic.innerHTML = keys.map((key) => {
+        const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#" };
+        return `
+          <a href="${meta.route}" class="mosaic-item">
+            <span class="material-icons">${meta.icon}</span>
+            <div>
+              <div class="mosaic-title">${escapeHtml(meta.label)}</div>
+              <div class="mosaic-copy">${data[key].length} entries tracked</div>
+            </div>
+          </a>
+        `;
+      }).join("");
     }
   }
 

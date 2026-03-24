@@ -105,7 +105,7 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
 
   function refreshSummary(summaryEl) {
     const data = getData();
-    const trackerCount = Object.keys(data).length;
+    const trackerCount = Object.values(data).filter((value) => Array.isArray(value) && value.length > 0).length;
     const entryCount = countEntries(data);
     summaryEl.textContent = `Saved trackers: ${trackerCount} • Total entries: ${entryCount}`;
   }

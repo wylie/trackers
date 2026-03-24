@@ -23,6 +23,10 @@ const {
   autoPopulateTotalPages = false
 } = Astro.props;
 const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoint);
+const isSleepTracker = storageKey === "sleep-tracker-entries";
+const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
+const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
+const sleepSettingsKey = "sleep-tracker-settings";
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
@@ -38,26 +42,108 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     {title}
   </h2>
   <p class="text-gray-700 mb-4">{description}</p>
-  <form id="tracker-form" class="flex flex-col gap-2 mb-4">
-    <div class="relative">
-      <input
-        type="text"
-        id="tracker-item"
-        placeholder={itemPlaceholder}
-        autocomplete={autocompleteEnabled ? "off" : "on"}
-        aria-autocomplete={autocompleteEnabled ? "list" : undefined}
-        aria-expanded={autocompleteEnabled ? "false" : undefined}
-        class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
-      />
-      {autocompleteEnabled && (
-        <div
-          id="tracker-item-suggestions"
-          class="hidden absolute left-0 right-0 top-[calc(100%+0.3rem)] z-20 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden"
-        >
-          <ul id="tracker-item-suggestions-list" class="max-h-64 overflow-y-auto py-1"></ul>
+  {isSleepTracker && (
+    <div class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+      <div class="flex flex-col gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Nightly Sleep Goal</h3>
+          <p class="text-sm text-slate-600">Set your target once and each sleep entry will be graded against it.</p>
         </div>
-      )}
+        <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+          <div class="flex flex-col gap-1">
+            <label for="tracker-goal-hours" class="text-sm text-gray-700">Goal Hours</label>
+            <div class="relative">
+              <select
+                id="tracker-goal-hours"
+                class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+              >
+                {sleepHourOptions.map((value) => (
+                  <option value={value}>{value} {value === 1 ? "hour" : "hours"}</option>
+                ))}
+              </select>
+              <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="tracker-goal-minutes" class="text-sm text-gray-700">Goal Minutes</label>
+            <div class="relative">
+              <select
+                id="tracker-goal-minutes"
+                class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+              >
+                {sleepMinuteOptions.map((value) => (
+                  <option value={value}>{value.toString().padStart(2, "0")} min</option>
+                ))}
+              </select>
+              <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+            </div>
+          </div>
+          <button
+            id="tracker-save-goal"
+            type="button"
+            class="px-4 py-2 bg-slate-900 text-white rounded-md font-medium hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            Save Goal
+          </button>
+        </div>
+        <p id="tracker-goal-summary" class="text-sm text-slate-600"></p>
+        <p id="tracker-goal-message" class="hidden text-sm font-medium text-green-700"></p>
+      </div>
     </div>
+  )}
+  <form id="tracker-form" class="flex flex-col gap-2 mb-4">
+    {isSleepTracker ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1">
+          <label for="tracker-sleep-hours" class="text-sm text-gray-700">Hours Slept</label>
+          <div class="relative">
+            <select
+              id="tracker-sleep-hours"
+              class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+            >
+              {sleepHourOptions.map((value) => (
+                <option value={value}>{value} {value === 1 ? "hour" : "hours"}</option>
+              ))}
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-sleep-minutes" class="text-sm text-gray-700">Minutes Slept</label>
+          <div class="relative">
+            <select
+              id="tracker-sleep-minutes"
+              class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+            >
+              {sleepMinuteOptions.map((value) => (
+                <option value={value}>{value.toString().padStart(2, "0")} min</option>
+              ))}
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class="relative">
+        <input
+          type="text"
+          id="tracker-item"
+          placeholder={itemPlaceholder}
+          autocomplete={autocompleteEnabled ? "off" : "on"}
+          aria-autocomplete={autocompleteEnabled ? "list" : undefined}
+          aria-expanded={autocompleteEnabled ? "false" : undefined}
+          class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+        />
+        {autocompleteEnabled && (
+          <div
+            id="tracker-item-suggestions"
+            class="hidden absolute left-0 right-0 top-[calc(100%+0.3rem)] z-20 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden"
+          >
+            <ul id="tracker-item-suggestions-list" class="max-h-64 overflow-y-auto py-1"></ul>
+          </div>
+        )}
+      </div>
+    )}
     {enableAuthorField && (
       <input
         type="text"
@@ -111,7 +197,7 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
       </div>
     )}
     <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-    <div id="tracker-rating-row" class="flex items-center gap-2 mb-2">
+    <div id="tracker-rating-row" class:list={["flex items-center gap-2 mb-2", { hidden: isSleepTracker }]}>
       <label for="tracker-rating" class="text-gray-700">Rating:</label>
       <div id="tracker-rating-stars" class="flex gap-1"></div>
       <input type="hidden" id="tracker-rating" value="0" />
@@ -179,14 +265,37 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   .reading-progress-input {
     height: 44px;
   }
+  .tracker-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: #fff;
+    color: #111827;
+    height: 44px;
+    padding-right: 2.75rem;
+  }
+  .tracker-select-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #111827;
+    font-size: 1.375rem;
+    pointer-events: none;
+  }
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages }}>
-  const trackerType = storageKey;
-  console.log(storageKey, trackerType);
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
+  const sleepHoursInput = document.getElementById("tracker-sleep-hours");
+  const sleepMinutesInput = document.getElementById("tracker-sleep-minutes");
+  const goalHoursInput = document.getElementById("tracker-goal-hours");
+  const goalMinutesInput = document.getElementById("tracker-goal-minutes");
+  const goalSaveButton = document.getElementById("tracker-save-goal");
+  const goalSummary = document.getElementById("tracker-goal-summary");
+  const goalMessage = document.getElementById("tracker-goal-message");
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
@@ -210,6 +319,104 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   let editingIdx = -1;
   let selectedRating = 0;
   let hoveredRating = 0;
+  let goalMessageTimer = null;
+
+  function showSleepGoalMessage(message) {
+    if (!goalMessage) return;
+    goalMessage.textContent = message;
+    goalMessage.classList.remove("hidden");
+    clearTimeout(goalMessageTimer);
+    goalMessageTimer = window.setTimeout(() => {
+      goalMessage.classList.add("hidden");
+    }, 2200);
+  }
+
+  function formatDurationLabel(hours, minutes) {
+    const normalizedHours = Math.max(0, Number(hours) || 0);
+    const normalizedMinutes = Math.max(0, Number(minutes) || 0);
+    const parts = [];
+    if (normalizedHours > 0) {
+      parts.push(`${normalizedHours} ${normalizedHours === 1 ? "hour" : "hours"}`);
+    }
+    if (normalizedMinutes > 0 || !parts.length) {
+      parts.push(`${normalizedMinutes} ${normalizedMinutes === 1 ? "minute" : "minutes"}`);
+    }
+    return parts.join(" ");
+  }
+
+  function parseSleepDuration(entry) {
+    const directHours = Number(entry?.sleepHours);
+    const directMinutes = Number(entry?.sleepMinutes);
+    if (Number.isFinite(directHours) || Number.isFinite(directMinutes)) {
+      return {
+        hours: Math.max(0, Number.isFinite(directHours) ? directHours : 0),
+        minutes: Math.max(0, Number.isFinite(directMinutes) ? directMinutes : 0)
+      };
+    }
+
+    const rawItem = String(entry?.item || "").toLowerCase();
+    const match = rawItem.match(/(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?/i);
+    return {
+      hours: Number(match?.[1] || 0),
+      minutes: Number(match?.[2] || 0)
+    };
+  }
+
+  function formatSleepDuration(hours, minutes) {
+    return formatDurationLabel(hours, minutes);
+  }
+
+  function formatMinutesAsDuration(totalMinutes) {
+    const normalizedMinutes = Math.max(0, Number(totalMinutes) || 0);
+    const hours = Math.floor(normalizedMinutes / 60);
+    const minutes = normalizedMinutes % 60;
+    return formatDurationLabel(hours, minutes);
+  }
+
+  function getSleepGoalSettings(allEntries = getAllEntries()) {
+    const settings = allEntries[sleepSettingsKey];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+      return { goalHours: 8, goalMinutes: 0 };
+    }
+    return {
+      goalHours: Math.max(0, Number(settings.goalHours) || 0),
+      goalMinutes: Math.max(0, Number(settings.goalMinutes) || 0)
+    };
+  }
+
+  function saveSleepGoalSettings(goalHours, goalMinutes) {
+    const allEntries = getAllEntries();
+    allEntries[sleepSettingsKey] = {
+      goalHours: Math.max(0, Number(goalHours) || 0),
+      goalMinutes: Math.max(0, Number(goalMinutes) || 0)
+    };
+    localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+  }
+
+  function getSleepGrade(actualHours, actualMinutes, goalHours, goalMinutes) {
+    const actualTotal = Math.max(0, Number(actualHours) || 0) * 60 + Math.max(0, Number(actualMinutes) || 0);
+    const goalTotal = Math.max(0, Number(goalHours) || 0) * 60 + Math.max(0, Number(goalMinutes) || 0);
+    if (goalTotal <= 0 || actualTotal <= 0) {
+      return { score: null, detail: "Set a nightly goal to score entries.", stars: 0 };
+    }
+
+    const diff = Math.abs(actualTotal - goalTotal);
+    const score = Math.max(0, Math.round(100 - (diff / goalTotal) * 100));
+    const stars = Math.max(1, Math.min(5, Math.round(score / 20)));
+    const direction = actualTotal >= goalTotal ? "over" : "under";
+    return {
+      score,
+      detail: `${formatMinutesAsDuration(diff)} ${direction} goal`,
+      stars
+    };
+  }
+
+  function updateSleepGoalSummary() {
+    if (!isSleepTracker || !goalSummary) return;
+    const goalHours = Number(goalHoursInput?.value || 0);
+    const goalMinutes = Number(goalMinutesInput?.value || 0);
+    goalSummary.textContent = `Current target: ${formatDurationLabel(goalHours, goalMinutes)}`;
+  }
 
   function setEditingMode(isEditing) {
     if (submitButton) {
@@ -221,7 +428,9 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
   }
 
   function clearForm() {
-    itemInput.value = "";
+    if (itemInput) itemInput.value = "";
+    if (sleepHoursInput) sleepHoursInput.value = "0";
+    if (sleepMinutesInput) sleepMinutesInput.value = "0";
     if (authorInput) authorInput.value = "";
     if (directorInput) directorInput.value = "";
     if (publisherInput) publisherInput.value = "";
@@ -245,7 +454,14 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     const entry = entries[idx];
     if (!entry) return;
     editingIdx = idx;
-    itemInput.value = entry.item || "";
+    if (itemInput) {
+      itemInput.value = entry.item || "";
+    }
+    if (isSleepTracker) {
+      const { hours, minutes } = parseSleepDuration(entry);
+      if (sleepHoursInput) sleepHoursInput.value = String(hours);
+      if (sleepMinutesInput) sleepMinutesInput.value = String(minutes);
+    }
     if (authorInput) authorInput.value = entry.author || "";
     if (directorInput) directorInput.value = entry.director || "";
     if (publisherInput) publisherInput.value = entry.publisher || "";
@@ -261,7 +477,11 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     updateStars();
     setEditingMode(true);
     syncReadingModeUI();
-    itemInput.focus();
+    if (itemInput) {
+      itemInput.focus();
+    } else if (sleepHoursInput) {
+      sleepHoursInput.focus();
+    }
   }
 
   function syncReadingModeUI() {
@@ -307,6 +527,24 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     const allEntries = getAllEntries();
     allEntries[storageKey] = entries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+  }
+
+  if (isSleepTracker) {
+    const { goalHours, goalMinutes } = getSleepGoalSettings();
+    if (goalHoursInput) goalHoursInput.value = String(goalHours);
+    if (goalMinutesInput) goalMinutesInput.value = String(goalMinutes);
+    updateSleepGoalSummary();
+
+    goalHoursInput?.addEventListener("change", updateSleepGoalSummary);
+    goalMinutesInput?.addEventListener("change", updateSleepGoalSummary);
+    goalSaveButton?.addEventListener("click", function() {
+      const nextGoalHours = Number(goalHoursInput?.value || 0);
+      const nextGoalMinutes = Number(goalMinutesInput?.value || 0);
+      saveSleepGoalSettings(nextGoalHours, nextGoalMinutes);
+      updateSleepGoalSummary();
+      showSleepGoalMessage(`Saved goal: ${formatDurationLabel(nextGoalHours, nextGoalMinutes)}`);
+      renderEntries();
+    });
   }
 
   if ((enableOmdbAutocomplete || autocompleteEndpoint) && itemInput && itemSuggestions) {
@@ -549,6 +787,12 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
       if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
+      if (isSleepTracker) {
+        const { hours, minutes } = parseSleepDuration(entry);
+        const { goalHours, goalMinutes } = getSleepGoalSettings();
+        const grade = getSleepGrade(hours, minutes, goalHours, goalMinutes);
+        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Target: ${formatDurationLabel(goalHours, goalMinutes)} • Score: <strong>${grade.score ?? "N/A"}/100</strong>${grade.score !== null ? ` (${grade.detail})` : ""}</div>`);
+      }
       if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
         const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
         const finished = entry.currentlyReading
@@ -566,7 +810,7 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
       const metadataHtml = metadataLines.length
         ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
         : "";
-      const showRating = !(enableReadingProgress && entry.currentlyReading);
+      const showRating = !isSleepTracker && !(enableReadingProgress && entry.currentlyReading);
       li.innerHTML = `
         <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
           <div class=\"absolute top-3 right-3 flex items-center gap-1\">
@@ -746,7 +990,11 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
 
   form.onsubmit = e => {
     e.preventDefault();
-    const item = itemInput.value.trim();
+    const sleepHours = Number(sleepHoursInput?.value || 0);
+    const sleepMinutes = Number(sleepMinutesInput?.value || 0);
+    const item = isSleepTracker
+      ? formatSleepDuration(sleepHours, sleepMinutes)
+      : (itemInput?.value.trim() || "");
     const author = authorInput?.value.trim() || "";
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
@@ -756,8 +1004,12 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     const currentPage = Number(currentPageInput?.value || 0);
     const totalPages = Number(totalPagesInput?.value || 0);
     const notes = notesInput.value.trim();
-    const rating = currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0);
-    if (!item) return;
+    const { goalHours, goalMinutes } = isSleepTracker ? getSleepGoalSettings() : { goalHours: 0, goalMinutes: 0 };
+    const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
+    const rating = isSleepTracker
+      ? (sleepGrade?.stars || 0)
+      : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0));
+    if (!item || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0)) return;
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
       const updatedEntry = {
@@ -766,6 +1018,11 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
         notes,
         rating
       };
+      if (isSleepTracker) {
+        updatedEntry.sleepHours = sleepHours;
+        updatedEntry.sleepMinutes = sleepMinutes;
+        updatedEntry.sleepScore = sleepGrade?.score ?? null;
+      }
       if (enableAuthorField) updatedEntry.author = author;
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
@@ -780,6 +1037,11 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
     } else {
       const date = new Date().toISOString();
       const nextEntry = { item, notes, rating, date };
+      if (isSleepTracker) {
+        nextEntry.sleepHours = sleepHours;
+        nextEntry.sleepMinutes = sleepMinutes;
+        nextEntry.sleepScore = sleepGrade?.score ?? null;
+      }
       if (enableAuthorField) nextEntry.author = author;
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;

@@ -340,10 +340,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     pointer-events: none;
   }
   :global(.reading-cover-shell) {
-    width: min(100px, 20vw);
-    max-width: 100px;
-    min-width: 72px;
-    aspect-ratio: 2 / 3;
+    width: calc(100% - 88px);
+    max-width: calc(100% - 88px);
+    min-width: 0;
+    height: 132px;
     border-radius: 0.5rem;
     overflow: hidden;
     background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
@@ -354,7 +354,17 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center center;
     display: block;
+  }
+  @media (min-width: 640px) {
+    :global(.reading-cover-shell) {
+      width: 88px;
+      max-width: 88px;
+      min-width: 88px;
+      height: auto;
+      aspect-ratio: 2 / 3;
+    }
   }
 </style>
 </section>
@@ -403,11 +413,14 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
   let hoveredRating = 0;
   let goalMessageTimer = null;
   let selectedCoverId = 0;
+  let selectedCoverEditionKey = "";
   let selectedCoverUrl = "";
   let isEnrichingReadingCovers = false;
   let selectedPosterUrl = "";
   let selectedImdbId = "";
   let isEnrichingMoviePosters = false;
+  let hasNormalizedReadingEntries = false;
+  const bookFallbackDataUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 360'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23eff6ff'/%3E%3Cstop offset='100%25' stop-color='%23dbeafe'/%3E%3C/linearGradient%3E%3ClinearGradient id='spine' x1='0' x2='0' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%231d4ed8'/%3E%3Cstop offset='100%25' stop-color='%231e40af'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='240' height='360' rx='20' fill='url(%23bg)'/%3E%3Crect x='24' y='20' width='34' height='320' rx='10' fill='url(%23spine)'/%3E%3Crect x='70' y='44' width='138' height='12' rx='6' fill='%2393c5fd'/%3E%3Crect x='70' y='70' width='116' height='12' rx='6' fill='%23bfdbfe'/%3E%3Crect x='70' y='106' width='124' height='124' rx='18' fill='%23ffffff' opacity='0.85'/%3E%3Cpath d='M112 140h40c10 0 18 8 18 18v38c0 10-8 18-18 18h-40c-10 0-18-8-18-18v-38c0-10 8-18 18-18Zm0 10c-4 0-8 4-8 8v38c0 4 4 8 8 8h40c4 0 8-4 8-8v-38c0-4-4-8-8-8Zm20 4c3 0 5 2 5 5v36c0 3-2 5-5 5s-5-2-5-5v-36c0-3 2-5 5-5Z' fill='%232563eb'/%3E%3Crect x='70' y='256' width='124' height='10' rx='5' fill='%2393c5fd'/%3E%3Crect x='70' y='276' width='108' height='10' rx='5' fill='%23bfdbfe'/%3E%3Crect x='70' y='296' width='88' height='10' rx='5' fill='%23bfdbfe'/%3E%3C/svg%3E";
 
   function showSleepGoalMessage(message) {
     if (!goalMessage) return;
@@ -484,9 +497,44 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 
   function getReadingCoverUrl(entry) {
     if (!isReadingTracker || !entry) return "";
-    if (entry.coverUrl) return entry.coverUrl;
+    const coverEditionKey = String(entry.coverEditionKey || "").trim();
+    if (coverEditionKey) {
+      return `https://covers.openlibrary.org/b/olid/${coverEditionKey}-M.jpg?default=false`;
+    }
     const coverId = Number(entry.coverId) || 0;
-    return coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "";
+    return coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false` : "";
+  }
+
+  function getFallbackMediaUrl(entry) {
+    if (isReadingTracker) return bookFallbackDataUrl;
+    return "";
+  }
+
+  function isPlaceholderCoverUrl(url) {
+    const explicitCoverUrl = String(url || "").trim();
+    const normalizedCoverUrl = explicitCoverUrl.toLowerCase();
+    let coverHost = "";
+    try {
+      coverHost = explicitCoverUrl ? new URL(explicitCoverUrl).hostname.toLowerCase() : "";
+    } catch {
+      coverHost = "";
+    }
+    return (
+      normalizedCoverUrl.includes("no+image") ||
+      normalizedCoverUrl.includes("no%20image") ||
+      normalizedCoverUrl.includes("no-image") ||
+      normalizedCoverUrl.includes("no_image") ||
+      normalizedCoverUrl.includes("noimage") ||
+      normalizedCoverUrl.includes("no-img") ||
+      normalizedCoverUrl.includes("image_not_available") ||
+      normalizedCoverUrl.includes("notavailable") ||
+      normalizedCoverUrl.includes("placeholder") ||
+      (normalizedCoverUrl.includes("amazon") && normalizedCoverUrl.includes("no")) ||
+      coverHost.includes("amazonaws.com") ||
+      coverHost.includes("ssl-images-amazon.com") ||
+      coverHost.includes("images-amazon.com") ||
+      coverHost.includes("media-amazon.com")
+    );
   }
 
   function getMoviePosterUrl(entry) {
@@ -573,6 +621,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (totalHoursInput) totalHoursInput.value = "0";
     if (totalMinutesInput) totalMinutesInput.value = "0";
     selectedCoverId = 0;
+    selectedCoverEditionKey = "";
     selectedCoverUrl = "";
     selectedPosterUrl = "";
     selectedImdbId = "";
@@ -613,6 +662,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (totalHoursInput) totalHoursInput.value = String(entry.totalHours ?? 0);
     if (totalMinutesInput) totalMinutesInput.value = String(entry.totalMinutes ?? 0);
     selectedCoverId = Number(entry.coverId) || 0;
+    selectedCoverEditionKey = entry.coverEditionKey || "";
     selectedCoverUrl = entry.coverUrl || "";
     selectedPosterUrl = entry.posterUrl || "";
     selectedImdbId = entry.imdbID || "";
@@ -691,6 +741,35 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
   }
 
+  function normalizeReadingEntries() {
+    if (!isReadingTracker || hasNormalizedReadingEntries) return;
+    const entries = getEntries();
+    let changed = false;
+    const normalizedEntries = entries.map((entry) => {
+      if (!entry || typeof entry !== "object") return entry;
+      if ("coverUrl" in entry) {
+        changed = true;
+        return {
+          ...entry,
+          coverUrl: ""
+        };
+      }
+      if (entry.coverEditionKey && typeof entry.coverEditionKey !== "string") {
+        changed = true;
+        return {
+          ...entry,
+          coverEditionKey: ""
+        };
+      }
+      return entry;
+    });
+
+    if (changed) {
+      saveEntries(normalizedEntries);
+    }
+    hasNormalizedReadingEntries = true;
+  }
+
   async function enrichReadingCovers() {
     if (!isReadingTracker || isEnrichingReadingCovers) return;
     const entries = getEntries();
@@ -721,13 +800,13 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
           }) || suggestions[0];
 
           const coverId = Number(match?.coverId) || 0;
-          const coverUrl = match?.coverUrl || "";
-          if (!coverId && !coverUrl) continue;
+          const coverEditionKey = String(match?.coverEditionKey || "").trim();
+          if (!coverId && !coverEditionKey) continue;
 
           entries[idx] = {
             ...entries[idx],
             coverId,
-            coverUrl
+            coverEditionKey
           };
           changed = true;
         } catch {
@@ -768,7 +847,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     let activeSuggestionIdx = -1;
     function normalizeSuggestion(item) {
       if (typeof item === "string") {
-        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverUrl: "", posterUrl: "" };
+        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverEditionKey: "", posterUrl: "" };
       }
       if (item && typeof item === "object") {
         const value = item.value || item.label || "";
@@ -780,10 +859,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         const totalPages = item.totalPages || "";
         const imdbID = item.imdbID || "";
         const coverId = Number(item.coverId) || 0;
-        const coverUrl = item.coverUrl || "";
+        const coverEditionKey = item.coverEditionKey || "";
         const posterUrl = item.posterUrl || "";
         if (value) {
-          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverUrl, posterUrl };
+          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverEditionKey, posterUrl };
         }
       }
       return null;
@@ -877,7 +956,8 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       const suggestion = currentSuggestions[index];
       itemInput.value = suggestion.value;
       selectedCoverId = Number(suggestion.coverId) || 0;
-      selectedCoverUrl = suggestion.coverUrl || "";
+      selectedCoverEditionKey = suggestion.coverEditionKey || "";
+      selectedCoverUrl = "";
       selectedPosterUrl = suggestion.posterUrl || "";
       selectedImdbId = suggestion.imdbID || "";
       if (enableAuthorField && autoPopulateAuthor && authorInput && suggestion.author) {
@@ -934,6 +1014,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     itemInput.addEventListener("input", function() {
       const query = itemInput.value.trim();
       selectedCoverId = 0;
+      selectedCoverEditionKey = "";
       selectedCoverUrl = "";
       selectedPosterUrl = "";
       selectedImdbId = "";
@@ -995,6 +1076,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
   }
 
   function renderEntries() {
+    normalizeReadingEntries();
     list.innerHTML = "";
     const entries = getEntries();
     function formatSimpleDate(dateStr) {
@@ -1054,13 +1136,19 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         : "";
       const showRating = !isSleepTracker && !(enableReadingProgress && entry.currentlyReading);
       const mediaImageUrl = isReadingTracker ? getReadingCoverUrl(entry) : (isMovieTracker ? getMoviePosterUrl(entry) : "");
-      const hasMediaImage = Boolean(mediaImageUrl);
+      const fallbackMediaUrl = getFallbackMediaUrl(entry);
+      const finalMediaUrl = mediaImageUrl || fallbackMediaUrl;
+      const hasMediaImage = Boolean(finalMediaUrl);
+      const imageOnError = fallbackMediaUrl && mediaImageUrl
+        ? `this.onerror=null;this.src='${fallbackMediaUrl}';`
+        : "";
       const coverHtml = hasMediaImage
-        ? `<div class=\"reading-cover-shell\"><img src=\"${mediaImageUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" /></div>`
+        ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} /></div>`
         : "";
       li.innerHTML = `
-        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "gap-4 items-start" : "flex-col"}\">
+        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start" : "flex-col"}\">
           ${coverHtml}
+          <div class=\"${hasMediaImage ? "w-full sm:flex-1 sm:min-w-0" : ""}\">
           <div class=\"${hasMediaImage ? "flex-1 min-w-0" : ""}\">
           <div class=\"absolute top-3 right-3 flex items-center gap-1\">
             <button class=\"p-1.5 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center\" aria-label=\"Edit\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span></button>
@@ -1077,6 +1165,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
           </div>
           <div class=\"text-gray-700 text-sm leading-relaxed\">${entry.notes}</div>
           ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStars(entry.rating || 0)}</div>` : ""}
+          </div>
           </div>
         </div>
       `;
@@ -1338,7 +1427,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         updatedEntry.currentlyReading = currentlyReading;
         updatedEntry.isAudiobook = isAudiobook;
         updatedEntry.coverId = selectedCoverId;
-        updatedEntry.coverUrl = selectedCoverUrl;
+        updatedEntry.coverEditionKey = selectedCoverEditionKey;
         updatedEntry.currentPage = isAudiobook ? 0 : currentPage;
         updatedEntry.totalPages = isAudiobook ? 0 : totalPages;
         updatedEntry.currentHours = isAudiobook ? currentHours : 0;
@@ -1368,7 +1457,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         nextEntry.currentlyReading = currentlyReading;
         nextEntry.isAudiobook = isAudiobook;
         nextEntry.coverId = selectedCoverId;
-        nextEntry.coverUrl = selectedCoverUrl;
+        nextEntry.coverEditionKey = selectedCoverEditionKey;
         nextEntry.currentPage = isAudiobook ? 0 : currentPage;
         nextEntry.totalPages = isAudiobook ? 0 : totalPages;
         nextEntry.currentHours = isAudiobook ? currentHours : 0;

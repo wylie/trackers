@@ -6,12 +6,14 @@ function formatSuggestion(book: {
   author_name?: string[];
   number_of_pages_median?: number;
   cover_i?: number;
+  cover_edition_key?: string;
 }) {
   if (!book?.title) return null;
   const label = book.first_publish_year ? `${book.title} (${book.first_publish_year})` : book.title;
   const author = Array.isArray(book.author_name) && book.author_name.length ? book.author_name[0] : "";
   const totalPages = Number(book.number_of_pages_median) || 0;
   const coverId = Number(book.cover_i) || 0;
+  const coverEditionKey = typeof book.cover_edition_key === "string" ? book.cover_edition_key : "";
   const coverUrl = coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "";
   const pageText = totalPages > 0 ? `${totalPages} pages` : "";
   const subtitle = [author, pageText].filter(Boolean).join(" • ");
@@ -21,6 +23,7 @@ function formatSuggestion(book: {
     author,
     totalPages,
     coverId,
+    coverEditionKey,
     coverUrl,
     subtitle
   };
@@ -38,7 +41,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   async function searchBooks(term: string) {
-    const endpoint = `https://openlibrary.org/search.json?limit=8&fields=title,first_publish_year,author_name,number_of_pages_median,cover_i&q=${encodeURIComponent(term)}`;
+    const endpoint = `https://openlibrary.org/search.json?limit=8&fields=title,first_publish_year,author_name,number_of_pages_median,cover_i,cover_edition_key&q=${encodeURIComponent(term)}`;
     const res = await fetch(endpoint, {
       headers: {
         Accept: "application/json",

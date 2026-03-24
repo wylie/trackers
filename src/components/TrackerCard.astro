@@ -24,9 +24,13 @@ const {
 } = Astro.props;
 const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoint);
 const isSleepTracker = storageKey === "sleep-tracker-entries";
+const isReadingTracker = storageKey === "reading-tracker-entries";
+const isMovieTracker = storageKey === "movie-watch-tracker-entries";
 const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
 const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
+const progressHourOptions = Array.from({ length: 101 }, (_, value) => value);
+const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
@@ -174,19 +178,71 @@ const sleepSettingsKey = "sleep-tracker-settings";
           <input type="checkbox" id="tracker-currently-reading" class="h-4 w-4 accent-blue-600" checked />
           <label for="tracker-currently-reading" class="text-sm text-gray-700">Currently reading (not finished)</label>
         </div>
+        {isReadingTracker && (
+          <div class="sm:col-span-2 flex items-center gap-2">
+            <input type="checkbox" id="tracker-is-audiobook" class="h-4 w-4 accent-blue-600" />
+            <label for="tracker-is-audiobook" class="text-sm text-gray-700">Audiobook</label>
+          </div>
+        )}
         <div id="tracker-reading-progress-fields" class="contents lg:grid lg:grid-cols-3 lg:gap-2 lg:sm:col-span-2">
           <div class="flex flex-col gap-1">
             <label for="tracker-started-date" class="text-sm text-gray-700">Started Reading</label>
             <input type="date" id="tracker-started-date" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
-          <div class="flex flex-col gap-1">
-            <label for="tracker-current-page" class="text-sm text-gray-700">Current Page</label>
+          <div id="tracker-page-progress-field" class="flex flex-col gap-1">
+            <label id="tracker-current-page-label" for="tracker-current-page" class="text-sm text-gray-700">Current Page</label>
             <input type="number" min="0" step="1" id="tracker-current-page" placeholder="0" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
-          <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
-            <label for="tracker-total-pages" class="text-sm text-gray-700">Total Pages</label>
+          <div id="tracker-total-page-field" class="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+            <label id="tracker-total-pages-label" for="tracker-total-pages" class="text-sm text-gray-700">Total Pages</label>
             <input type="number" min="1" step="1" id="tracker-total-pages" placeholder="0" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
+          {isReadingTracker && (
+            <>
+              <div id="tracker-current-audio-field" class="hidden flex flex-col gap-1 lg:col-span-1">
+                <label class="text-sm text-gray-700">Current Time</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="relative">
+                    <select id="tracker-current-hours" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+                      {progressHourOptions.map((value) => (
+                        <option value={value}>{value}h</option>
+                      ))}
+                    </select>
+                    <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+                  </div>
+                  <div class="relative">
+                    <select id="tracker-current-minutes" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+                      {progressMinuteOptions.map((value) => (
+                        <option value={value}>{value.toString().padStart(2, "0")}m</option>
+                      ))}
+                    </select>
+                    <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+                  </div>
+                </div>
+              </div>
+              <div id="tracker-total-audio-field" class="hidden flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+                <label class="text-sm text-gray-700">Total Time</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="relative">
+                    <select id="tracker-total-hours" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+                      {progressHourOptions.map((value) => (
+                        <option value={value}>{value}h</option>
+                      ))}
+                    </select>
+                    <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+                  </div>
+                  <div class="relative">
+                    <select id="tracker-total-minutes" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+                      {progressMinuteOptions.map((value) => (
+                        <option value={value}>{value.toString().padStart(2, "0")}m</option>
+                      ))}
+                    </select>
+                    <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div id="tracker-finished-fields" class="sm:col-span-2">
           <div class="flex flex-col gap-1">
@@ -283,10 +339,27 @@ const sleepSettingsKey = "sleep-tracker-settings";
     font-size: 1.375rem;
     pointer-events: none;
   }
+  :global(.reading-cover-shell) {
+    width: min(100px, 20vw);
+    max-width: 100px;
+    min-width: 72px;
+    aspect-ratio: 2 / 3;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+    border: 1px solid #e2e8f0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  :global(.reading-cover-image) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const sleepHoursInput = document.getElementById("tracker-sleep-hours");
@@ -302,11 +375,20 @@ const sleepSettingsKey = "sleep-tracker-settings";
   const startedDateInput = document.getElementById("tracker-started-date");
   const finishedDateInput = document.getElementById("tracker-finished-date");
   const currentlyReadingInput = document.getElementById("tracker-currently-reading");
+  const audiobookInput = document.getElementById("tracker-is-audiobook");
   const readingProgressFields = document.getElementById("tracker-reading-progress-fields");
   const finishedFields = document.getElementById("tracker-finished-fields");
   const ratingRow = document.getElementById("tracker-rating-row");
   const currentPageInput = document.getElementById("tracker-current-page");
   const totalPagesInput = document.getElementById("tracker-total-pages");
+  const pageProgressField = document.getElementById("tracker-page-progress-field");
+  const totalPageField = document.getElementById("tracker-total-page-field");
+  const currentAudioField = document.getElementById("tracker-current-audio-field");
+  const totalAudioField = document.getElementById("tracker-total-audio-field");
+  const currentHoursInput = document.getElementById("tracker-current-hours");
+  const currentMinutesInput = document.getElementById("tracker-current-minutes");
+  const totalHoursInput = document.getElementById("tracker-total-hours");
+  const totalMinutesInput = document.getElementById("tracker-total-minutes");
   const notesInput = document.getElementById("tracker-notes");
   const submitButton = document.getElementById("tracker-submit");
   const cancelEditButton = document.getElementById("tracker-cancel-edit");
@@ -320,6 +402,12 @@ const sleepSettingsKey = "sleep-tracker-settings";
   let selectedRating = 0;
   let hoveredRating = 0;
   let goalMessageTimer = null;
+  let selectedCoverId = 0;
+  let selectedCoverUrl = "";
+  let isEnrichingReadingCovers = false;
+  let selectedPosterUrl = "";
+  let selectedImdbId = "";
+  let isEnrichingMoviePosters = false;
 
   function showSleepGoalMessage(message) {
     if (!goalMessage) return;
@@ -364,6 +452,46 @@ const sleepSettingsKey = "sleep-tracker-settings";
 
   function formatSleepDuration(hours, minutes) {
     return formatDurationLabel(hours, minutes);
+  }
+
+  function totalMinutesFromParts(hours, minutes) {
+    return Math.max(0, Number(hours) || 0) * 60 + Math.max(0, Number(minutes) || 0);
+  }
+
+  function formatProgressValue(entry) {
+    if (entry?.isAudiobook) {
+      const currentTotalMinutes = totalMinutesFromParts(entry.currentHours, entry.currentMinutes);
+      const totalDurationMinutes = totalMinutesFromParts(entry.totalHours, entry.totalMinutes);
+      const percent = totalDurationMinutes > 0 ? Math.min(100, Math.round((currentTotalMinutes / totalDurationMinutes) * 100)) : 0;
+      return {
+        current: formatDurationLabel(entry.currentHours || 0, entry.currentMinutes || 0),
+        total: totalDurationMinutes > 0 ? formatDurationLabel(entry.totalHours || 0, entry.totalMinutes || 0) : "",
+        unit: "listened",
+        percent
+      };
+    }
+
+    const current = Number(entry?.currentPage) || 0;
+    const total = Number(entry?.totalPages) || 0;
+    const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+    return {
+      current: String(current),
+      total: total > 0 ? String(total) : "",
+      unit: "pages",
+      percent
+    };
+  }
+
+  function getReadingCoverUrl(entry) {
+    if (!isReadingTracker || !entry) return "";
+    if (entry.coverUrl) return entry.coverUrl;
+    const coverId = Number(entry.coverId) || 0;
+    return coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "";
+  }
+
+  function getMoviePosterUrl(entry) {
+    if (!isMovieTracker || !entry) return "";
+    return entry.posterUrl || "";
   }
 
   function formatMinutesAsDuration(totalMinutes) {
@@ -437,8 +565,17 @@ const sleepSettingsKey = "sleep-tracker-settings";
     if (startedDateInput) startedDateInput.value = "";
     if (finishedDateInput) finishedDateInput.value = "";
     if (currentlyReadingInput) currentlyReadingInput.checked = enableReadingProgress;
+    if (audiobookInput) audiobookInput.checked = false;
     if (currentPageInput) currentPageInput.value = "";
     if (totalPagesInput) totalPagesInput.value = "";
+    if (currentHoursInput) currentHoursInput.value = "0";
+    if (currentMinutesInput) currentMinutesInput.value = "0";
+    if (totalHoursInput) totalHoursInput.value = "0";
+    if (totalMinutesInput) totalMinutesInput.value = "0";
+    selectedCoverId = 0;
+    selectedCoverUrl = "";
+    selectedPosterUrl = "";
+    selectedImdbId = "";
     notesInput.value = "";
     selectedRating = 0;
     hoveredRating = 0;
@@ -468,8 +605,17 @@ const sleepSettingsKey = "sleep-tracker-settings";
     if (startedDateInput) startedDateInput.value = entry.startedDate || "";
     if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
     if (currentlyReadingInput) currentlyReadingInput.checked = Boolean(entry.currentlyReading);
+    if (audiobookInput) audiobookInput.checked = Boolean(entry.isAudiobook);
     if (currentPageInput) currentPageInput.value = entry.currentPage ?? "";
     if (totalPagesInput) totalPagesInput.value = entry.totalPages ?? "";
+    if (currentHoursInput) currentHoursInput.value = String(entry.currentHours ?? 0);
+    if (currentMinutesInput) currentMinutesInput.value = String(entry.currentMinutes ?? 0);
+    if (totalHoursInput) totalHoursInput.value = String(entry.totalHours ?? 0);
+    if (totalMinutesInput) totalMinutesInput.value = String(entry.totalMinutes ?? 0);
+    selectedCoverId = Number(entry.coverId) || 0;
+    selectedCoverUrl = entry.coverUrl || "";
+    selectedPosterUrl = entry.posterUrl || "";
+    selectedImdbId = entry.imdbID || "";
     notesInput.value = entry.notes || "";
     selectedRating = Number(entry.rating) || 0;
     hoveredRating = 0;
@@ -487,8 +633,21 @@ const sleepSettingsKey = "sleep-tracker-settings";
   function syncReadingModeUI() {
     if (!enableReadingProgress || !currentlyReadingInput) return;
     const isCurrentlyReading = currentlyReadingInput.checked;
+    const isAudiobook = isReadingTracker && Boolean(audiobookInput?.checked);
     if (readingProgressFields) {
       readingProgressFields.classList.toggle("hidden", !isCurrentlyReading);
+    }
+    if (pageProgressField) {
+      pageProgressField.classList.toggle("hidden", isAudiobook);
+    }
+    if (totalPageField) {
+      totalPageField.classList.toggle("hidden", isAudiobook);
+    }
+    if (currentAudioField) {
+      currentAudioField.classList.toggle("hidden", !isAudiobook);
+    }
+    if (totalAudioField) {
+      totalAudioField.classList.toggle("hidden", !isAudiobook);
     }
     if (finishedFields) {
       finishedFields.classList.toggle("hidden", isCurrentlyReading);
@@ -509,6 +668,9 @@ const sleepSettingsKey = "sleep-tracker-settings";
     currentlyReadingInput.addEventListener("change", syncReadingModeUI);
     syncReadingModeUI();
   }
+  if (audiobookInput) {
+    audiobookInput.addEventListener("change", syncReadingModeUI);
+  }
 
   function getAllEntries() {
     try {
@@ -527,6 +689,59 @@ const sleepSettingsKey = "sleep-tracker-settings";
     const allEntries = getAllEntries();
     allEntries[storageKey] = entries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+  }
+
+  async function enrichReadingCovers() {
+    if (!isReadingTracker || isEnrichingReadingCovers) return;
+    const entries = getEntries();
+    const targets = entries
+      .map((entry, idx) => ({ entry, idx }))
+      .filter(({ entry }) => entry?.item && !getReadingCoverUrl(entry));
+
+    if (!targets.length) return;
+    isEnrichingReadingCovers = true;
+
+    try {
+      let changed = false;
+      for (const { entry, idx } of targets) {
+        const query = [entry.item, entry.author].filter(Boolean).join(" ");
+        if (!query) continue;
+
+        try {
+          const res = await fetch(`/api/openlibrary/suggest?q=${encodeURIComponent(query)}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const suggestions = Array.isArray(data?.suggestions) ? data.suggestions : [];
+          const normalizedTitle = String(entry.item || "").trim().toLowerCase();
+          const normalizedAuthor = String(entry.author || "").trim().toLowerCase();
+          const match = suggestions.find((suggestion) => {
+            const sameTitle = String(suggestion?.value || "").trim().toLowerCase() === normalizedTitle;
+            const sameAuthor = !normalizedAuthor || String(suggestion?.author || "").trim().toLowerCase() === normalizedAuthor;
+            return sameTitle && sameAuthor;
+          }) || suggestions[0];
+
+          const coverId = Number(match?.coverId) || 0;
+          const coverUrl = match?.coverUrl || "";
+          if (!coverId && !coverUrl) continue;
+
+          entries[idx] = {
+            ...entries[idx],
+            coverId,
+            coverUrl
+          };
+          changed = true;
+        } catch {
+          // Ignore individual lookup failures and continue backfilling others.
+        }
+      }
+
+      if (changed) {
+        saveEntries(entries);
+        renderEntries();
+      }
+    } finally {
+      isEnrichingReadingCovers = false;
+    }
   }
 
   if (isSleepTracker) {
@@ -553,7 +768,7 @@ const sleepSettingsKey = "sleep-tracker-settings";
     let activeSuggestionIdx = -1;
     function normalizeSuggestion(item) {
       if (typeof item === "string") {
-        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "" };
+        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverUrl: "", posterUrl: "" };
       }
       if (item && typeof item === "object") {
         const value = item.value || item.label || "";
@@ -564,8 +779,11 @@ const sleepSettingsKey = "sleep-tracker-settings";
         const publisher = item.publisher || "";
         const totalPages = item.totalPages || "";
         const imdbID = item.imdbID || "";
+        const coverId = Number(item.coverId) || 0;
+        const coverUrl = item.coverUrl || "";
+        const posterUrl = item.posterUrl || "";
         if (value) {
-          return { label, value, subtitle, author, director, publisher, totalPages, imdbID };
+          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverUrl, posterUrl };
         }
       }
       return null;
@@ -580,6 +798,16 @@ const sleepSettingsKey = "sleep-tracker-settings";
       if (!data || data.Response === "False") return "";
       if (!data.Director || data.Director === "N/A") return "";
       return data.Director;
+    }
+
+    async function fetchOmdbDetails(imdbID) {
+      if (!omdbApiKey || !imdbID) return null;
+      const url = `https://www.omdbapi.com/?apikey=${encodeURIComponent(omdbApiKey)}&i=${encodeURIComponent(imdbID)}`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || data.Response === "False") return null;
+      return data;
     }
 
     async function fetchSuggestions(query) {
@@ -601,7 +829,8 @@ const sleepSettingsKey = "sleep-tracker-settings";
       const baseSuggestions = data.Search.slice(0, 8).map((movie) => normalizeSuggestion({
         label: `${movie.Title} (${movie.Year})`,
         value: movie.Title,
-        imdbID: movie.imdbID
+        imdbID: movie.imdbID,
+        posterUrl: movie.Poster && movie.Poster !== "N/A" ? movie.Poster : ""
       })).filter(Boolean);
 
       if (!baseSuggestions.length) return [];
@@ -609,9 +838,16 @@ const sleepSettingsKey = "sleep-tracker-settings";
       const withDirectors = await Promise.all(
         baseSuggestions.map(async (suggestion) => {
           if (!suggestion.imdbID) return suggestion;
-          const director = await fetchOmdbDirector(suggestion.imdbID);
-          if (!director) return suggestion;
-          return { ...suggestion, director, subtitle: director };
+          const details = await fetchOmdbDetails(suggestion.imdbID);
+          if (!details) return suggestion;
+          const director = details.Director && details.Director !== "N/A" ? details.Director : suggestion.director;
+          const posterUrl = details.Poster && details.Poster !== "N/A" ? details.Poster : suggestion.posterUrl;
+          return {
+            ...suggestion,
+            director,
+            posterUrl,
+            subtitle: director || suggestion.subtitle
+          };
         })
       );
       return withDirectors;
@@ -640,6 +876,10 @@ const sleepSettingsKey = "sleep-tracker-settings";
       if (index < 0 || index >= currentSuggestions.length) return;
       const suggestion = currentSuggestions[index];
       itemInput.value = suggestion.value;
+      selectedCoverId = Number(suggestion.coverId) || 0;
+      selectedCoverUrl = suggestion.coverUrl || "";
+      selectedPosterUrl = suggestion.posterUrl || "";
+      selectedImdbId = suggestion.imdbID || "";
       if (enableAuthorField && autoPopulateAuthor && authorInput && suggestion.author) {
         authorInput.value = suggestion.author;
       }
@@ -656,7 +896,7 @@ const sleepSettingsKey = "sleep-tracker-settings";
       if (enablePublisherField && autoPopulatePublisher && publisherInput && suggestion.publisher) {
         publisherInput.value = suggestion.publisher;
       }
-      if (enableReadingProgress && autoPopulateTotalPages && totalPagesInput && suggestion.totalPages) {
+      if (enableReadingProgress && autoPopulateTotalPages && totalPagesInput && suggestion.totalPages && !audiobookInput?.checked) {
         totalPagesInput.value = String(suggestion.totalPages);
       }
       hideSuggestions();
@@ -693,6 +933,10 @@ const sleepSettingsKey = "sleep-tracker-settings";
 
     itemInput.addEventListener("input", function() {
       const query = itemInput.value.trim();
+      selectedCoverId = 0;
+      selectedCoverUrl = "";
+      selectedPosterUrl = "";
+      selectedImdbId = "";
       clearTimeout(autocompleteTimer);
 
       if (query.length < 2) {
@@ -800,19 +1044,24 @@ const sleepSettingsKey = "sleep-tracker-settings";
           : (entry.finishedDate ? `Finished ${formatSimpleDate(entry.finishedDate)}` : "");
         metadataLines.push(`<div class=\"text-gray-600 text-sm\">${[started, finished].filter(Boolean).join(" • ")}</div>`);
       }
-      if (enableReadingProgress && (entry.currentPage || entry.totalPages)) {
-        const current = Number(entry.currentPage) || 0;
-        const total = Number(entry.totalPages) || 0;
-        const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
-        const percentText = total > 0 ? ` (${percent}%)` : "";
-        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Progress: ${current}${total > 0 ? ` / ${total} pages` : " pages"}${percentText}</div>`);
+      if (enableReadingProgress && (entry.currentPage || entry.totalPages || entry.currentHours || entry.currentMinutes || entry.totalHours || entry.totalMinutes)) {
+        const progress = formatProgressValue(entry);
+        const percentText = progress.total ? ` (${progress.percent}%)` : "";
+        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Progress: ${progress.current}${progress.total ? ` / ${progress.total}` : ""} ${progress.unit}${percentText}</div>`);
       }
       const metadataHtml = metadataLines.length
         ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
         : "";
       const showRating = !isSleepTracker && !(enableReadingProgress && entry.currentlyReading);
+      const mediaImageUrl = isReadingTracker ? getReadingCoverUrl(entry) : (isMovieTracker ? getMoviePosterUrl(entry) : "");
+      const hasMediaImage = Boolean(mediaImageUrl);
+      const coverHtml = hasMediaImage
+        ? `<div class=\"reading-cover-shell\"><img src=\"${mediaImageUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" /></div>`
+        : "";
       li.innerHTML = `
-        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex flex-col\">
+        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "gap-4 items-start" : "flex-col"}\">
+          ${coverHtml}
+          <div class=\"${hasMediaImage ? "flex-1 min-w-0" : ""}\">
           <div class=\"absolute top-3 right-3 flex items-center gap-1\">
             <button class=\"p-1.5 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center\" aria-label=\"Edit\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span></button>
             <button class=\"p-1.5 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center\" aria-label=\"Delete\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span></button>
@@ -828,6 +1077,7 @@ const sleepSettingsKey = "sleep-tracker-settings";
           </div>
           <div class=\"text-gray-700 text-sm leading-relaxed\">${entry.notes}</div>
           ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStars(entry.rating || 0)}</div>` : ""}
+          </div>
         </div>
       `;
       li.querySelector("[data-action=\"delete\"]").onclick = () => {
@@ -846,6 +1096,57 @@ const sleepSettingsKey = "sleep-tracker-settings";
       };
       list.appendChild(li);
     });
+
+    void enrichReadingCovers();
+    void enrichMoviePosters();
+  }
+
+  async function enrichMoviePosters() {
+    if (!isMovieTracker || isEnrichingMoviePosters || !omdbApiKey) return;
+    const entries = getEntries();
+    const targets = entries
+      .map((entry, idx) => ({ entry, idx }))
+      .filter(({ entry }) => entry?.item && !getMoviePosterUrl(entry));
+
+    if (!targets.length) return;
+    isEnrichingMoviePosters = true;
+
+    try {
+      let changed = false;
+      for (const { entry, idx } of targets) {
+        const title = String(entry.item || "").trim();
+        if (!title) continue;
+
+        try {
+          const searchUrl = `https://www.omdbapi.com/?apikey=${encodeURIComponent(omdbApiKey)}&type=movie&s=${encodeURIComponent(title)}`;
+          const searchRes = await fetch(searchUrl);
+          if (!searchRes.ok) continue;
+          const searchData = await searchRes.json();
+          const results = Array.isArray(searchData?.Search) ? searchData.Search : [];
+          const normalizedTitle = title.toLowerCase();
+          const match = results.find((movie) => String(movie?.Title || "").trim().toLowerCase() === normalizedTitle) || results[0];
+          const posterUrl = match?.Poster && match.Poster !== "N/A" ? match.Poster : "";
+          const imdbID = match?.imdbID || "";
+          if (!posterUrl) continue;
+
+          entries[idx] = {
+            ...entries[idx],
+            imdbID,
+            posterUrl
+          };
+          changed = true;
+        } catch {
+          // Ignore individual lookup failures and continue backfilling others.
+        }
+      }
+
+      if (changed) {
+        saveEntries(entries);
+        renderEntries();
+      }
+    } finally {
+      isEnrichingMoviePosters = false;
+    }
   }
 
 
@@ -1000,9 +1301,14 @@ const sleepSettingsKey = "sleep-tracker-settings";
     const publisher = publisherInput?.value.trim() || "";
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
+    const isAudiobook = isReadingTracker && Boolean(audiobookInput?.checked);
     const finishedDate = currentlyReading ? "" : (finishedDateInput?.value || "");
     const currentPage = Number(currentPageInput?.value || 0);
     const totalPages = Number(totalPagesInput?.value || 0);
+    const currentHours = Number(currentHoursInput?.value || 0);
+    const currentMinutes = Number(currentMinutesInput?.value || 0);
+    const totalHours = Number(totalHoursInput?.value || 0);
+    const totalMinutes = Number(totalMinutesInput?.value || 0);
     const notes = notesInput.value.trim();
     const { goalHours, goalMinutes } = isSleepTracker ? getSleepGoalSettings() : { goalHours: 0, goalMinutes: 0 };
     const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
@@ -1030,8 +1336,19 @@ const sleepSettingsKey = "sleep-tracker-settings";
         updatedEntry.startedDate = startedDate;
         updatedEntry.finishedDate = finishedDate;
         updatedEntry.currentlyReading = currentlyReading;
-        updatedEntry.currentPage = currentPage;
-        updatedEntry.totalPages = totalPages;
+        updatedEntry.isAudiobook = isAudiobook;
+        updatedEntry.coverId = selectedCoverId;
+        updatedEntry.coverUrl = selectedCoverUrl;
+        updatedEntry.currentPage = isAudiobook ? 0 : currentPage;
+        updatedEntry.totalPages = isAudiobook ? 0 : totalPages;
+        updatedEntry.currentHours = isAudiobook ? currentHours : 0;
+        updatedEntry.currentMinutes = isAudiobook ? currentMinutes : 0;
+        updatedEntry.totalHours = isAudiobook ? totalHours : 0;
+        updatedEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
+      }
+      if (isMovieTracker) {
+        updatedEntry.imdbID = selectedImdbId;
+        updatedEntry.posterUrl = selectedPosterUrl;
       }
       entries[editingIdx] = updatedEntry;
     } else {
@@ -1049,8 +1366,19 @@ const sleepSettingsKey = "sleep-tracker-settings";
         nextEntry.startedDate = startedDate;
         nextEntry.finishedDate = finishedDate;
         nextEntry.currentlyReading = currentlyReading;
-        nextEntry.currentPage = currentPage;
-        nextEntry.totalPages = totalPages;
+        nextEntry.isAudiobook = isAudiobook;
+        nextEntry.coverId = selectedCoverId;
+        nextEntry.coverUrl = selectedCoverUrl;
+        nextEntry.currentPage = isAudiobook ? 0 : currentPage;
+        nextEntry.totalPages = isAudiobook ? 0 : totalPages;
+        nextEntry.currentHours = isAudiobook ? currentHours : 0;
+        nextEntry.currentMinutes = isAudiobook ? currentMinutes : 0;
+        nextEntry.totalHours = isAudiobook ? totalHours : 0;
+        nextEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
+      }
+      if (isMovieTracker) {
+        nextEntry.imdbID = selectedImdbId;
+        nextEntry.posterUrl = selectedPosterUrl;
       }
       entries.push(nextEntry);
     }

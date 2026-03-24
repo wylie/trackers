@@ -157,16 +157,32 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
 
   function renderReadingMini(entries) {
     const latest = entries.slice().sort((a, b) => getEntryTs(b) - getEntryTs(a))[0] || {};
-    const current = Number(latest.currentPage) || 0;
-    const total = Number(latest.totalPages) || 0;
+    const isAudiobook = Boolean(latest.isAudiobook);
+    const current = isAudiobook
+      ? ((Number(latest.currentHours) || 0) * 60 + (Number(latest.currentMinutes) || 0))
+      : (Number(latest.currentPage) || 0);
+    const total = isAudiobook
+      ? ((Number(latest.totalHours) || 0) * 60 + (Number(latest.totalMinutes) || 0))
+      : (Number(latest.totalPages) || 0);
     const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+    const formatDuration = (totalMinutes) => {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const parts = [];
+      if (hours > 0) parts.push(`${hours}h`);
+      if (minutes > 0 || !parts.length) parts.push(`${minutes}m`);
+      return parts.join(" ");
+    };
+    const progressText = isAudiobook
+      ? `${formatDuration(current)}${total > 0 ? ` / ${formatDuration(total)}` : ""} listened`
+      : `${current}${total > 0 ? ` / ${total}` : ""} pages`;
     return `
       <div class="mini-title">${escapeHtml(latest.item || "Reading in progress")}</div>
       <div class="mini-copy">${escapeHtml(latest.author || "Unknown author")}</div>
       <div class="progress-shell mt-2">
         <div class="progress-fill" style="width:${percent}%"></div>
       </div>
-      <div class="mini-foot">${current}${total > 0 ? ` / ${total}` : ""} pages${total > 0 ? ` • ${percent}%` : ""}</div>
+      <div class="mini-foot">${progressText}${total > 0 ? ` • ${percent}%` : ""}</div>
     `;
   }
 

@@ -377,6 +377,7 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
     } else {
       emptyState.classList.add("hidden");
       kpiGridSection.classList.remove("hidden");
+      if (videoGameInsightsSection) videoGameInsightsSection.classList.add("hidden");
       focusBoardsSection.classList.remove("hidden");
       liveStreamSection.classList.remove("hidden");
       trackerMosaicSection.classList.remove("hidden");
@@ -387,7 +388,7 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
       document.getElementById("kpi-most-active").textContent = mostActive
         ? `${trackerMeta[mostActive.key]?.label || mostActive.key} (${mostActive.count})`
         : "-";
-      renderVideoGameInsights(data);
+      // Hidden for now until we add cross-tracker insights.
       // Render focus cards for each tracker
       focusBoards.innerHTML = keys.map((key) => focusCard(key, data[key])).join("");
       // Render live stream

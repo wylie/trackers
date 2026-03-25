@@ -31,6 +31,10 @@ const isReadingTracker = storageKey === "reading-tracker-entries";
 const isMovieTracker = storageKey === "movie-watch-tracker-entries";
 const isVideoGameTracker = storageKey === "video-game-tracker-entries";
 const isWorkoutTracker = storageKey === "workout-tracker-entries";
+const isTaskTracker = storageKey === "task-tracker-entries";
+const isFinanceTracker = storageKey === "finance-tracker-entries";
+const isHealthTracker = storageKey === "health-tracker-entries";
+const hidesRating = isSleepTracker || isTaskTracker || isFinanceTracker || isHealthTracker;
 const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
 const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
@@ -155,6 +159,18 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
             <ul id="tracker-item-suggestions-list" class="max-h-64 overflow-y-auto py-1"></ul>
           </div>
         )}
+      </div>
+    )}
+    {isTaskTracker && (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1">
+          <label for="tracker-due-date" class="text-sm text-gray-700">Due Date</label>
+          <input
+            type="date"
+            id="tracker-due-date"
+            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
       </div>
     )}
     {enableAuthorField && (
@@ -328,7 +344,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       </div>
     )}
     <input type="text" id="tracker-notes" placeholder="Notes" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-    <div id="tracker-rating-row" class:list={["flex items-center gap-2 mb-2", { hidden: isSleepTracker }]}>
+    <div id="tracker-rating-row" class:list={["flex items-center gap-2 mb-2", { hidden: hidesRating }]}>
       <label for="tracker-rating" class="text-gray-700">Rating:</label>
       <div id="tracker-rating-stars" class="flex gap-1"></div>
       <input type="hidden" id="tracker-rating" value="0" />
@@ -338,6 +354,34 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       <button id="tracker-cancel-edit" type="button" class="hidden px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition">Cancel</button>
     </div>
   </form>
+  {isTaskTracker && (
+    <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div class="flex flex-col gap-1">
+        <label for="tracker-task-filter" class="text-sm text-gray-700">Filter</label>
+        <div class="relative">
+          <select id="tracker-task-filter" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="all">All</option>
+          </select>
+          <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+        </div>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label for="tracker-task-sort" class="text-sm text-gray-700">Sort</label>
+        <div class="relative">
+          <select id="tracker-task-sort" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+            <option value="due-soonest">Due Date (Soonest)</option>
+            <option value="due-latest">Due Date (Latest)</option>
+            <option value="newest">Newest Added</option>
+            <option value="oldest">Oldest Added</option>
+            <option value="alpha">Task Name (A-Z)</option>
+          </select>
+          <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+        </div>
+      </div>
+    </div>
+  )}
   <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
 <style>
   :global(.star) {
@@ -444,7 +488,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker, isWorkoutTracker }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker, isWorkoutTracker, isTaskTracker, isFinanceTracker, isHealthTracker }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const sleepHoursInput = document.getElementById("tracker-sleep-hours");
@@ -491,10 +535,13 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   const currentMinutesInput = document.getElementById("tracker-current-minutes");
   const totalHoursInput = document.getElementById("tracker-total-hours");
   const totalMinutesInput = document.getElementById("tracker-total-minutes");
+  const dueDateInput = document.getElementById("tracker-due-date");
   const notesInput = document.getElementById("tracker-notes");
   const submitButton = document.getElementById("tracker-submit");
   const cancelEditButton = document.getElementById("tracker-cancel-edit");
   const list = document.getElementById("tracker-list");
+  const taskFilterInput = document.getElementById("tracker-task-filter");
+  const taskSortInput = document.getElementById("tracker-task-sort");
   const itemSuggestions = document.getElementById("tracker-item-suggestions");
   const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
   let ratingStars = null;
@@ -884,6 +931,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (currentMinutesInput) currentMinutesInput.value = "0";
     if (totalHoursInput) totalHoursInput.value = "0";
     if (totalMinutesInput) totalMinutesInput.value = "0";
+    if (dueDateInput) dueDateInput.value = "";
     selectedCoverId = 0;
     selectedCoverEditionKey = "";
     selectedCoverUrl = "";
@@ -942,6 +990,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     }
     if (totalHoursInput) totalHoursInput.value = String(entry.totalHours ?? 0);
     if (totalMinutesInput) totalMinutesInput.value = String(entry.totalMinutes ?? 0);
+    if (dueDateInput) dueDateInput.value = entry.dueDate || "";
     selectedCoverId = Number(entry.coverId) || 0;
     selectedCoverEditionKey = entry.coverEditionKey || "";
     selectedCoverUrl = entry.coverUrl || "";
@@ -1405,8 +1454,48 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         ? dateStr
         : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
     }
-    entries.slice().reverse().forEach((entry, displayIdx) => {
-      const idx = entries.length - 1 - displayIdx;
+    function getDueDateTimestamp(entry) {
+      const dueDate = String(entry?.dueDate || "").trim();
+      if (!dueDate) return Number.POSITIVE_INFINITY;
+      const due = new Date(`${dueDate}T00:00:00`);
+      return Number.isNaN(due.getTime()) ? Number.POSITIVE_INFINITY : due.getTime();
+    }
+
+    function compareTaskEntries(a, b) {
+      const sortValue = String(taskSortInput?.value || "due-soonest");
+      if (sortValue === "alpha") {
+        return String(a.entry?.item || "").localeCompare(String(b.entry?.item || ""), undefined, { sensitivity: "base" });
+      }
+      if (sortValue === "newest") {
+        const aTime = a.entry?.date ? new Date(a.entry.date).getTime() : 0;
+        const bTime = b.entry?.date ? new Date(b.entry.date).getTime() : 0;
+        return bTime - aTime;
+      }
+      if (sortValue === "oldest") {
+        const aTime = a.entry?.date ? new Date(a.entry.date).getTime() : 0;
+        const bTime = b.entry?.date ? new Date(b.entry.date).getTime() : 0;
+        return aTime - bTime;
+      }
+      if (sortValue === "due-latest") {
+        return getDueDateTimestamp(b.entry) - getDueDateTimestamp(a.entry);
+      }
+      return getDueDateTimestamp(a.entry) - getDueDateTimestamp(b.entry);
+    }
+
+    let renderedEntries = entries.map((entry, idx) => ({ entry, idx }));
+    if (isTaskTracker) {
+      const filterValue = String(taskFilterInput?.value || "active");
+      if (filterValue === "active") {
+        renderedEntries = renderedEntries.filter(({ entry }) => !entry?.completed);
+      } else if (filterValue === "completed") {
+        renderedEntries = renderedEntries.filter(({ entry }) => Boolean(entry?.completed));
+      }
+      renderedEntries.sort(compareTaskEntries);
+    } else {
+      renderedEntries = renderedEntries.reverse();
+    }
+
+    renderedEntries.forEach(({ entry, idx }) => {
       const li = document.createElement("li");
       li.className = "mb-3";
       const entryDate = entry.date ? new Date(entry.date) : null;
@@ -1433,6 +1522,11 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
       if (entry.category) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Category: <strong>${entry.category}</strong></div>`);
+      if (isTaskTracker) {
+        const dueDate = formatSimpleDate(entry?.dueDate);
+        if (dueDate) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Due: <strong>${dueDate}</strong></div>`);
+        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Status: <strong>${entry?.completed ? "Completed" : "Active"}</strong></div>`);
+      }
       if (isWorkoutTracker) {
         const workoutMetricLine = formatWorkoutMetricLine(entry);
         if (workoutMetricLine) {
@@ -1469,13 +1563,15 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       const metadataHtml = metadataLines.length
         ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
         : "";
-      const showRating = !isSleepTracker && !(enableReadingProgress && entry.currentlyReading);
+      const showRating = !isSleepTracker && !isTaskTracker && !isFinanceTracker && !isHealthTracker && !(enableReadingProgress && entry.currentlyReading);
       const mediaImageUrl = isReadingTracker
         ? getReadingCoverUrl(entry)
         : (isMovieTracker ? getMoviePosterUrl(entry) : (isVideoGameTracker ? getVideoGameCoverUrl(entry) : ""));
       const fallbackMediaUrl = getFallbackMediaUrl(entry);
       const finalMediaUrl = mediaImageUrl || fallbackMediaUrl;
       const hasMediaImage = Boolean(finalMediaUrl);
+      const completedClass = isTaskTracker && entry?.completed ? "opacity-80" : "";
+      const completedItemClass = isTaskTracker && entry?.completed ? "line-through text-gray-500" : "text-gray-800";
       const imageOnError = fallbackMediaUrl && mediaImageUrl
         ? `this.onerror=null;this.src='${fallbackMediaUrl}';`
         : "";
@@ -1483,11 +1579,12 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} /></div>`
         : "";
       li.innerHTML = `
-        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start" : "flex-col"}\">
+        <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start" : "flex-col"} ${completedClass}\">
           ${coverHtml}
           <div class=\"${hasMediaImage ? "w-full sm:flex-1 sm:min-w-0" : ""}\">
           <div class=\"${hasMediaImage ? "flex-1 min-w-0" : ""}\">
           <div class=\"absolute top-3 right-3 flex items-center gap-1\">
+            ${isTaskTracker ? `<button class=\"p-1.5 bg-gray-200 rounded hover:bg-green-100 text-green-700 inline-flex items-center justify-center\" aria-label=\"Toggle completion\" data-action=\"toggle-complete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">${entry?.completed ? "task_alt" : "check_circle"}</span></button>` : ""}
             <button class=\"p-1.5 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center\" aria-label=\"Edit\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span></button>
             <button class=\"p-1.5 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center\" aria-label=\"Delete\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span></button>
           </div>
@@ -1496,7 +1593,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
           </div>
           <div class=\"mb-2 pr-12\">
             <div class=\"min-w-0\">
-              <span class=\"text-gray-800 font-medium leading-tight break-words\">${entry.item}</span>
+              <span class=\"${completedItemClass} font-medium leading-tight break-words\">${entry.item}</span>
               ${metadataHtml}
             </div>
           </div>
@@ -1520,6 +1617,19 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       li.querySelector("[data-action=\"edit\"]").onclick = () => {
         startEditing(idx);
       };
+      const toggleCompleteButton = li.querySelector("[data-action=\"toggle-complete\"]");
+      if (toggleCompleteButton) {
+        toggleCompleteButton.onclick = () => {
+          const entries = getEntries();
+          const currentEntry = entries[idx];
+          if (!currentEntry) return;
+          currentEntry.completed = !Boolean(currentEntry.completed);
+          currentEntry.completedAt = currentEntry.completed ? new Date().toISOString() : "";
+          entries[idx] = currentEntry;
+          saveEntries(entries);
+          renderEntries();
+        };
+      }
       list.appendChild(li);
     });
 
@@ -1746,12 +1856,13 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     const leftMinutes = getIntValue(currentMinutesInput, 0);
     const totalHours = getIntValue(totalHoursInput, 0);
     const totalMinutes = getIntValue(totalMinutesInput, 0);
+    const dueDate = dueDateInput?.value || "";
     const notes = notesInput.value.trim();
     const { goalHours, goalMinutes } = isSleepTracker ? getSleepGoalSettings() : { goalHours: 0, goalMinutes: 0 };
     const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
     const rating = isSleepTracker
       ? (sleepGrade?.stars || 0)
-      : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0));
+      : ((isTaskTracker || isFinanceTracker || isHealthTracker) ? 0 : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0)));
     if (!item || (enableCategoryField && !category) || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) || (isVideoGameTracker && sessionHours <= 0)) return;
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
@@ -1770,6 +1881,9 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
       if (enableCategoryField) updatedEntry.category = category;
+      if (isTaskTracker) {
+        updatedEntry.dueDate = dueDate;
+      }
       if (isWorkoutTracker) {
         updatedEntry.workoutDurationHours = workoutDurationHours;
         updatedEntry.workoutDurationMinutes = workoutDurationMinutes;
@@ -1866,6 +1980,11 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;
       if (enableCategoryField) nextEntry.category = category;
+      if (isTaskTracker) {
+        nextEntry.dueDate = dueDate;
+        nextEntry.completed = false;
+        nextEntry.completedAt = "";
+      }
       if (isWorkoutTracker) {
         nextEntry.workoutDurationHours = workoutDurationHours;
         nextEntry.workoutDurationMinutes = workoutDurationMinutes;
@@ -1918,4 +2037,6 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   };
 
   renderEntries();
+  taskFilterInput?.addEventListener("change", renderEntries);
+  taskSortInput?.addEventListener("change", renderEntries);
 </script>

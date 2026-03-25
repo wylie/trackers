@@ -32,6 +32,9 @@ const jsonLdItems = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
 <meta name="robots" content={robots} />
 <meta name="application-name" content={siteName} />
 <meta name="theme-color" content="#2563eb" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content={siteName} />
 {canonical && <link rel="canonical" href={canonical} />}
 <meta property="og:type" content={ogType} />
 <meta property="og:site_name" content={siteName} />
@@ -46,6 +49,8 @@ const jsonLdItems = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
 <meta name="twitter:image" content={ogImage} />
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
 <link rel="alternate icon" href="/favicon.ico?v=3" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/favicon.ico?v=3" />
 {jsonLdItems.map((item) => (
   <script type="application/ld+json" is:inline set:html={JSON.stringify(item)}></script>
 ))}

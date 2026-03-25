@@ -73,6 +73,15 @@ const jsonLd = [
         </script>
       </>
     )}
+    <script is:inline>
+      if ("serviceWorker" in navigator && !window.location.hostname.includes("localhost")) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {
+            // Silent fail: app still works without offline caching.
+          });
+        });
+      }
+    </script>
   </head>
   <body class="flex flex-col min-h-screen bg-gray-100 text-slate-900 font-sans">
     <Header />

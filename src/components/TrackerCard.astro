@@ -217,7 +217,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
           {isReadingTracker && (
             <>
               <div id="tracker-current-audio-field" class="hidden flex flex-col gap-1 lg:col-span-1">
-                <label class="text-sm text-gray-700">Current Time</label>
+                <label class="text-sm text-gray-700">Time Left</label>
                 <div class="grid grid-cols-2 gap-2">
                   <div class="relative">
                     <select id="tracker-current-hours" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
@@ -489,15 +489,30 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     return Math.max(0, Number(hours) || 0) * 60 + Math.max(0, Number(minutes) || 0);
   }
 
+  function getAudiobookLeftMinutes(entry) {
+    const totalMinutes = totalMinutesFromParts(entry?.totalHours, entry?.totalMinutes);
+    const explicitLeft = totalMinutesFromParts(entry?.leftHours, entry?.leftMinutes);
+    if (explicitLeft > 0 || (Number(entry?.leftHours) === 0 && Number(entry?.leftMinutes) === 0)) {
+      return Math.min(totalMinutes || explicitLeft, explicitLeft);
+    }
+    // Backward compatibility: older entries stored "current" as listened time.
+    const legacyListened = totalMinutesFromParts(entry?.currentHours, entry?.currentMinutes);
+    if (totalMinutes > 0) {
+      return Math.max(0, totalMinutes - Math.min(totalMinutes, legacyListened));
+    }
+    return 0;
+  }
+
   function formatProgressValue(entry) {
     if (entry?.isAudiobook) {
-      const currentTotalMinutes = totalMinutesFromParts(entry.currentHours, entry.currentMinutes);
       const totalDurationMinutes = totalMinutesFromParts(entry.totalHours, entry.totalMinutes);
-      const percent = totalDurationMinutes > 0 ? Math.min(100, Math.round((currentTotalMinutes / totalDurationMinutes) * 100)) : 0;
+      const leftTotalMinutes = getAudiobookLeftMinutes(entry);
+      const listenedMinutes = Math.max(0, totalDurationMinutes - leftTotalMinutes);
+      const percent = totalDurationMinutes > 0 ? Math.min(100, Math.round((listenedMinutes / totalDurationMinutes) * 100)) : 0;
       return {
-        current: formatDurationLabel(entry.currentHours || 0, entry.currentMinutes || 0),
+        current: formatDurationLabel(Math.floor(leftTotalMinutes / 60), leftTotalMinutes % 60),
         total: totalDurationMinutes > 0 ? formatDurationLabel(entry.totalHours || 0, entry.totalMinutes || 0) : "",
-        unit: "listened",
+        unit: "left",
         percent
       };
     }
@@ -693,8 +708,11 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (audiobookInput) audiobookInput.checked = Boolean(entry.isAudiobook);
     if (currentPageInput) currentPageInput.value = entry.currentPage ?? "";
     if (totalPagesInput) totalPagesInput.value = entry.totalPages ?? "";
-    if (currentHoursInput) currentHoursInput.value = String(entry.currentHours ?? 0);
-    if (currentMinutesInput) currentMinutesInput.value = String(entry.currentMinutes ?? 0);
+    if (currentHoursInput || currentMinutesInput) {
+      const leftMinutes = getAudiobookLeftMinutes(entry);
+      if (currentHoursInput) currentHoursInput.value = String(Math.floor(leftMinutes / 60));
+      if (currentMinutesInput) currentMinutesInput.value = String(leftMinutes % 60);
+    }
     if (totalHoursInput) totalHoursInput.value = String(entry.totalHours ?? 0);
     if (totalMinutesInput) totalMinutesInput.value = String(entry.totalMinutes ?? 0);
     selectedCoverId = Number(entry.coverId) || 0;
@@ -1454,8 +1472,8 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const finishedDate = currentlyReading ? "" : (finishedDateInput?.value || "");
     const currentPage = Number(currentPageInput?.value || 0);
     const totalPages = Number(totalPagesInput?.value || 0);
-    const currentHours = Number(currentHoursInput?.value || 0);
-    const currentMinutes = Number(currentMinutesInput?.value || 0);
+    const leftHours = Number(currentHoursInput?.value || 0);
+    const leftMinutes = Number(currentMinutesInput?.value || 0);
     const totalHours = Number(totalHoursInput?.value || 0);
     const totalMinutes = Number(totalMinutesInput?.value || 0);
     const notes = notesInput.value.trim();
@@ -1488,6 +1506,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         updatedEntry.coverUrl = selectedCoverUrl || updatedEntry.coverUrl || "";
       }
       if (enableReadingProgress) {
+        const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);
+        const leftAudioMinutesRaw = totalMinutesFromParts(leftHours, leftMinutes);
+        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, leftAudioMinutesRaw) : leftAudioMinutesRaw;
+        const listenedAudioMinutes = totalAudioMinutes > 0 ? Math.max(0, totalAudioMinutes - leftAudioMinutes) : 0;
         updatedEntry.startedDate = startedDate;
         updatedEntry.finishedDate = finishedDate;
         updatedEntry.currentlyReading = currentlyReading;
@@ -1496,8 +1518,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         updatedEntry.coverEditionKey = selectedCoverEditionKey;
         updatedEntry.currentPage = isAudiobook ? 0 : currentPage;
         updatedEntry.totalPages = isAudiobook ? 0 : totalPages;
-        updatedEntry.currentHours = isAudiobook ? currentHours : 0;
-        updatedEntry.currentMinutes = isAudiobook ? currentMinutes : 0;
+        updatedEntry.currentHours = isAudiobook ? Math.floor(listenedAudioMinutes / 60) : 0;
+        updatedEntry.currentMinutes = isAudiobook ? listenedAudioMinutes % 60 : 0;
+        updatedEntry.leftHours = isAudiobook ? Math.floor(leftAudioMinutes / 60) : 0;
+        updatedEntry.leftMinutes = isAudiobook ? leftAudioMinutes % 60 : 0;
         updatedEntry.totalHours = isAudiobook ? totalHours : 0;
         updatedEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
       }
@@ -1560,6 +1584,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         nextEntry.coverUrl = selectedCoverUrl || "";
       }
       if (enableReadingProgress) {
+        const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);
+        const leftAudioMinutesRaw = totalMinutesFromParts(leftHours, leftMinutes);
+        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, leftAudioMinutesRaw) : leftAudioMinutesRaw;
+        const listenedAudioMinutes = totalAudioMinutes > 0 ? Math.max(0, totalAudioMinutes - leftAudioMinutes) : 0;
         nextEntry.startedDate = startedDate;
         nextEntry.finishedDate = finishedDate;
         nextEntry.currentlyReading = currentlyReading;
@@ -1568,8 +1596,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         nextEntry.coverEditionKey = selectedCoverEditionKey;
         nextEntry.currentPage = isAudiobook ? 0 : currentPage;
         nextEntry.totalPages = isAudiobook ? 0 : totalPages;
-        nextEntry.currentHours = isAudiobook ? currentHours : 0;
-        nextEntry.currentMinutes = isAudiobook ? currentMinutes : 0;
+        nextEntry.currentHours = isAudiobook ? Math.floor(listenedAudioMinutes / 60) : 0;
+        nextEntry.currentMinutes = isAudiobook ? listenedAudioMinutes % 60 : 0;
+        nextEntry.leftHours = isAudiobook ? Math.floor(leftAudioMinutes / 60) : 0;
+        nextEntry.leftMinutes = isAudiobook ? leftAudioMinutes % 60 : 0;
         nextEntry.totalHours = isAudiobook ? totalHours : 0;
         nextEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
       }

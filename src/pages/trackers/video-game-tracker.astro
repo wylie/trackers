@@ -10,8 +10,8 @@ import RelatedCalculators from '../../components/sections/RelatedCalculators.ast
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
-  "Enter the book title and pages read.",
-  "Click 'Add Entry' to log your reading.",
+  "Enter a game title and add session hours played.",
+  "Click 'Add Entry' to log each play session.",
   "Your data is saved locally in your browser.",
   "No account or login required."
 ];
@@ -19,7 +19,7 @@ const benefits = [
   "Simple, distraction-free interface",
   "Private: your data never leaves your device",
   "No registration or login required",
-  "Track progress and stay motivated"
+  "Track cumulative hours played per game"
 ];
 const related = [
   { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
@@ -33,20 +33,44 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
 <Layout seoTitle="Video Game Tracker" seoDescription="Track your gaming habits privately and easily. No login, no accounts, data stays in your browser.">
   <TrackerPageWrapper>
     <main>
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-6xl mx-auto">
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Video Game Tracker</h1>
         <p class="text-gray-700 text-lg mb-6">Track your gaming habits privately and easily. No login, no accounts, data stays in your browser.</p>
-        <TrackerCard
-          title="Video Game Log"
-          description="Log your games, progress, and notes."
-          storageKey="video-game-tracker-entries"
-          icon="sports_esports"
-          itemPlaceholder="Video Game"
-          enablePublisherField={true}
-          publisherPlaceholder="Publisher"
-          autoPopulatePublisher={true}
-          autocompleteEndpoint="/api/igdb/suggest"
-        />
+        <section class="vg-layout">
+          <div class="vg-main">
+            <TrackerCard
+              title="Video Game Log"
+              description="Log each game session, notes, and total hours played per game."
+              addLabel="Log Session"
+              storageKey="video-game-tracker-entries"
+              icon="sports_esports"
+              itemPlaceholder="Video Game"
+              enablePublisherField={true}
+              publisherPlaceholder="Publisher"
+              autoPopulatePublisher={true}
+              autocompleteEndpoint="/api/igdb/suggest"
+            />
+          </div>
+          <aside class="vg-side" aria-label="Video game insights">
+            <h2 class="vg-side-title">Insights</h2>
+            <div class="vg-insight-card">
+              <h3 class="vg-insight-title">Hours by Game</h3>
+              <div id="vg-hours-bars" class="vg-bars"></div>
+            </div>
+            <div class="vg-insight-card">
+              <h3 class="vg-insight-title">Playtime Share</h3>
+              <div class="vg-pie-wrap">
+                <div id="vg-playtime-pie" class="vg-pie"></div>
+                <div id="vg-playtime-legend" class="vg-legend"></div>
+              </div>
+            </div>
+            <div class="vg-insight-card">
+              <h3 class="vg-insight-title">Last 14 Days</h3>
+              <div id="vg-14d-chart" class="vg-14d"></div>
+              <p class="vg-side-note">Session hours per day.</p>
+            </div>
+          </aside>
+        </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
             <HowToUse steps={steps} />
@@ -61,3 +85,357 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     </main>
   </TrackerPageWrapper>
 </Layout>
+
+<script>
+  const STORAGE_KEY = "simpletrackers.io";
+  const VIDEO_GAME_KEY = "video-game-tracker-entries";
+
+  function parseStore() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getVideoGameEntries() {
+    const allData = parseStore();
+    return Array.isArray(allData[VIDEO_GAME_KEY]) ? allData[VIDEO_GAME_KEY] : [];
+  }
+
+  function formatHours(value) {
+    const hours = Math.max(0, Number(value) || 0);
+    if (hours === 0) return "0h";
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(2).replace(/\.?0+$/, "")}h`;
+  }
+
+  function aggregateByGame(entries) {
+    const totals = new Map();
+    for (const entry of entries) {
+      const title = String(entry?.item || "").trim() || "Untitled Game";
+      const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+      const totalHours = Math.max(0, Number(entry?.totalHours) || 0);
+      const current = totals.get(title) || { sumSessions: 0, maxTotal: 0 };
+      current.sumSessions += sessionHours;
+      current.maxTotal = Math.max(current.maxTotal, totalHours);
+      totals.set(title, current);
+    }
+    return Array.from(totals.entries())
+      .map(([name, value]) => ({
+        name,
+        hours: value.sumSessions > 0 ? value.sumSessions : value.maxTotal
+      }))
+      .filter((item) => item.hours > 0)
+      .sort((a, b) => b.hours - a.hours);
+  }
+
+  function aggregateLast14Days(entries) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - 13);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const series = Array.from({ length: 14 }, (_, idx) => ({
+      day: new Date(start.getTime() + idx * msPerDay),
+      hours: 0
+    }));
+
+    for (const entry of entries) {
+      const when = entry?.date ? new Date(entry.date) : null;
+      if (!when || Number.isNaN(when.getTime())) continue;
+      const dayStart = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+      const idx = Math.floor((dayStart.getTime() - start.getTime()) / msPerDay);
+      if (idx < 0 || idx >= series.length) continue;
+      const value = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+      series[idx].hours += value;
+    }
+    return series;
+  }
+
+  function renderVideoGameInsights() {
+    const barsEl = document.getElementById("vg-hours-bars");
+    const pieEl = document.getElementById("vg-playtime-pie");
+    const legendEl = document.getElementById("vg-playtime-legend");
+    const trendEl = document.getElementById("vg-14d-chart");
+    if (!barsEl || !pieEl || !legendEl || !trendEl) return;
+
+    const entries = getVideoGameEntries();
+    const byGame = aggregateByGame(entries);
+    if (!byGame.length) {
+      const emptyHtml = `<p class="vg-empty">No playtime yet.</p>`;
+      barsEl.innerHTML = emptyHtml;
+      pieEl.innerHTML = `<div class="vg-pie-center"><strong>0h</strong><span>Total</span></div>`;
+      pieEl.style.background = "#e2e8f0";
+      legendEl.innerHTML = "";
+      trendEl.innerHTML = emptyHtml;
+      return;
+    }
+
+    const palette = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#db2777", "#0f766e", "#4f46e5", "#ea580c"];
+    const barTop = byGame.slice(0, 6);
+    const maxHours = Math.max(...barTop.map((g) => g.hours), 1);
+    barsEl.innerHTML = barTop.map((game, idx) => {
+      const width = Math.max(3, Math.round((game.hours / maxHours) * 100));
+      return `
+        <div class="vg-bar-row">
+          <span class="vg-bar-name" title="${game.name}">${game.name}</span>
+          <span class="vg-bar-track"><span class="vg-bar-fill" style="width:${width}%;background:${palette[idx % palette.length]}"></span></span>
+          <span class="vg-bar-hours">${formatHours(game.hours)}</span>
+        </div>
+      `;
+    }).join("");
+
+    const pieData = byGame.length > 5
+      ? [...byGame.slice(0, 4), { name: "Other", hours: byGame.slice(4).reduce((sum, game) => sum + game.hours, 0) }]
+      : byGame;
+    const totalHours = pieData.reduce((sum, game) => sum + game.hours, 0);
+    let startDeg = 0;
+    const stops = pieData.map((game, idx) => {
+      const endDeg = startDeg + (game.hours / totalHours) * 360;
+      const segment = `${palette[idx % palette.length]} ${startDeg}deg ${endDeg}deg`;
+      startDeg = endDeg;
+      return segment;
+    });
+    pieEl.style.background = `conic-gradient(${stops.join(",")})`;
+    pieEl.innerHTML = `<div class="vg-pie-center"><strong>${formatHours(totalHours)}</strong><span>Total</span></div>`;
+    legendEl.innerHTML = pieData.map((game, idx) => {
+      const pct = Math.round((game.hours / totalHours) * 100);
+      return `<div class="vg-legend-row"><span class="vg-legend-dot" style="background:${palette[idx % palette.length]}"></span><span class="vg-legend-name">${game.name}</span><span class="vg-legend-hours">${pct}%</span></div>`;
+    }).join("");
+
+    const last14 = aggregateLast14Days(entries);
+    const maxDay = Math.max(...last14.map((day) => day.hours), 0.25);
+    trendEl.innerHTML = last14.map((day) => {
+      const height = Math.max(8, Math.round((day.hours / maxDay) * 68));
+      const label = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      return `<div class="vg-day-col"><span class="vg-day-bar" style="height:${height}px" title="${label}: ${formatHours(day.hours)}"></span><span class="vg-day-label">${label.split("/")[1] || label}</span></div>`;
+    }).join("");
+  }
+
+  function initVideoGameInsights() {
+    renderVideoGameInsights();
+  }
+
+  initVideoGameInsights();
+  document.addEventListener("astro:page-load", initVideoGameInsights);
+  document.addEventListener("simpletrackers:entries-updated", (event) => {
+    if (event?.detail?.storageKey === VIDEO_GAME_KEY) {
+      renderVideoGameInsights();
+    }
+  });
+  window.addEventListener("storage", (event) => {
+    if (!event.key || event.key === STORAGE_KEY) {
+      renderVideoGameInsights();
+    }
+  });
+</script>
+
+<style is:global>
+  .vg-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  @media (min-width: 1100px) {
+    .vg-layout {
+      grid-template-columns: minmax(0, 4fr) minmax(250px, 1fr);
+      gap: 1.25rem;
+    }
+  }
+
+  .vg-main section[aria-labelledby="tracker-title"] {
+    margin-bottom: 0;
+  }
+
+  .vg-side {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 1100px) {
+    .vg-side {
+      position: sticky;
+      top: 5.25rem;
+    }
+  }
+
+  .vg-side-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .vg-insight-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0.75rem;
+    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+  }
+
+  .vg-insight-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    font-weight: 700;
+    margin: 0 0 0.6rem 0;
+  }
+
+  .vg-bars {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .vg-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .vg-bar-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  .vg-bar-track {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+
+  .vg-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+  }
+
+  .vg-bar-hours {
+    font-size: 0.72rem;
+    color: #334155;
+    font-weight: 700;
+    min-width: 2.4rem;
+    text-align: right;
+  }
+
+  .vg-pie-wrap {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 0.55rem;
+    align-items: center;
+  }
+
+  .vg-pie {
+    width: 92px;
+    height: 92px;
+    border-radius: 999px;
+    border: 1px solid #dbe4ef;
+    position: relative;
+    background: #e2e8f0;
+  }
+
+  .vg-pie-center {
+    position: absolute;
+    inset: 23%;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .vg-pie-center strong {
+    color: #0f172a;
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+
+  .vg-pie-center span {
+    color: #64748b;
+    font-size: 0.58rem;
+  }
+
+  .vg-legend {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .vg-legend-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.35rem;
+    align-items: center;
+    font-size: 0.68rem;
+  }
+
+  .vg-legend-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .vg-legend-name {
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vg-legend-hours {
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  .vg-14d {
+    height: 96px;
+    display: grid;
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    align-items: end;
+    gap: 3px;
+  }
+
+  .vg-day-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+  }
+
+  .vg-day-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+    min-height: 8px;
+  }
+
+  .vg-day-label {
+    font-size: 0.58rem;
+    color: #64748b;
+  }
+
+  .vg-empty {
+    margin: 0;
+    font-size: 0.76rem;
+    color: #64748b;
+  }
+
+  .vg-side-note {
+    margin-top: 0.45rem;
+    font-size: 0.68rem;
+    color: #64748b;
+  }
+</style>

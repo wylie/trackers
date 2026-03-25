@@ -26,6 +26,7 @@ const autocompleteEnabled = enableOmdbAutocomplete || Boolean(autocompleteEndpoi
 const isSleepTracker = storageKey === "sleep-tracker-entries";
 const isReadingTracker = storageKey === "reading-tracker-entries";
 const isMovieTracker = storageKey === "movie-watch-tracker-entries";
+const isVideoGameTracker = storageKey === "video-game-tracker-entries";
 const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
 const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
@@ -171,6 +172,22 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         placeholder={publisherPlaceholder}
         class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
       />
+    )}
+    {isVideoGameTracker && (
+      <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+        <div class="flex flex-col gap-1">
+          <label for="tracker-session-hours" class="text-sm text-gray-700">Hours Played This Session</label>
+          <input
+            type="number"
+            id="tracker-session-hours"
+            min="0"
+            step="0.25"
+            placeholder="Example: 1.5"
+            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+        <div class="text-sm text-slate-500 pb-2">If the game already exists, this adds time to that game.</div>
+      </div>
     )}
     {enableReadingProgress && (
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -369,7 +386,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const sleepHoursInput = document.getElementById("tracker-sleep-hours");
@@ -382,6 +399,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
+  const sessionHoursInput = document.getElementById("tracker-session-hours");
   const startedDateInput = document.getElementById("tracker-started-date");
   const finishedDateInput = document.getElementById("tracker-finished-date");
   const currentlyReadingInput = document.getElementById("tracker-currently-reading");
@@ -542,11 +560,27 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     return entry.posterUrl || "";
   }
 
+  function getVideoGameCoverUrl(entry) {
+    if (!isVideoGameTracker || !entry) return "";
+    return String(entry.coverUrl || "").trim();
+  }
+
   function formatMinutesAsDuration(totalMinutes) {
     const normalizedMinutes = Math.max(0, Number(totalMinutes) || 0);
     const hours = Math.floor(normalizedMinutes / 60);
     const minutes = normalizedMinutes % 60;
     return formatDurationLabel(hours, minutes);
+  }
+
+  function formatGameHours(hours) {
+    const value = Number(hours) || 0;
+    if (value <= 0) return "0h";
+    const rounded = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
+    return `${rounded}h`;
+  }
+
+  function normalizeGameKey(value) {
+    return String(value || "").trim().toLowerCase();
   }
 
   function getSleepGoalSettings(allEntries = getAllEntries()) {
@@ -610,6 +644,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (authorInput) authorInput.value = "";
     if (directorInput) directorInput.value = "";
     if (publisherInput) publisherInput.value = "";
+    if (sessionHoursInput) sessionHoursInput.value = "";
     if (startedDateInput) startedDateInput.value = "";
     if (finishedDateInput) finishedDateInput.value = "";
     if (currentlyReadingInput) currentlyReadingInput.checked = enableReadingProgress;
@@ -651,6 +686,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (authorInput) authorInput.value = entry.author || "";
     if (directorInput) directorInput.value = entry.director || "";
     if (publisherInput) publisherInput.value = entry.publisher || "";
+    if (sessionHoursInput) sessionHoursInput.value = entry.sessionHours != null ? String(entry.sessionHours) : "";
     if (startedDateInput) startedDateInput.value = entry.startedDate || "";
     if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
     if (currentlyReadingInput) currentlyReadingInput.checked = Boolean(entry.currentlyReading);
@@ -739,6 +775,9 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const allEntries = getAllEntries();
     allEntries[storageKey] = entries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
+    document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", {
+      detail: { storageKey, count: entries.length }
+    }));
   }
 
   function normalizeReadingEntries() {
@@ -847,7 +886,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     let activeSuggestionIdx = -1;
     function normalizeSuggestion(item) {
       if (typeof item === "string") {
-        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverEditionKey: "", posterUrl: "" };
+        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverEditionKey: "", coverUrl: "", posterUrl: "" };
       }
       if (item && typeof item === "object") {
         const value = item.value || item.label || "";
@@ -860,9 +899,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         const imdbID = item.imdbID || "";
         const coverId = Number(item.coverId) || 0;
         const coverEditionKey = item.coverEditionKey || "";
+        const coverUrl = item.coverUrl || "";
         const posterUrl = item.posterUrl || "";
         if (value) {
-          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverEditionKey, posterUrl };
+          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverEditionKey, coverUrl, posterUrl };
         }
       }
       return null;
@@ -957,7 +997,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       itemInput.value = suggestion.value;
       selectedCoverId = Number(suggestion.coverId) || 0;
       selectedCoverEditionKey = suggestion.coverEditionKey || "";
-      selectedCoverUrl = "";
+      selectedCoverUrl = suggestion.coverUrl || "";
       selectedPosterUrl = suggestion.posterUrl || "";
       selectedImdbId = suggestion.imdbID || "";
       if (enableAuthorField && autoPopulateAuthor && authorInput && suggestion.author) {
@@ -1079,6 +1119,14 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     normalizeReadingEntries();
     list.innerHTML = "";
     const entries = getEntries();
+    const totalGameHours = {};
+    if (isVideoGameTracker) {
+      entries.forEach((entry) => {
+        const key = normalizeGameKey(entry?.item);
+        if (!key) return;
+        totalGameHours[key] = (totalGameHours[key] || 0) + Math.max(0, Number(entry?.sessionHours) || 0);
+      });
+    }
     function formatSimpleDate(dateStr) {
       if (!dateStr) return "";
       const d = new Date(`${dateStr}T00:00:00`);
@@ -1113,6 +1161,15 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
+      if (isVideoGameTracker) {
+        const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+        const explicitTotalHours = Math.max(0, Number(entry?.totalHours) || 0);
+        const aggregatedTotalHours = totalGameHours[normalizeGameKey(entry?.item)] || 0;
+        const totalHours = explicitTotalHours > 0 ? explicitTotalHours : aggregatedTotalHours;
+        if (sessionHours > 0 || totalHours > 0) {
+          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Session: ${formatGameHours(sessionHours)} • Total on this game: <strong>${formatGameHours(totalHours)}</strong></div>`);
+        }
+      }
       if (isSleepTracker) {
         const { hours, minutes } = parseSleepDuration(entry);
         const { goalHours, goalMinutes } = getSleepGoalSettings();
@@ -1135,7 +1192,9 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
         : "";
       const showRating = !isSleepTracker && !(enableReadingProgress && entry.currentlyReading);
-      const mediaImageUrl = isReadingTracker ? getReadingCoverUrl(entry) : (isMovieTracker ? getMoviePosterUrl(entry) : "");
+      const mediaImageUrl = isReadingTracker
+        ? getReadingCoverUrl(entry)
+        : (isMovieTracker ? getMoviePosterUrl(entry) : (isVideoGameTracker ? getVideoGameCoverUrl(entry) : ""));
       const fallbackMediaUrl = getFallbackMediaUrl(entry);
       const finalMediaUrl = mediaImageUrl || fallbackMediaUrl;
       const hasMediaImage = Boolean(finalMediaUrl);
@@ -1388,6 +1447,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const author = authorInput?.value.trim() || "";
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
+    const sessionHours = Math.max(0, Number(sessionHoursInput?.value || 0));
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
     const isAudiobook = isReadingTracker && Boolean(audiobookInput?.checked);
@@ -1404,7 +1464,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const rating = isSleepTracker
       ? (sleepGrade?.stars || 0)
       : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0));
-    if (!item || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0)) return;
+    if (!item || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) || (isVideoGameTracker && sessionHours <= 0)) return;
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
       const updatedEntry = {
@@ -1421,6 +1481,12 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableAuthorField) updatedEntry.author = author;
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
+      if (isVideoGameTracker) {
+        updatedEntry.sessionHours = sessionHours;
+        updatedEntry.lastSessionHours = sessionHours;
+        updatedEntry.totalHours = sessionHours;
+        updatedEntry.coverUrl = selectedCoverUrl || updatedEntry.coverUrl || "";
+      }
       if (enableReadingProgress) {
         updatedEntry.startedDate = startedDate;
         updatedEntry.finishedDate = finishedDate;
@@ -1441,6 +1507,42 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       }
       entries[editingIdx] = updatedEntry;
     } else {
+      if (isVideoGameTracker) {
+        const gameKey = normalizeGameKey(item);
+        const existingIdx = entries.findIndex((entry) => normalizeGameKey(entry?.item) === gameKey);
+        if (existingIdx >= 0) {
+          const existingEntry = entries[existingIdx] || {};
+          const priorTotal = Math.max(
+            0,
+            Number(existingEntry.totalHours) || Number(existingEntry.sessionHours) || 0
+          );
+          const mergedTotal = priorTotal + sessionHours;
+          const mergedEntry = {
+            ...existingEntry,
+            item,
+            notes: notes || existingEntry.notes || "",
+            rating: rating || existingEntry.rating || 0,
+            date: new Date().toISOString(),
+            sessionHours: mergedTotal,
+            totalHours: mergedTotal,
+            lastSessionHours: sessionHours
+          };
+          if (enablePublisherField && publisher) {
+            mergedEntry.publisher = publisher;
+          }
+          mergedEntry.coverUrl = selectedCoverUrl || existingEntry.coverUrl || "";
+          if (isMovieTracker) {
+            mergedEntry.imdbID = selectedImdbId || existingEntry.imdbID || "";
+            mergedEntry.posterUrl = selectedPosterUrl || existingEntry.posterUrl || "";
+          }
+          entries[existingIdx] = mergedEntry;
+          saveEntries(entries);
+          clearForm();
+          renderEntries();
+          return;
+        }
+      }
+
       const date = new Date().toISOString();
       const nextEntry = { item, notes, rating, date };
       if (isSleepTracker) {
@@ -1451,6 +1553,12 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableAuthorField) nextEntry.author = author;
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;
+      if (isVideoGameTracker) {
+        nextEntry.sessionHours = sessionHours;
+        nextEntry.totalHours = sessionHours;
+        nextEntry.lastSessionHours = sessionHours;
+        nextEntry.coverUrl = selectedCoverUrl || "";
+      }
       if (enableReadingProgress) {
         nextEntry.startedDate = startedDate;
         nextEntry.finishedDate = finishedDate;

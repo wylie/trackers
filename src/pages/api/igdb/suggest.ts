@@ -31,6 +31,7 @@ async function getIgdbAccessToken(clientId: string, clientSecret: string): Promi
 function formatGameSuggestion(game: {
   name?: string;
   first_release_date?: number;
+  cover?: { url?: string };
   involved_companies?: Array<{ publisher?: boolean; company?: { name?: string } }>;
 }) {
   if (!game?.name) return null;
@@ -45,12 +46,17 @@ function formatGameSuggestion(game: {
     ? game.involved_companies.find((company) => company?.publisher && company?.company?.name)
     : null;
   const publisher = publisherEntry?.company?.name || "";
+  const rawCoverUrl = typeof game.cover?.url === "string" ? game.cover.url : "";
+  const coverUrl = rawCoverUrl
+    ? `https:${rawCoverUrl}`.replace("/t_thumb/", "/t_cover_big/")
+    : "";
 
   return {
     label,
     value: game.name,
     publisher,
-    subtitle: publisher
+    subtitle: publisher,
+    coverUrl
   };
 }
 
@@ -73,7 +79,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   const escapedQuery = query.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const body = `search "${escapedQuery}"; fields name,first_release_date,involved_companies.publisher,involved_companies.company.name; where version_parent = null; limit 8;`;
+  const body = `search "${escapedQuery}"; fields name,first_release_date,cover.url,involved_companies.publisher,involved_companies.company.name; where version_parent = null; limit 8;`;
 
   const igdbRes = await fetch("https://api.igdb.com/v4/games", {
     method: "POST",

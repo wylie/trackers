@@ -1,6 +1,7 @@
 ---
 const { storageKey, heading = "Insights" } = Astro.props;
 const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+const isWorkoutTracker = storageKey === "workout-tracker-entries";
 ---
 
 <aside class="ti-side" aria-label={`${heading} for this tracker`}>
@@ -10,6 +11,20 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
     <h3 class="ti-title">Overview</h3>
     <div id={`${idPrefix}-overview`} class="ti-overview"></div>
   </div>
+
+  {isWorkoutTracker && (
+    <div class="ti-card">
+      <h3 class="ti-title">Time Worked Out</h3>
+      <div class="ti-range-toggle" id={`${idPrefix}-range-toggle`} role="group" aria-label="Workout time range">
+        <button type="button" class="ti-toggle-btn is-active" data-range="day">Day</button>
+        <button type="button" class="ti-toggle-btn" data-range="week">Week</button>
+        <button type="button" class="ti-toggle-btn" data-range="month">Month</button>
+        <button type="button" class="ti-toggle-btn" data-range="year">Year</button>
+      </div>
+      <div id={`${idPrefix}-workout-total`} class="ti-workout-total"></div>
+      <p class="ti-note">Total duration from logged workout entries.</p>
+    </div>
+  )}
 
   <div class="ti-card">
     <h3 class="ti-title">Top Logged Items</h3>
@@ -23,8 +38,9 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
   </div>
 </aside>
 
-<script define:vars={{ storageKey, idPrefix }}>
+<script define:vars={{ storageKey, idPrefix, isWorkoutTracker }}>
   const STORAGE_KEY = "simpletrackers.io";
+  let selectedWorkoutRange = "day";
 
   function parseStore() {
     try {
@@ -81,6 +97,51 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
     }
 
     return series;
+  }
+
+  function getWorkoutDurationSeconds(entry) {
+    const hours = Math.max(0, Number(entry?.workoutDurationHours) || 0);
+    const minutes = Math.max(0, Number(entry?.workoutDurationMinutes) || 0);
+    const seconds = Math.max(0, Number(entry?.workoutDurationSeconds) || 0);
+    const fullSeconds = (hours * 3600) + (minutes * 60) + seconds;
+    if (fullSeconds > 0) return fullSeconds;
+    const legacyMinutes = Math.max(0, Number(entry?.workoutDurationTotalMinutes) || 0);
+    return Math.round(legacyMinutes * 60);
+  }
+
+  function isDateInRange(dateValue, range) {
+    const when = new Date(dateValue);
+    if (Number.isNaN(when.getTime())) return false;
+    const now = new Date();
+    if (range === "day") {
+      return when.getFullYear() === now.getFullYear()
+        && when.getMonth() === now.getMonth()
+        && when.getDate() === now.getDate();
+    }
+    if (range === "week") {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+      return day >= start && day <= today;
+    }
+    if (range === "month") {
+      return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
+    }
+    if (range === "year") {
+      return when.getFullYear() === now.getFullYear();
+    }
+    return false;
+  }
+
+  function formatDurationLabel(totalSeconds) {
+    const safe = Math.max(0, Number(totalSeconds) || 0);
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = safe % 60;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
   }
 
   function renderOverview(entries) {
@@ -154,14 +215,66 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
     }).join("");
   }
 
+  function renderWorkoutTotal(entries) {
+    if (!isWorkoutTracker) return;
+    const root = document.getElementById(`${idPrefix}-workout-total`);
+    if (!root) return;
+
+    const scopedEntries = entries.filter((entry) => isDateInRange(entry?.date, selectedWorkoutRange));
+    const totals = scopedEntries.reduce((acc, entry) => {
+      const seconds = getWorkoutDurationSeconds(entry);
+      if (seconds > 0) {
+        acc.totalSeconds += seconds;
+      }
+      acc.sessions += 1;
+      return acc;
+    }, { totalSeconds: 0, sessions: 0 });
+
+    root.innerHTML = `
+      <div class="ti-overview-grid ti-overview-grid--2">
+        <div class="ti-pill"><span>Total Time</span><strong>${formatDurationLabel(totals.totalSeconds)}</strong></div>
+        <div class="ti-pill"><span>Sessions</span><strong>${totals.sessions}</strong></div>
+      </div>
+    `;
+  }
+
+  function syncWorkoutRangeButtons() {
+    if (!isWorkoutTracker) return;
+    const toggleRoot = document.getElementById(`${idPrefix}-range-toggle`);
+    if (!toggleRoot) return;
+    const buttons = toggleRoot.querySelectorAll("[data-range]");
+    buttons.forEach((button) => {
+      const isActive = button.getAttribute("data-range") === selectedWorkoutRange;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
   function renderInsights() {
     const entries = getEntries();
     renderOverview(entries);
+    renderWorkoutTotal(entries);
     renderTopItems(entries);
     renderLast14(entries);
   }
 
   function initInsights() {
+    if (isWorkoutTracker) {
+      const toggleRoot = document.getElementById(`${idPrefix}-range-toggle`);
+      if (toggleRoot && !toggleRoot.dataset.bound) {
+        toggleRoot.dataset.bound = "1";
+        toggleRoot.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-range]");
+          if (!button) return;
+          const range = button.getAttribute("data-range");
+          if (!range || range === selectedWorkoutRange) return;
+          selectedWorkoutRange = range;
+          syncWorkoutRangeButtons();
+          renderInsights();
+        });
+      }
+      syncWorkoutRangeButtons();
+    }
     renderInsights();
   }
 
@@ -238,6 +351,10 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.4rem;
+  }
+
+  .ti-overview-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ti-pill {
@@ -348,5 +465,34 @@ const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "
     margin-top: 0.45rem;
     font-size: 0.68rem;
     color: #64748b;
+  }
+
+  .ti-range-toggle {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .ti-toggle-btn {
+    appearance: none;
+    border: 1px solid #dbe4ef;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.3rem 0.2rem;
+    line-height: 1.2;
+  }
+
+  .ti-toggle-btn.is-active {
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    background: #eff6ff;
+  }
+
+  .ti-workout-total {
+    min-height: 2rem;
   }
 </style>

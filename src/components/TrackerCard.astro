@@ -30,6 +30,7 @@ const isSleepTracker = storageKey === "sleep-tracker-entries";
 const isReadingTracker = storageKey === "reading-tracker-entries";
 const isMovieTracker = storageKey === "movie-watch-tracker-entries";
 const isVideoGameTracker = storageKey === "video-game-tracker-entries";
+const isWorkoutTracker = storageKey === "workout-tracker-entries";
 const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
 const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
@@ -195,6 +196,38 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
             ))}
           </select>
           <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+        </div>
+      </div>
+    )}
+    {isWorkoutTracker && (
+      <div id="tracker-workout-metrics" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div id="tracker-workout-duration-wrap" class="flex flex-col gap-1">
+          <label class="text-sm text-gray-700">Duration (h:m:s)</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="tracker-workout-duration-hours" min="0" step="1" placeholder="h" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="number" id="tracker-workout-duration-minutes" min="0" max="59" step="1" placeholder="m" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="number" id="tracker-workout-duration-seconds" min="0" max="59" step="1" placeholder="s" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+        </div>
+        <div id="tracker-workout-distance-wrap" class="flex flex-col gap-1">
+          <label for="tracker-workout-distance" class="text-sm text-gray-700">Distance (miles)</label>
+          <input type="number" id="tracker-workout-distance" min="0" step="0.01" placeholder="Example: 3.04" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div id="tracker-workout-laps-wrap" class="flex flex-col gap-1">
+          <label for="tracker-workout-laps" class="text-sm text-gray-700">Laps</label>
+          <input type="number" id="tracker-workout-laps" min="0" step="1" placeholder="Example: 20" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div id="tracker-workout-sets-wrap" class="flex flex-col gap-1">
+          <label for="tracker-workout-sets" class="text-sm text-gray-700">Sets</label>
+          <input type="number" id="tracker-workout-sets" min="0" step="1" placeholder="Example: 5" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div id="tracker-workout-reps-wrap" class="flex flex-col gap-1">
+          <label for="tracker-workout-reps" class="text-sm text-gray-700">Reps</label>
+          <input type="number" id="tracker-workout-reps" min="0" step="1" placeholder="Example: 10" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div id="tracker-workout-weight-wrap" class="flex flex-col gap-1">
+          <label for="tracker-workout-weight" class="text-sm text-gray-700">Weight (lbs)</label>
+          <input type="number" id="tracker-workout-weight" min="0" step="1" placeholder="Example: 135" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
       </div>
     )}
@@ -411,7 +444,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker, isWorkoutTracker }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const sleepHoursInput = document.getElementById("tracker-sleep-hours");
@@ -425,6 +458,21 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
   const categoryInput = document.getElementById("tracker-category");
+  const workoutMetricsContainer = document.getElementById("tracker-workout-metrics");
+  const workoutDurationWrap = document.getElementById("tracker-workout-duration-wrap");
+  const workoutDistanceWrap = document.getElementById("tracker-workout-distance-wrap");
+  const workoutLapsWrap = document.getElementById("tracker-workout-laps-wrap");
+  const workoutSetsWrap = document.getElementById("tracker-workout-sets-wrap");
+  const workoutRepsWrap = document.getElementById("tracker-workout-reps-wrap");
+  const workoutWeightWrap = document.getElementById("tracker-workout-weight-wrap");
+  const workoutDurationHoursInput = document.getElementById("tracker-workout-duration-hours");
+  const workoutDurationMinutesInput = document.getElementById("tracker-workout-duration-minutes");
+  const workoutDurationSecondsInput = document.getElementById("tracker-workout-duration-seconds");
+  const workoutDistanceInput = document.getElementById("tracker-workout-distance");
+  const workoutLapsInput = document.getElementById("tracker-workout-laps");
+  const workoutSetsInput = document.getElementById("tracker-workout-sets");
+  const workoutRepsInput = document.getElementById("tracker-workout-reps");
+  const workoutWeightInput = document.getElementById("tracker-workout-weight");
   const sessionHoursInput = document.getElementById("tracker-session-hours");
   const startedDateInput = document.getElementById("tracker-started-date");
   const finishedDateInput = document.getElementById("tracker-finished-date");
@@ -518,6 +566,132 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   function getIntValue(input, defaultValue = 0) {
     const parsed = Number.parseInt(String(input?.value ?? ""), 10);
     return Number.isFinite(parsed) ? parsed : defaultValue;
+  }
+
+  function getFloatValue(input, defaultValue = 0) {
+    const parsed = Number.parseFloat(String(input?.value ?? ""));
+    return Number.isFinite(parsed) ? parsed : defaultValue;
+  }
+
+  function getWorkoutDurationParts(entry) {
+    let hours = Math.max(0, Number(entry?.workoutDurationHours) || 0);
+    let minutes = Math.max(0, Number(entry?.workoutDurationMinutes) || 0);
+    let seconds = Math.max(0, Number(entry?.workoutDurationSeconds) || 0);
+    // Normalize overflow so values are always human-readable.
+    if (seconds >= 60) {
+      minutes += Math.floor(seconds / 60);
+      seconds = seconds % 60;
+    }
+    if (minutes >= 60) {
+      hours += Math.floor(minutes / 60);
+      minutes = minutes % 60;
+    }
+    if (hours > 0 || minutes > 0 || seconds > 0) {
+      return { hours, minutes, seconds };
+    }
+    // Backward compatibility for old entries that only stored total minutes.
+    const legacyMinutes = Math.max(0, Number(entry?.workoutDurationTotalMinutes) || 0);
+    return {
+      hours: Math.floor(legacyMinutes / 60),
+      minutes: legacyMinutes % 60,
+      seconds: 0
+    };
+  }
+
+  function getWorkoutMetricProfile(item, category) {
+    const text = String(item || "").toLowerCase();
+    const type = String(category || "").toLowerCase();
+    const profile = {
+      duration: true,
+      distance: false,
+      laps: false,
+      sets: false,
+      reps: false,
+      weight: false
+    };
+
+    if (type === "strength") {
+      profile.sets = true;
+      profile.reps = true;
+      profile.weight = true;
+      return profile;
+    }
+    if (type === "cardio" || type === "sports") {
+      profile.distance = true;
+      return profile;
+    }
+    if (type === "mobility" || type === "recovery") {
+      return profile;
+    }
+    if (type === "other") {
+      profile.distance = true;
+      profile.sets = true;
+      profile.reps = true;
+      profile.weight = true;
+      return profile;
+    }
+
+    if (/swim/.test(text)) {
+      profile.distance = true;
+      profile.laps = true;
+    }
+    if (/(run|walk|jog|hike|cycle|bike|row)/.test(text)) {
+      profile.distance = true;
+    }
+    if (/(hiit|yoga|pilates|stretch|mobility|foam|breath)/.test(text)) {
+      return profile;
+    }
+    if (/(squat|deadlift|bench|press|curl|dip|row|pull)/.test(text)) {
+      profile.sets = true;
+      profile.reps = true;
+      profile.weight = true;
+    }
+
+    return profile;
+  }
+
+  function toggleWorkoutMetricField(wrap, input, enabled) {
+    if (!wrap || !input) return;
+    wrap.classList.toggle("hidden", !enabled);
+    input.disabled = !enabled;
+  }
+
+  function syncWorkoutMetricsUI() {
+    if (!isWorkoutTracker || !workoutMetricsContainer) return;
+    const profile = getWorkoutMetricProfile(itemInput?.value || "", categoryInput?.value || "");
+    workoutMetricsContainer.classList.remove("hidden");
+    toggleWorkoutMetricField(workoutDurationWrap, workoutDurationHoursInput, profile.duration);
+    if (workoutDurationMinutesInput) workoutDurationMinutesInput.disabled = !profile.duration;
+    if (workoutDurationSecondsInput) workoutDurationSecondsInput.disabled = !profile.duration;
+    toggleWorkoutMetricField(workoutDistanceWrap, workoutDistanceInput, profile.distance);
+    toggleWorkoutMetricField(workoutLapsWrap, workoutLapsInput, profile.laps);
+    toggleWorkoutMetricField(workoutSetsWrap, workoutSetsInput, profile.sets);
+    toggleWorkoutMetricField(workoutRepsWrap, workoutRepsInput, profile.reps);
+    toggleWorkoutMetricField(workoutWeightWrap, workoutWeightInput, profile.weight);
+  }
+
+  function formatWorkoutMetricLine(entry) {
+    if (!isWorkoutTracker) return "";
+    const parts = [];
+    const duration = getWorkoutDurationParts(entry);
+    const distance = Math.max(0, Number(entry?.workoutDistanceMiles) || 0);
+    const laps = Math.max(0, Number(entry?.workoutLaps) || 0);
+    const sets = Math.max(0, Number(entry?.workoutSets) || 0);
+    const reps = Math.max(0, Number(entry?.workoutReps) || 0);
+    const weight = Math.max(0, Number(entry?.workoutWeightLbs) || 0);
+    if (duration.hours > 0 || duration.minutes > 0 || duration.seconds > 0) {
+      const durationParts = [];
+      if (duration.hours > 0) durationParts.push(`${duration.hours}h`);
+      if (duration.minutes > 0 || (duration.hours > 0 && duration.seconds > 0)) durationParts.push(`${duration.minutes}m`);
+      if (duration.seconds > 0) durationParts.push(`${duration.seconds}s`);
+      parts.push(durationParts.join(" "));
+    }
+    if (distance > 0) parts.push(`${distance.toFixed(2).replace(/\.?0+$/, "")} mi`);
+    if (laps > 0) parts.push(`${laps} laps`);
+    if (sets > 0) parts.push(`${sets} sets`);
+    if (reps > 0) parts.push(`${reps} reps`);
+    if (weight > 0) parts.push(`${weight} lbs`);
+    return parts.join(" • ");
   }
 
   function getAudiobookLeftMinutes(entry) {
@@ -691,6 +865,14 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (directorInput) directorInput.value = "";
     if (publisherInput) publisherInput.value = "";
     if (categoryInput) categoryInput.value = "";
+    if (workoutDurationHoursInput) workoutDurationHoursInput.value = "";
+    if (workoutDurationMinutesInput) workoutDurationMinutesInput.value = "";
+    if (workoutDurationSecondsInput) workoutDurationSecondsInput.value = "";
+    if (workoutDistanceInput) workoutDistanceInput.value = "";
+    if (workoutLapsInput) workoutLapsInput.value = "";
+    if (workoutSetsInput) workoutSetsInput.value = "";
+    if (workoutRepsInput) workoutRepsInput.value = "";
+    if (workoutWeightInput) workoutWeightInput.value = "";
     if (sessionHoursInput) sessionHoursInput.value = "";
     if (startedDateInput) startedDateInput.value = "";
     if (finishedDateInput) finishedDateInput.value = "";
@@ -715,6 +897,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     editingIdx = -1;
     setEditingMode(false);
     syncReadingModeUI();
+    syncWorkoutMetricsUI();
   }
 
   function startEditing(idx) {
@@ -734,6 +917,17 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (directorInput) directorInput.value = entry.director || "";
     if (publisherInput) publisherInput.value = entry.publisher || "";
     if (categoryInput) categoryInput.value = entry.category || "";
+    if (workoutDurationHoursInput || workoutDurationMinutesInput || workoutDurationSecondsInput) {
+      const duration = getWorkoutDurationParts(entry);
+      if (workoutDurationHoursInput) workoutDurationHoursInput.value = duration.hours ? String(duration.hours) : "";
+      if (workoutDurationMinutesInput) workoutDurationMinutesInput.value = duration.minutes ? String(duration.minutes) : "";
+      if (workoutDurationSecondsInput) workoutDurationSecondsInput.value = duration.seconds ? String(duration.seconds) : "";
+    }
+    if (workoutDistanceInput) workoutDistanceInput.value = entry.workoutDistanceMiles != null ? String(entry.workoutDistanceMiles) : "";
+    if (workoutLapsInput) workoutLapsInput.value = entry.workoutLaps != null ? String(entry.workoutLaps) : "";
+    if (workoutSetsInput) workoutSetsInput.value = entry.workoutSets != null ? String(entry.workoutSets) : "";
+    if (workoutRepsInput) workoutRepsInput.value = entry.workoutReps != null ? String(entry.workoutReps) : "";
+    if (workoutWeightInput) workoutWeightInput.value = entry.workoutWeightLbs != null ? String(entry.workoutWeightLbs) : "";
     if (sessionHoursInput) sessionHoursInput.value = entry.sessionHours != null ? String(entry.sessionHours) : "";
     if (startedDateInput) startedDateInput.value = entry.startedDate || "";
     if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
@@ -760,6 +954,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     updateStars();
     setEditingMode(true);
     syncReadingModeUI();
+    syncWorkoutMetricsUI();
     if (itemInput) {
       itemInput.focus();
     } else if (sleepHoursInput) {
@@ -818,6 +1013,11 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   }
   if (audiobookInput) {
     audiobookInput.addEventListener("change", syncReadingModeUI);
+  }
+  if (isWorkoutTracker) {
+    itemInput?.addEventListener("input", syncWorkoutMetricsUI);
+    categoryInput?.addEventListener("change", syncWorkoutMetricsUI);
+    syncWorkoutMetricsUI();
   }
 
   function getAllEntries() {
@@ -952,7 +1152,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     let activeSuggestionIdx = -1;
     function normalizeSuggestion(item) {
       if (typeof item === "string") {
-        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", totalPages: "", imdbID: "", coverId: 0, coverEditionKey: "", coverUrl: "", posterUrl: "" };
+        return { label: item, value: item, subtitle: "", author: "", director: "", publisher: "", category: "", totalPages: "", imdbID: "", coverId: 0, coverEditionKey: "", coverUrl: "", posterUrl: "" };
       }
       if (item && typeof item === "object") {
         const value = item.value || item.label || "";
@@ -961,6 +1161,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         const author = item.author || "";
         const director = item.director || "";
         const publisher = item.publisher || "";
+        const category = item.category || "";
         const totalPages = item.totalPages || "";
         const imdbID = item.imdbID || "";
         const coverId = Number(item.coverId) || 0;
@@ -968,7 +1169,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         const coverUrl = item.coverUrl || "";
         const posterUrl = item.posterUrl || "";
         if (value) {
-          return { label, value, subtitle, author, director, publisher, totalPages, imdbID, coverId, coverEditionKey, coverUrl, posterUrl };
+          return { label, value, subtitle, author, director, publisher, category, totalPages, imdbID, coverId, coverEditionKey, coverUrl, posterUrl };
         }
       }
       return null;
@@ -1082,6 +1283,10 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (enablePublisherField && autoPopulatePublisher && publisherInput && suggestion.publisher) {
         publisherInput.value = suggestion.publisher;
       }
+      if (enableCategoryField && categoryInput && suggestion.category) {
+        categoryInput.value = suggestion.category;
+      }
+      syncWorkoutMetricsUI();
       if (enableReadingProgress && autoPopulateTotalPages && totalPagesInput && suggestion.totalPages && !audiobookInput?.checked) {
         totalPagesInput.value = String(suggestion.totalPages);
       }
@@ -1228,6 +1433,12 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
       if (entry.category) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Category: <strong>${entry.category}</strong></div>`);
+      if (isWorkoutTracker) {
+        const workoutMetricLine = formatWorkoutMetricLine(entry);
+        if (workoutMetricLine) {
+          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Metrics: ${workoutMetricLine}</div>`);
+        }
+      }
       if (isVideoGameTracker) {
         const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
         const explicitTotalHours = Math.max(0, Number(entry?.totalHours) || 0);
@@ -1515,6 +1726,15 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
     const category = categoryInput?.value || "";
+    const workoutDurationHours = Math.max(0, getIntValue(workoutDurationHoursInput, 0));
+    const workoutDurationMinutes = Math.max(0, Math.min(59, getIntValue(workoutDurationMinutesInput, 0)));
+    const workoutDurationSeconds = Math.max(0, Math.min(59, getIntValue(workoutDurationSecondsInput, 0)));
+    const workoutDurationTotalMinutes = Math.floor((workoutDurationHours * 3600 + workoutDurationMinutes * 60 + workoutDurationSeconds) / 60);
+    const workoutDistanceMiles = Math.max(0, getFloatValue(workoutDistanceInput, 0));
+    const workoutLaps = Math.max(0, getIntValue(workoutLapsInput, 0));
+    const workoutSets = Math.max(0, getIntValue(workoutSetsInput, 0));
+    const workoutReps = Math.max(0, getIntValue(workoutRepsInput, 0));
+    const workoutWeightLbs = Math.max(0, getIntValue(workoutWeightInput, 0));
     const sessionHours = Math.max(0, Number(sessionHoursInput?.value || 0));
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
@@ -1550,6 +1770,17 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
       if (enableCategoryField) updatedEntry.category = category;
+      if (isWorkoutTracker) {
+        updatedEntry.workoutDurationHours = workoutDurationHours;
+        updatedEntry.workoutDurationMinutes = workoutDurationMinutes;
+        updatedEntry.workoutDurationSeconds = workoutDurationSeconds;
+        updatedEntry.workoutDurationTotalMinutes = workoutDurationTotalMinutes;
+        updatedEntry.workoutDistanceMiles = workoutDistanceMiles;
+        updatedEntry.workoutLaps = workoutLaps;
+        updatedEntry.workoutSets = workoutSets;
+        updatedEntry.workoutReps = workoutReps;
+        updatedEntry.workoutWeightLbs = workoutWeightLbs;
+      }
       if (isVideoGameTracker) {
         updatedEntry.sessionHours = sessionHours;
         updatedEntry.lastSessionHours = sessionHours;
@@ -1635,6 +1866,17 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;
       if (enableCategoryField) nextEntry.category = category;
+      if (isWorkoutTracker) {
+        nextEntry.workoutDurationHours = workoutDurationHours;
+        nextEntry.workoutDurationMinutes = workoutDurationMinutes;
+        nextEntry.workoutDurationSeconds = workoutDurationSeconds;
+        nextEntry.workoutDurationTotalMinutes = workoutDurationTotalMinutes;
+        nextEntry.workoutDistanceMiles = workoutDistanceMiles;
+        nextEntry.workoutLaps = workoutLaps;
+        nextEntry.workoutSets = workoutSets;
+        nextEntry.workoutReps = workoutReps;
+        nextEntry.workoutWeightLbs = workoutWeightLbs;
+      }
       if (isVideoGameTracker) {
         nextEntry.sessionHours = sessionHours;
         nextEntry.totalHours = sessionHours;

@@ -29,6 +29,14 @@ const related = [
   { name: "Meal Tracker", url: "/meal-tracker", icon: "restaurant" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
+const workoutCategories = [
+  "Strength",
+  "Cardio",
+  "Mobility",
+  "Sports",
+  "Recovery",
+  "Other"
+];
 const relatedCalculators = getRelatedCalculators("workout-tracker");
 ---
 
@@ -46,6 +54,10 @@ const relatedCalculators = getRelatedCalculators("workout-tracker");
               icon="fitness_center"
               storageKey="workout-tracker-entries"
               itemPlaceholder="Workout"
+              enableCategoryField={true}
+              categoryPlaceholder="Workout Type"
+              categoryOptions={workoutCategories}
+              autocompleteEndpoint="/api/workouts/suggest"
             />
           </div>
           <TrackerInsightsRail storageKey="workout-tracker-entries" />

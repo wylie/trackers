@@ -6,7 +6,6 @@ import TrackerCard from '../../components/TrackerCard.astro';
 import TrackerInsightsRail from '../../components/TrackerInsightsRail.astro';
 import HowToUse from '../../components/sections/HowToUse.astro';
 import Benefits from '../../components/sections/Benefits.astro';
-import FAQ from '../../components/sections/FAQ.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
 import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
@@ -29,6 +28,22 @@ const related = [
   { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
   { name: "Task Tracker", url: "/task-tracker", icon: "assignment" }
 ];
+const financeCategories = [
+  "Housing",
+  "Food",
+  "Transportation",
+  "Utilities",
+  "Health",
+  "Insurance",
+  "Debt",
+  "Savings",
+  "Income",
+  "Entertainment",
+  "Shopping",
+  "Education",
+  "Travel",
+  "Other"
+];
 const relatedCalculators = getRelatedCalculators("finance-tracker");
 ---
 
@@ -46,6 +61,9 @@ const relatedCalculators = getRelatedCalculators("finance-tracker");
               title="Finance Log"
               icon="attach_money"
               itemPlaceholder="Transaction"
+              enableCategoryField={true}
+              categoryPlaceholder="Category"
+              categoryOptions={financeCategories}
             />
           </div>
           <TrackerInsightsRail storageKey="finance-tracker-entries" />

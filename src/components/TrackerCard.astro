@@ -19,6 +19,9 @@ const {
   enablePublisherField = false,
   publisherPlaceholder = "Publisher",
   autoPopulatePublisher = false,
+  enableCategoryField = false,
+  categoryPlaceholder = "Category",
+  categoryOptions = [],
   enableReadingProgress = false,
   autoPopulateTotalPages = false
 } = Astro.props;
@@ -32,6 +35,10 @@ const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
 const progressHourOptions = Array.from({ length: 101 }, (_, value) => value);
 const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
+const normalizedCategoryOptions = Array.isArray(categoryOptions)
+  ? categoryOptions.map((option) => String(option || "").trim()).filter(Boolean)
+  : [];
+normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
@@ -172,6 +179,24 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
         placeholder={publisherPlaceholder}
         class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
       />
+    )}
+    {enableCategoryField && (
+      <div class="flex flex-col gap-1">
+        <label for="tracker-category" class="text-sm text-gray-700">{categoryPlaceholder}</label>
+        <div class="relative">
+          <select
+            id="tracker-category"
+            class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+            required
+          >
+            <option value="">Select category</option>
+            {normalizedCategoryOptions.map((option) => (
+              <option value={option}>{option}</option>
+            ))}
+          </select>
+          <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+        </div>
+      </div>
     )}
     {isVideoGameTracker && (
       <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
@@ -386,7 +411,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 </style>
 </section>
 
-<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker }}>
+<script define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker }}>
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
   const sleepHoursInput = document.getElementById("tracker-sleep-hours");
@@ -399,6 +424,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
+  const categoryInput = document.getElementById("tracker-category");
   const sessionHoursInput = document.getElementById("tracker-session-hours");
   const startedDateInput = document.getElementById("tracker-started-date");
   const finishedDateInput = document.getElementById("tracker-finished-date");
@@ -664,6 +690,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (authorInput) authorInput.value = "";
     if (directorInput) directorInput.value = "";
     if (publisherInput) publisherInput.value = "";
+    if (categoryInput) categoryInput.value = "";
     if (sessionHoursInput) sessionHoursInput.value = "";
     if (startedDateInput) startedDateInput.value = "";
     if (finishedDateInput) finishedDateInput.value = "";
@@ -706,6 +733,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (authorInput) authorInput.value = entry.author || "";
     if (directorInput) directorInput.value = entry.director || "";
     if (publisherInput) publisherInput.value = entry.publisher || "";
+    if (categoryInput) categoryInput.value = entry.category || "";
     if (sessionHoursInput) sessionHoursInput.value = entry.sessionHours != null ? String(entry.sessionHours) : "";
     if (startedDateInput) startedDateInput.value = entry.startedDate || "";
     if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
@@ -1199,6 +1227,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
       if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
       if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
+      if (entry.category) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Category: <strong>${entry.category}</strong></div>`);
       if (isVideoGameTracker) {
         const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
         const explicitTotalHours = Math.max(0, Number(entry?.totalHours) || 0);
@@ -1485,6 +1514,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const author = authorInput?.value.trim() || "";
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
+    const category = categoryInput?.value || "";
     const sessionHours = Math.max(0, Number(sessionHoursInput?.value || 0));
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
@@ -1502,7 +1532,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const rating = isSleepTracker
       ? (sleepGrade?.stars || 0)
       : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0));
-    if (!item || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) || (isVideoGameTracker && sessionHours <= 0)) return;
+    if (!item || (enableCategoryField && !category) || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) || (isVideoGameTracker && sessionHours <= 0)) return;
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
       const updatedEntry = {
@@ -1519,6 +1549,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableAuthorField) updatedEntry.author = author;
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
+      if (enableCategoryField) updatedEntry.category = category;
       if (isVideoGameTracker) {
         updatedEntry.sessionHours = sessionHours;
         updatedEntry.lastSessionHours = sessionHours;
@@ -1577,6 +1608,9 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
           if (enablePublisherField && publisher) {
             mergedEntry.publisher = publisher;
           }
+          if (enableCategoryField && category) {
+            mergedEntry.category = category;
+          }
           mergedEntry.coverUrl = selectedCoverUrl || existingEntry.coverUrl || "";
           if (isMovieTracker) {
             mergedEntry.imdbID = selectedImdbId || existingEntry.imdbID || "";
@@ -1600,6 +1634,7 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableAuthorField) nextEntry.author = author;
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;
+      if (enableCategoryField) nextEntry.category = category;
       if (isVideoGameTracker) {
         nextEntry.sessionHours = sessionHours;
         nextEntry.totalHours = sessionHours;

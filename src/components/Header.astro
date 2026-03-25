@@ -24,14 +24,27 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
 
 <header class="w-full bg-white border-b border-gray-200 shadow-sm">
   <div class="max-w-5xl mx-auto px-4 py-3 border-b" style="border-color: rgb(241, 245, 249);">
-    <a href="/" class="block text-left md:text-center text-[24px] leading-none font-bold text-slate-900 tracking-tight">SimpleTrackers</a>
+    <div class="flex items-center justify-between md:block">
+      <a href="/" class="block text-left md:text-center text-[24px] leading-none font-bold text-slate-900 tracking-tight">SimpleTrackers</a>
+      <button
+        id="mobile-nav-toggle"
+        type="button"
+        class="md:hidden inline-flex items-center justify-center rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-700"
+        aria-expanded="false"
+        aria-controls="mobile-nav-panel"
+        aria-label="Open navigation menu"
+      >
+        <span class="material-symbols-outlined text-[22px]" aria-hidden="true">menu</span>
+      </button>
+    </div>
   </div>
-  <div class="max-w-5xl mx-auto px-4 py-2.5">
+
+  <div class="max-w-5xl mx-auto px-4 py-2.5 hidden md:block">
     <nav aria-label="Main navigation">
-      <ul class="flex flex-wrap justify-start md:justify-center gap-3 sm:gap-4">
+      <ul class="flex flex-wrap justify-center gap-3 sm:gap-4">
         <li><a href="/" class={navClass("/")}>Home</a></li>
         <li><a href="/dashboard" class={navClass("/dashboard")}>Dashboard</a></li>
-        <li class="relative group">
+        <li class="relative group desktop-trackers">
           <button class={navClass("/trackers")} type="button">
             Trackers
             <span class="material-icons align-middle text-[18px] ml-0.5">expand_more</span>
@@ -49,36 +62,98 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
       </ul>
     </nav>
   </div>
+
+  <div id="mobile-nav-panel" class="hidden md:hidden border-t border-slate-100">
+    <nav aria-label="Mobile navigation" class="px-4 py-3">
+      <ul class="flex flex-col gap-1.5">
+        <li><a href="/" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">Home</a></li>
+        <li><a href="/dashboard" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">Dashboard</a></li>
+        <li>
+          <button
+            id="mobile-trackers-toggle"
+            type="button"
+            class="w-full flex items-center justify-between rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100"
+            aria-expanded="false"
+            aria-controls="mobile-trackers-list"
+          >
+            <span>Trackers</span>
+            <span class="material-icons text-[18px]" aria-hidden="true">expand_more</span>
+          </button>
+          <div id="mobile-trackers-list" class="hidden pl-2 pt-1">
+            <div class="grid grid-cols-1 gap-1">
+              {trackerLinks.map((tracker) => (
+                <a href={tracker.href} class="block rounded-md px-3 py-1.5 text-[14px] text-slate-600 hover:bg-blue-50">{tracker.label}</a>
+              ))}
+            </div>
+          </div>
+        </li>
+        <li><a href="/faq" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">FAQ</a></li>
+        <li>
+          <a href="/settings" class="flex items-center gap-2 rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">settings</span>
+            <span>Settings</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
 </header>
 
 <script>
-  // Dropdown hover intent logic for Trackers menu
-  document.addEventListener('DOMContentLoaded', () => {
-    const navLi = document.querySelector('li.group');
-    const dropdown = navLi?.querySelector('div.absolute');
-    const button = navLi?.querySelector('button');
-    let hideTimeout = null;
+  document.addEventListener("DOMContentLoaded", () => {
+    const mobileToggle = document.getElementById("mobile-nav-toggle");
+    const mobilePanel = document.getElementById("mobile-nav-panel");
+    const mobileTrackersToggle = document.getElementById("mobile-trackers-toggle");
+    const mobileTrackersList = document.getElementById("mobile-trackers-list");
 
-    if (!navLi || !dropdown || !button) return;
+    if (!mobileToggle || !mobilePanel) return;
 
-    function showDropdown() {
-      clearTimeout(hideTimeout);
-      dropdown.classList.add('!opacity-100', '!pointer-events-auto');
-      dropdown.classList.remove('opacity-0', 'pointer-events-none');
+    function setMobileMenu(open) {
+      mobilePanel.classList.toggle("hidden", !open);
+      mobileToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      const icon = mobileToggle.querySelector(".material-symbols-outlined");
+      if (icon) icon.textContent = open ? "close" : "menu";
     }
 
-    function hideDropdown() {
-      hideTimeout = setTimeout(() => {
-        dropdown.classList.remove('!opacity-100', '!pointer-events-auto');
-        dropdown.classList.add('opacity-0', 'pointer-events-none');
-      }, 120); // 120ms delay for usability
+    function setMobileTrackers(open) {
+      if (!mobileTrackersToggle || !mobileTrackersList) return;
+      mobileTrackersList.classList.toggle("hidden", !open);
+      mobileTrackersToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      const icon = mobileTrackersToggle.querySelector(".material-icons");
+      if (icon) icon.textContent = open ? "expand_less" : "expand_more";
     }
 
-    navLi.addEventListener('mouseenter', showDropdown);
-    navLi.addEventListener('mouseleave', hideDropdown);
-    dropdown.addEventListener('mouseenter', showDropdown);
-    dropdown.addEventListener('mouseleave', hideDropdown);
-    button.addEventListener('focus', showDropdown);
-    button.addEventListener('blur', hideDropdown);
+    mobileToggle.addEventListener("click", () => {
+      const isOpen = mobileToggle.getAttribute("aria-expanded") === "true";
+      setMobileMenu(!isOpen);
+    });
+
+    mobileTrackersToggle?.addEventListener("click", () => {
+      const isOpen = mobileTrackersToggle.getAttribute("aria-expanded") === "true";
+      setMobileTrackers(!isOpen);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setMobileTrackers(false);
+        setMobileMenu(false);
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!mobilePanel.contains(target) && !mobileToggle.contains(target)) {
+        setMobileTrackers(false);
+        setMobileMenu(false);
+      }
+    });
+
+    mobilePanel.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => {
+        setMobileTrackers(false);
+        setMobileMenu(false);
+      });
+    });
   });
 </script>

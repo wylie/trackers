@@ -29,6 +29,40 @@ function formatSuggestion(book: {
   };
 }
 
+function normalizeText(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreBookForQuery(book: {
+  title?: string;
+  first_publish_year?: number;
+}, query: string) {
+  const title = normalizeText(book?.title || "");
+  const q = normalizeText(query);
+  if (!title || !q) return -1;
+
+  let score = 0;
+  if (title === q) score += 1200;
+  if (title.startsWith(`${q} `) || title.startsWith(q)) score += 900;
+  if (title.includes(` ${q} `)) score += 700;
+  if (title.includes(q)) score += 450;
+
+  const qTokens = q.split(" ").filter(Boolean);
+  const tokenMatches = qTokens.filter((token) => title.includes(token)).length;
+  score += tokenMatches * 80;
+  score += Math.min(120, title.length);
+
+  const year = Number(book?.first_publish_year) || 0;
+  if (year >= 1990) score += 15;
+  if (year >= 2010) score += 10;
+
+  return score;
+}
+
 export const GET: APIRoute = async ({ url }) => {
   const query = (url.searchParams.get("q") || "").trim();
   const normalizedQuery = query.replace(/\s+by\s+.+$/i, "").trim();
@@ -40,19 +74,43 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  async function searchBooks(term: string) {
-    const endpoint = `https://openlibrary.org/search.json?limit=8&fields=title,first_publish_year,author_name,number_of_pages_median,cover_i,cover_edition_key&q=${encodeURIComponent(term)}`;
+  async function fetchBooksFrom(endpoint: string) {
     const res = await fetch(endpoint, {
       headers: {
         Accept: "application/json",
         "User-Agent": "SimpleTrackers/1.0 (+https://www.simpletrackers.io)"
       }
     });
-
     if (!res.ok) return [];
     const data = await res.json();
-    const docs = Array.isArray(data?.docs) ? data.docs : [];
-    return docs.map(formatSuggestion).filter(Boolean).slice(0, 8);
+    return Array.isArray(data?.docs) ? data.docs : [];
+  }
+
+  async function searchBooks(term: string) {
+    const base = "https://openlibrary.org/search.json";
+    const fields = "title,first_publish_year,author_name,number_of_pages_median,cover_i,cover_edition_key";
+    const [titleDocs, keywordDocs] = await Promise.all([
+      fetchBooksFrom(`${base}?limit=30&fields=${fields}&title=${encodeURIComponent(term)}`),
+      fetchBooksFrom(`${base}?limit=30&fields=${fields}&q=${encodeURIComponent(term)}`)
+    ]);
+
+    const combined = [...titleDocs, ...keywordDocs];
+    const deduped = new Map();
+    for (const book of combined) {
+      const title = normalizeText(String(book?.title || ""));
+      const author = normalizeText(Array.isArray(book?.author_name) ? String(book.author_name[0] || "") : "");
+      if (!title) continue;
+      const key = `${title}::${author}`;
+      if (!deduped.has(key)) deduped.set(key, book);
+    }
+
+    return Array.from(deduped.values())
+      .map((book) => ({ book, score: scoreBookForQuery(book, term) }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+      .map((entry) => formatSuggestion(entry.book))
+      .filter(Boolean);
   }
 
   let suggestions = await searchBooks(query);

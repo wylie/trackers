@@ -168,7 +168,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
           <input
             type="date"
             id="tracker-due-date"
-            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="tracker-date-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-900"
           />
         </div>
       </div>
@@ -278,7 +278,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         <div id="tracker-reading-progress-fields" class="contents lg:grid lg:grid-cols-3 lg:gap-2 lg:sm:col-span-2">
           <div class="flex flex-col gap-1">
             <label for="tracker-started-date" class="text-sm text-gray-700">Started Reading</label>
-            <input type="date" id="tracker-started-date" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="date" id="tracker-started-date" class="tracker-date-input reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-900" />
           </div>
           <div id="tracker-page-progress-field" class="flex flex-col gap-1">
             <label id="tracker-current-page-label" for="tracker-current-page" class="text-sm text-gray-700">Current Page</label>
@@ -338,7 +338,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         <div id="tracker-finished-fields" class="sm:col-span-2">
           <div class="flex flex-col gap-1">
             <label for="tracker-finished-date" class="text-sm text-gray-700">Finished Reading</label>
-            <input type="date" id="tracker-finished-date" class="reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="date" id="tracker-finished-date" class="tracker-date-input reading-progress-input border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-900" />
           </div>
         </div>
       </div>
@@ -457,6 +457,25 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     color: #111827;
     font-size: 1.375rem;
     pointer-events: none;
+  }
+  .tracker-date-input {
+    background-color: #fff;
+    color: #111827;
+    -webkit-text-fill-color: #111827;
+    color-scheme: light;
+    opacity: 1;
+  }
+  .tracker-date-input:disabled {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    -webkit-text-fill-color: #94a3b8;
+    opacity: 1;
+  }
+  .tracker-date-input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+  .tracker-date-input::-webkit-calendar-picker-indicator {
+    opacity: 1;
   }
   :global(.reading-cover-shell) {
     width: calc(100% - 88px);

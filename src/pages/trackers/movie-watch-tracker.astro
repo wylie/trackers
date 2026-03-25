@@ -34,21 +34,41 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
 <Layout seoTitle="Movie Watch Tracker" seoDescription="Track movies you've watched privately and easily. No login, no accounts, data stays in your browser.">
   <TrackerPageWrapper>
     <main>
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-6xl mx-auto">
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Movie Watch Tracker</h1>
         <p class="text-gray-700 text-lg mb-6">Track movies you've watched privately and easily. No login, no accounts, data stays in your browser.</p>
-        <TrackerCard
-          title="Movie Log"
-          description="Log movies you've watched, ratings, and notes."
-          storageKey="movie-watch-tracker-entries"
-          icon="movie"
-          itemPlaceholder="Title"
-          enableDirectorField={true}
-          directorPlaceholder="Director"
-          autoPopulateDirector={true}
-          enableOmdbAutocomplete={true}
-          omdbApiKey={import.meta.env.PUBLIC_OMDB_API_KEY ?? ""}
-        />
+        <section class="mv-layout">
+          <div class="mv-main">
+            <TrackerCard
+              title="Movie Log"
+              description="Log movies you've watched, ratings, and notes."
+              storageKey="movie-watch-tracker-entries"
+              icon="movie"
+              itemPlaceholder="Title"
+              enableDirectorField={true}
+              directorPlaceholder="Director"
+              autoPopulateDirector={true}
+              enableOmdbAutocomplete={true}
+              omdbApiKey={import.meta.env.PUBLIC_OMDB_API_KEY ?? ""}
+            />
+          </div>
+          <aside class="mv-side" aria-label="Movie insights">
+            <h2 class="mv-side-title">Insights</h2>
+            <div class="mv-card">
+              <h3 class="mv-title">Rating Breakdown</h3>
+              <div id="mv-rating-bars" class="mv-bars"></div>
+            </div>
+            <div class="mv-card">
+              <h3 class="mv-title">Top Directors</h3>
+              <div id="mv-director-bars" class="mv-bars"></div>
+            </div>
+            <div class="mv-card">
+              <h3 class="mv-title">Last 14 Days</h3>
+              <div id="mv-14d" class="mv-14d"></div>
+              <p class="mv-note">Movies logged per day.</p>
+            </div>
+          </aside>
+        </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
             <HowToUse steps={steps} />
@@ -63,3 +83,138 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
     </main>
   </TrackerPageWrapper>
 </Layout>
+
+<script>
+  const STORAGE_KEY = "simpletrackers.io";
+  const MOVIE_KEY = "movie-watch-tracker-entries";
+
+  function parseStore() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getMovieEntries() {
+    const store = parseStore();
+    return Array.isArray(store[MOVIE_KEY]) ? store[MOVIE_KEY] : [];
+  }
+
+  function aggregateLast14(entries) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - 13);
+    const msPerDay = 86400000;
+    const series = Array.from({ length: 14 }, (_, idx) => ({ day: new Date(start.getTime() + idx * msPerDay), count: 0 }));
+    for (const entry of entries) {
+      const when = entry?.date ? new Date(entry.date) : null;
+      if (!when || Number.isNaN(when.getTime())) continue;
+      const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+      const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+      if (idx >= 0 && idx < series.length) series[idx].count += 1;
+    }
+    return series;
+  }
+
+  function aggregateRatings(entries) {
+    const counts = new Map([[1,0],[2,0],[3,0],[4,0],[5,0]]);
+    for (const entry of entries) {
+      const rating = Math.round(Number(entry?.rating) || 0);
+      if (rating >= 1 && rating <= 5) counts.set(rating, (counts.get(rating) || 0) + 1);
+    }
+    return [5,4,3,2,1].map((star) => ({ label: `${star}★`, value: counts.get(star) || 0 }));
+  }
+
+  function aggregateDirectors(entries) {
+    const counts = new Map();
+    for (const entry of entries) {
+      const name = String(entry?.director || "").trim();
+      if (!name) continue;
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([name, value]) => ({ label: name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }
+
+  function renderBars(container, rows, maxValue = 1, color = "#2563eb") {
+    if (!container) return;
+    if (!rows.length) {
+      container.innerHTML = "<p class='mv-empty'>No data yet.</p>";
+      return;
+    }
+    const max = Math.max(maxValue, ...rows.map((row) => row.value), 1);
+    container.innerHTML = rows.map((row) => {
+      const width = Math.max(4, Math.round((row.value / max) * 100));
+      return `
+        <div class="mv-row">
+          <span class="mv-name" title="${row.label}">${row.label}</span>
+          <span class="mv-track"><span class="mv-fill" style="width:${width}%;background:${color};"></span></span>
+          <span class="mv-metric">${row.value}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderMovieInsights() {
+    const ratingBars = document.getElementById("mv-rating-bars");
+    const directorBars = document.getElementById("mv-director-bars");
+    const trend = document.getElementById("mv-14d");
+    if (!ratingBars || !directorBars || !trend) return;
+
+    const entries = getMovieEntries();
+    renderBars(ratingBars, aggregateRatings(entries), 1, "#2563eb");
+    renderBars(directorBars, aggregateDirectors(entries), 1, "#16a34a");
+
+    if (!entries.length) {
+      trend.innerHTML = "<p class='mv-empty'>No data yet.</p>";
+      return;
+    }
+
+    const last14 = aggregateLast14(entries);
+    const maxDay = Math.max(...last14.map((day) => day.count), 1);
+    trend.innerHTML = last14.map((day) => {
+      const h = Math.max(8, Math.round((day.count / maxDay) * 68));
+      const d = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      return `<div class="mv-day-col"><span class="mv-day-bar" style="height:${h}px" title="${d}: ${day.count}"></span><span class="mv-day-label">${d.split("/")[1] || d}</span></div>`;
+    }).join("");
+  }
+
+  function initMovieInsights() {
+    renderMovieInsights();
+  }
+
+  initMovieInsights();
+  document.addEventListener("astro:page-load", initMovieInsights);
+  document.addEventListener("simpletrackers:entries-updated", (event) => {
+    if (event?.detail?.storageKey === MOVIE_KEY) renderMovieInsights();
+  });
+  window.addEventListener("storage", (event) => {
+    if (!event.key || event.key === STORAGE_KEY) renderMovieInsights();
+  });
+</script>
+
+<style is:global>
+  .mv-layout { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
+  @media (min-width: 1100px) { .mv-layout { grid-template-columns: minmax(0, 4fr) minmax(250px, 1fr); gap: 1.25rem; } }
+  .mv-main section[aria-labelledby="tracker-title"] { margin-bottom: 0; }
+  .mv-side { display: grid; gap: 0.75rem; }
+  @media (min-width: 1100px) { .mv-side { position: sticky; top: 5.25rem; } }
+  .mv-side-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0; }
+  .mv-card { border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; padding: 0.75rem; box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7); }
+  .mv-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; font-weight: 700; margin: 0 0 0.6rem 0; }
+  .mv-bars { display: grid; gap: 0.45rem; }
+  .mv-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto; gap: 0.4rem; align-items: center; }
+  .mv-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; color: #334155; font-weight: 700; }
+  .mv-track { display: block; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+  .mv-fill { display: block; height: 100%; border-radius: 999px; }
+  .mv-metric { font-size: 0.72rem; color: #334155; font-weight: 700; min-width: 1.3rem; text-align: right; }
+  .mv-14d { height: 96px; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: 3px; }
+  .mv-day-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
+  .mv-day-bar { width: 100%; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%); min-height: 8px; }
+  .mv-day-label { font-size: 0.58rem; color: #64748b; }
+  .mv-empty { margin: 0; font-size: 0.76rem; color: #64748b; }
+  .mv-note { margin-top: 0.45rem; font-size: 0.68rem; color: #64748b; }
+</style>

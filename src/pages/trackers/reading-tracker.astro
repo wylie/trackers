@@ -33,22 +33,45 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
 <Layout seoTitle="Reading Tracker" seoDescription="Track your reading habits privately and easily. No login, no accounts, data stays in your browser.">
   <TrackerPageWrapper>
     <main>
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-6xl mx-auto">
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Reading Tracker</h1>
         <p class="text-gray-700 text-lg mb-6">Track your reading habits privately and easily. No login, no accounts, data stays in your browser.</p>
-        <TrackerCard
-          title="Reading Log"
-          description="Log your books, progress, and notes."
-          storageKey="reading-tracker-entries"
-          icon="menu_book"
-          itemPlaceholder="Title"
-          enableAuthorField={true}
-          authorPlaceholder="Author"
-          autoPopulateAuthor={true}
-          enableReadingProgress={true}
-          autoPopulateTotalPages={true}
-          autocompleteEndpoint="/api/openlibrary/suggest"
-        />
+        <section class="rd-layout">
+          <div class="rd-main">
+            <TrackerCard
+              title="Reading Log"
+              description="Log your books, progress, and notes."
+              storageKey="reading-tracker-entries"
+              icon="menu_book"
+              itemPlaceholder="Title"
+              enableAuthorField={true}
+              authorPlaceholder="Author"
+              autoPopulateAuthor={true}
+              enableReadingProgress={true}
+              autoPopulateTotalPages={true}
+              autocompleteEndpoint="/api/openlibrary/suggest"
+            />
+          </div>
+          <aside class="rd-side" aria-label="Reading insights">
+            <h2 class="rd-side-title">Insights</h2>
+            <div class="rd-card">
+              <h3 class="rd-title">Progress by Book</h3>
+              <div id="rd-progress-bars" class="rd-bars"></div>
+            </div>
+            <div class="rd-card">
+              <h3 class="rd-title">Reading Status</h3>
+              <div class="rd-pie-wrap">
+                <div id="rd-status-pie" class="rd-pie"></div>
+                <div id="rd-status-legend" class="rd-legend"></div>
+              </div>
+            </div>
+            <div class="rd-card">
+              <h3 class="rd-title">Last 14 Days</h3>
+              <div id="rd-14d" class="rd-14d"></div>
+              <p class="rd-note">Entries logged per day.</p>
+            </div>
+          </aside>
+        </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
             <HowToUse steps={steps} />
@@ -63,3 +86,171 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     </main>
   </TrackerPageWrapper>
 </Layout>
+
+<script>
+  const STORAGE_KEY = "simpletrackers.io";
+  const READING_KEY = "reading-tracker-entries";
+
+  function parseStore() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getReadingEntries() {
+    const store = parseStore();
+    return Array.isArray(store[READING_KEY]) ? store[READING_KEY] : [];
+  }
+
+  function totalMinutes(hours, minutes) {
+    return Math.max(0, Number(hours) || 0) * 60 + Math.max(0, Number(minutes) || 0);
+  }
+
+  function getBookProgressPercent(entry) {
+    if (entry?.isAudiobook) {
+      const total = totalMinutes(entry?.totalHours, entry?.totalMinutes);
+      if (total <= 0) return 0;
+      const explicitLeft = totalMinutes(entry?.leftHours, entry?.leftMinutes);
+      let left = explicitLeft;
+      if (!(explicitLeft > 0 || (Number(entry?.leftHours) === 0 && Number(entry?.leftMinutes) === 0))) {
+        const legacyCurrent = totalMinutes(entry?.currentHours, entry?.currentMinutes);
+        left = Math.max(0, total - Math.min(total, legacyCurrent));
+      }
+      const listened = Math.max(0, total - Math.min(total, left));
+      return Math.min(100, Math.round((listened / total) * 100));
+    }
+    const current = Math.max(0, Number(entry?.currentPage) || 0);
+    const total = Math.max(0, Number(entry?.totalPages) || 0);
+    if (total <= 0) return 0;
+    return Math.min(100, Math.round((current / total) * 100));
+  }
+
+  function latestByBook(entries) {
+    const map = new Map();
+    for (const entry of entries) {
+      const name = String(entry?.item || "").trim();
+      if (!name) continue;
+      const ts = entry?.date ? new Date(entry.date).getTime() : 0;
+      const existing = map.get(name);
+      if (!existing || ts > existing.ts) {
+        map.set(name, { ts, entry });
+      }
+    }
+    return Array.from(map.entries()).map(([name, value]) => ({
+      name,
+      entry: value.entry,
+      percent: getBookProgressPercent(value.entry)
+    })).sort((a, b) => b.percent - a.percent);
+  }
+
+  function aggregateLast14Days(entries) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - 13);
+    const msPerDay = 86400000;
+    const series = Array.from({ length: 14 }, (_, idx) => ({ day: new Date(start.getTime() + idx * msPerDay), count: 0 }));
+    for (const entry of entries) {
+      const when = entry?.date ? new Date(entry.date) : null;
+      if (!when || Number.isNaN(when.getTime())) continue;
+      const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+      const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+      if (idx >= 0 && idx < series.length) series[idx].count += 1;
+    }
+    return series;
+  }
+
+  function renderReadingInsights() {
+    const bars = document.getElementById("rd-progress-bars");
+    const pie = document.getElementById("rd-status-pie");
+    const legend = document.getElementById("rd-status-legend");
+    const trend = document.getElementById("rd-14d");
+    if (!bars || !pie || !legend || !trend) return;
+
+    const entries = getReadingEntries();
+    if (!entries.length) {
+      const empty = "<p class='rd-empty'>No reading data yet.</p>";
+      bars.innerHTML = empty;
+      pie.innerHTML = "<div class='rd-pie-center'><strong>0</strong><span>Books</span></div>";
+      pie.style.background = "#e2e8f0";
+      legend.innerHTML = "";
+      trend.innerHTML = empty;
+      return;
+    }
+
+    const books = latestByBook(entries).slice(0, 6);
+    bars.innerHTML = books.map((book) => `
+      <div class="rd-row">
+        <span class="rd-name" title="${book.name}">${book.name}</span>
+        <span class="rd-track"><span class="rd-fill" style="width:${Math.max(2, book.percent)}%"></span></span>
+        <span class="rd-metric">${book.percent}%</span>
+      </div>
+    `).join("");
+
+    const currentlyReading = books.filter((book) => Boolean(book.entry?.currentlyReading)).length;
+    const finished = Math.max(0, books.length - currentlyReading);
+    const total = Math.max(1, books.length);
+    const currentDeg = (currentlyReading / total) * 360;
+    pie.style.background = `conic-gradient(#2563eb 0deg ${currentDeg}deg, #16a34a ${currentDeg}deg 360deg)`;
+    pie.innerHTML = `<div class="rd-pie-center"><strong>${books.length}</strong><span>Books</span></div>`;
+    legend.innerHTML = `
+      <div class="rd-leg-row"><span class="rd-dot" style="background:#2563eb"></span><span class="rd-leg-name">Currently Reading</span><span class="rd-leg-val">${currentlyReading}</span></div>
+      <div class="rd-leg-row"><span class="rd-dot" style="background:#16a34a"></span><span class="rd-leg-name">Finished</span><span class="rd-leg-val">${finished}</span></div>
+    `;
+
+    const last14 = aggregateLast14Days(entries);
+    const maxDay = Math.max(...last14.map((day) => day.count), 1);
+    trend.innerHTML = last14.map((day) => {
+      const h = Math.max(8, Math.round((day.count / maxDay) * 68));
+      const d = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      return `<div class="rd-day-col"><span class="rd-day-bar" style="height:${h}px" title="${d}: ${day.count}"></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
+    }).join("");
+  }
+
+  function initReadingInsights() {
+    renderReadingInsights();
+  }
+
+  initReadingInsights();
+  document.addEventListener("astro:page-load", initReadingInsights);
+  document.addEventListener("simpletrackers:entries-updated", (event) => {
+    if (event?.detail?.storageKey === READING_KEY) renderReadingInsights();
+  });
+  window.addEventListener("storage", (event) => {
+    if (!event.key || event.key === STORAGE_KEY) renderReadingInsights();
+  });
+</script>
+
+<style is:global>
+  .rd-layout { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
+  @media (min-width: 1100px) { .rd-layout { grid-template-columns: minmax(0, 4fr) minmax(250px, 1fr); gap: 1.25rem; } }
+  .rd-main section[aria-labelledby="tracker-title"] { margin-bottom: 0; }
+  .rd-side { display: grid; gap: 0.75rem; }
+  @media (min-width: 1100px) { .rd-side { position: sticky; top: 5.25rem; } }
+  .rd-side-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0; }
+  .rd-card { border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; padding: 0.75rem; box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7); }
+  .rd-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; font-weight: 700; margin: 0 0 0.6rem 0; }
+  .rd-bars { display: grid; gap: 0.45rem; }
+  .rd-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto; gap: 0.4rem; align-items: center; }
+  .rd-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; color: #334155; font-weight: 700; }
+  .rd-track { display: block; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+  .rd-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); }
+  .rd-metric { font-size: 0.72rem; color: #334155; font-weight: 700; min-width: 2.2rem; text-align: right; }
+  .rd-pie-wrap { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 0.55rem; align-items: center; }
+  .rd-pie { width: 92px; height: 92px; border-radius: 999px; border: 1px solid #dbe4ef; position: relative; background: #e2e8f0; }
+  .rd-pie-center { position: absolute; inset: 23%; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; text-align: center; }
+  .rd-pie-center strong { color: #0f172a; font-size: 0.7rem; font-weight: 800; }
+  .rd-pie-center span { color: #64748b; font-size: 0.58rem; }
+  .rd-legend { display: grid; gap: 0.25rem; }
+  .rd-leg-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.35rem; align-items: center; font-size: 0.68rem; }
+  .rd-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .rd-leg-name { color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rd-leg-val { color: #64748b; font-weight: 700; }
+  .rd-14d { height: 96px; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: 3px; }
+  .rd-day-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
+  .rd-day-bar { width: 100%; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%); min-height: 8px; }
+  .rd-day-label { font-size: 0.58rem; color: #64748b; }
+  .rd-empty { margin: 0; font-size: 0.76rem; color: #64748b; }
+  .rd-note { margin-top: 0.45rem; font-size: 0.68rem; color: #64748b; }
+</style>

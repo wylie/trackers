@@ -489,6 +489,11 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     return Math.max(0, Number(hours) || 0) * 60 + Math.max(0, Number(minutes) || 0);
   }
 
+  function getIntValue(input, defaultValue = 0) {
+    const parsed = Number.parseInt(String(input?.value ?? ""), 10);
+    return Number.isFinite(parsed) ? parsed : defaultValue;
+  }
+
   function getAudiobookLeftMinutes(entry) {
     const totalMinutes = totalMinutesFromParts(entry?.totalHours, entry?.totalMinutes);
     const explicitLeft = totalMinutesFromParts(entry?.leftHours, entry?.leftMinutes);
@@ -510,9 +515,9 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       const listenedMinutes = Math.max(0, totalDurationMinutes - leftTotalMinutes);
       const percent = totalDurationMinutes > 0 ? Math.min(100, Math.round((listenedMinutes / totalDurationMinutes) * 100)) : 0;
       return {
-        current: formatDurationLabel(Math.floor(leftTotalMinutes / 60), leftTotalMinutes % 60),
+        current: formatDurationLabel(Math.floor(listenedMinutes / 60), listenedMinutes % 60),
         total: totalDurationMinutes > 0 ? formatDurationLabel(entry.totalHours || 0, entry.totalMinutes || 0) : "",
-        unit: "left",
+        unit: "listened",
         percent
       };
     }
@@ -759,6 +764,17 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     if (ratingRow) {
       ratingRow.classList.toggle("hidden", isCurrentlyReading);
     }
+
+    // Disable hidden/irrelevant controls so native form validation
+    // doesn't block submit on fields not in the active mode.
+    if (currentPageInput) currentPageInput.disabled = !isCurrentlyReading || isAudiobook;
+    if (totalPagesInput) totalPagesInput.disabled = !isCurrentlyReading || isAudiobook;
+    if (currentHoursInput) currentHoursInput.disabled = !isCurrentlyReading || !isAudiobook;
+    if (currentMinutesInput) currentMinutesInput.disabled = !isCurrentlyReading || !isAudiobook;
+    if (totalHoursInput) totalHoursInput.disabled = !isCurrentlyReading || !isAudiobook;
+    if (totalMinutesInput) totalMinutesInput.disabled = !isCurrentlyReading || !isAudiobook;
+    if (finishedDateInput) finishedDateInput.disabled = isCurrentlyReading;
+
     if (isCurrentlyReading) {
       if (finishedDateInput) finishedDateInput.value = "";
       selectedRating = 0;
@@ -793,9 +809,13 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const allEntries = getAllEntries();
     allEntries[storageKey] = entries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
-    document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", {
-      detail: { storageKey, count: entries.length }
-    }));
+    try {
+      document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", {
+        detail: { storageKey, count: entries.length }
+      }));
+    } catch {
+      // Don't block saves if cross-component event dispatch fails.
+    }
   }
 
   function normalizeReadingEntries() {
@@ -1472,10 +1492,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
     const finishedDate = currentlyReading ? "" : (finishedDateInput?.value || "");
     const currentPage = Number(currentPageInput?.value || 0);
     const totalPages = Number(totalPagesInput?.value || 0);
-    const leftHours = Number(currentHoursInput?.value || 0);
-    const leftMinutes = Number(currentMinutesInput?.value || 0);
-    const totalHours = Number(totalHoursInput?.value || 0);
-    const totalMinutes = Number(totalMinutesInput?.value || 0);
+    const leftHours = getIntValue(currentHoursInput, 0);
+    const leftMinutes = getIntValue(currentMinutesInput, 0);
+    const totalHours = getIntValue(totalHoursInput, 0);
+    const totalMinutes = getIntValue(totalMinutesInput, 0);
     const notes = notesInput.value.trim();
     const { goalHours, goalMinutes } = isSleepTracker ? getSleepGoalSettings() : { goalHours: 0, goalMinutes: 0 };
     const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
@@ -1508,7 +1528,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableReadingProgress) {
         const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);
         const leftAudioMinutesRaw = totalMinutesFromParts(leftHours, leftMinutes);
-        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, leftAudioMinutesRaw) : leftAudioMinutesRaw;
+        const inferredLeftAudioMinutes = (isAudiobook && currentlyReading && editingIdx < 0 && totalAudioMinutes > 0 && leftAudioMinutesRaw === 0)
+          ? totalAudioMinutes
+          : leftAudioMinutesRaw;
+        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, inferredLeftAudioMinutes) : inferredLeftAudioMinutes;
         const listenedAudioMinutes = totalAudioMinutes > 0 ? Math.max(0, totalAudioMinutes - leftAudioMinutes) : 0;
         updatedEntry.startedDate = startedDate;
         updatedEntry.finishedDate = finishedDate;
@@ -1586,7 +1609,10 @@ const progressMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
       if (enableReadingProgress) {
         const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);
         const leftAudioMinutesRaw = totalMinutesFromParts(leftHours, leftMinutes);
-        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, leftAudioMinutesRaw) : leftAudioMinutesRaw;
+        const inferredLeftAudioMinutes = (isAudiobook && currentlyReading && editingIdx < 0 && totalAudioMinutes > 0 && leftAudioMinutesRaw === 0)
+          ? totalAudioMinutes
+          : leftAudioMinutesRaw;
+        const leftAudioMinutes = totalAudioMinutes > 0 ? Math.min(totalAudioMinutes, inferredLeftAudioMinutes) : inferredLeftAudioMinutes;
         const listenedAudioMinutes = totalAudioMinutes > 0 ? Math.max(0, totalAudioMinutes - leftAudioMinutes) : 0;
         nextEntry.startedDate = startedDate;
         nextEntry.finishedDate = finishedDate;

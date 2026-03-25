@@ -1,0 +1,352 @@
+---
+const { storageKey, heading = "Insights" } = Astro.props;
+const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+---
+
+<aside class="ti-side" aria-label={`${heading} for this tracker`}>
+  <h2 class="ti-side-title">{heading}</h2>
+
+  <div class="ti-card">
+    <h3 class="ti-title">Overview</h3>
+    <div id={`${idPrefix}-overview`} class="ti-overview"></div>
+  </div>
+
+  <div class="ti-card">
+    <h3 class="ti-title">Top Logged Items</h3>
+    <div id={`${idPrefix}-top-items`} class="ti-bars"></div>
+  </div>
+
+  <div class="ti-card">
+    <h3 class="ti-title">Last 14 Days</h3>
+    <div id={`${idPrefix}-last-14`} class="ti-14d"></div>
+    <p class="ti-note">Entries logged per day.</p>
+  </div>
+</aside>
+
+<script define:vars={{ storageKey, idPrefix }}>
+  const STORAGE_KEY = "simpletrackers.io";
+
+  function parseStore() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getEntries() {
+    const store = parseStore();
+    return Array.isArray(store[storageKey]) ? store[storageKey] : [];
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function aggregateTopItems(entries) {
+    const counts = new Map();
+    for (const entry of entries) {
+      const item = String(entry?.item || "").trim() || "Untitled";
+      counts.set(item, (counts.get(item) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }
+
+  function aggregateLast14Days(entries) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - 13);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const series = Array.from({ length: 14 }, (_, idx) => ({
+      day: new Date(start.getTime() + idx * msPerDay),
+      count: 0
+    }));
+
+    for (const entry of entries) {
+      const when = entry?.date ? new Date(entry.date) : null;
+      if (!when || Number.isNaN(when.getTime())) continue;
+      const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+      const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+      if (idx >= 0 && idx < series.length) {
+        series[idx].count += 1;
+      }
+    }
+
+    return series;
+  }
+
+  function renderOverview(entries) {
+    const root = document.getElementById(`${idPrefix}-overview`);
+    if (!root) return;
+
+    if (!entries.length) {
+      root.innerHTML = `<p class="ti-empty">No data yet.</p>`;
+      return;
+    }
+
+    const latestTs = Math.max(...entries.map((entry) => {
+      const ts = entry?.date ? new Date(entry.date).getTime() : 0;
+      return Number.isFinite(ts) ? ts : 0;
+    }));
+    const latest = latestTs > 0
+      ? new Date(latestTs).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : "-";
+    const uniqueItems = new Set(entries.map((entry) => String(entry?.item || "").trim()).filter(Boolean)).size;
+
+    root.innerHTML = `
+      <div class="ti-overview-grid">
+        <div class="ti-pill"><span>Total</span><strong>${entries.length}</strong></div>
+        <div class="ti-pill"><span>Unique</span><strong>${uniqueItems}</strong></div>
+        <div class="ti-pill"><span>Latest</span><strong>${escapeHtml(latest)}</strong></div>
+      </div>
+    `;
+  }
+
+  function renderTopItems(entries) {
+    const root = document.getElementById(`${idPrefix}-top-items`);
+    if (!root) return;
+    const rows = aggregateTopItems(entries);
+    if (!rows.length) {
+      root.innerHTML = `<p class="ti-empty">No items yet.</p>`;
+      return;
+    }
+
+    const max = Math.max(...rows.map((row) => row.count), 1);
+    root.innerHTML = rows.map((row) => {
+      const width = Math.max(4, Math.round((row.count / max) * 100));
+      return `
+        <div class="ti-row">
+          <span class="ti-name" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</span>
+          <span class="ti-track"><span class="ti-fill" style="width:${width}%"></span></span>
+          <span class="ti-metric">${row.count}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderLast14(entries) {
+    const root = document.getElementById(`${idPrefix}-last-14`);
+    if (!root) return;
+    if (!entries.length) {
+      root.innerHTML = `<p class="ti-empty">No activity yet.</p>`;
+      return;
+    }
+
+    const series = aggregateLast14Days(entries);
+    const max = Math.max(...series.map((day) => day.count), 1);
+    root.innerHTML = series.map((day) => {
+      const height = Math.max(8, Math.round((day.count / max) * 68));
+      const fullLabel = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      return `
+        <div class="ti-day-col">
+          <span class="ti-day-bar" style="height:${height}px" title="${fullLabel}: ${day.count}"></span>
+          <span class="ti-day-label">${fullLabel.split("/")[1] || fullLabel}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderInsights() {
+    const entries = getEntries();
+    renderOverview(entries);
+    renderTopItems(entries);
+    renderLast14(entries);
+  }
+
+  function initInsights() {
+    renderInsights();
+  }
+
+  initInsights();
+  document.addEventListener("astro:page-load", initInsights);
+  document.addEventListener("simpletrackers:entries-updated", (event) => {
+    if (event?.detail?.storageKey === storageKey) {
+      renderInsights();
+    }
+  });
+  window.addEventListener("storage", (event) => {
+    if (!event.key || event.key === STORAGE_KEY) {
+      renderInsights();
+    }
+  });
+</script>
+
+<style is:global>
+  .tracker-insights-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  @media (min-width: 1100px) {
+    .tracker-insights-layout {
+      grid-template-columns: minmax(0, 4fr) minmax(250px, 1fr);
+      gap: 1.25rem;
+    }
+  }
+
+  .tracker-insights-main section[aria-labelledby="tracker-title"] {
+    margin-bottom: 0;
+  }
+
+  .ti-side {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 1100px) {
+    .ti-side {
+      position: sticky;
+      top: 5.25rem;
+    }
+  }
+
+  .ti-side-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .ti-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0.75rem;
+    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+  }
+
+  .ti-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    font-weight: 700;
+    margin: 0 0 0.6rem 0;
+  }
+
+  .ti-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .ti-pill {
+    border: 1px solid #dbe4ef;
+    border-radius: 9px;
+    background: #f8fafc;
+    padding: 0.35rem 0.4rem;
+    display: grid;
+    gap: 0.08rem;
+  }
+
+  .ti-pill span {
+    font-size: 0.62rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .ti-pill strong {
+    font-size: 0.8rem;
+    color: #0f172a;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ti-bars {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .ti-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .ti-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  .ti-track {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+
+  .ti-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  .ti-metric {
+    font-size: 0.72rem;
+    color: #334155;
+    font-weight: 700;
+    min-width: 1.3rem;
+    text-align: right;
+  }
+
+  .ti-14d {
+    height: 96px;
+    display: grid;
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    align-items: end;
+    gap: 3px;
+  }
+
+  .ti-day-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+  }
+
+  .ti-day-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+    min-height: 8px;
+  }
+
+  .ti-day-label {
+    font-size: 0.58rem;
+    color: #64748b;
+  }
+
+  .ti-empty {
+    margin: 0;
+    font-size: 0.76rem;
+    color: #64748b;
+  }
+
+  .ti-note {
+    margin-top: 0.45rem;
+    font-size: 0.68rem;
+    color: #64748b;
+  }
+</style>

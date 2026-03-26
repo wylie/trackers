@@ -2056,6 +2056,10 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   };
 
   renderEntries();
+  document.addEventListener("simpletrackers:sync-data-updated", () => {
+    if (editingIdx >= 0) return;
+    renderEntries();
+  });
   taskFilterInput?.addEventListener("change", renderEntries);
   taskSortInput?.addEventListener("change", renderEntries);
 </script>

@@ -285,6 +285,9 @@ const isWorkoutTracker = storageKey === "workout-tracker-entries";
       renderInsights();
     }
   });
+  document.addEventListener("simpletrackers:sync-data-updated", () => {
+    renderInsights();
+  });
   window.addEventListener("storage", (event) => {
     if (!event.key || event.key === STORAGE_KEY) {
       renderInsights();

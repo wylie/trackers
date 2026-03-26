@@ -1,0 +1,132 @@
+---
+const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, "");
+---
+
+{syncApiBase && (
+  <script define:vars={{ syncApiBase }} is:inline>
+    const STORAGE_KEY = "simpletrackers.io";
+    const SYNC_API_BASE = syncApiBase;
+    const SYNC_EVENT = "simpletrackers:sync-data-updated";
+    const AUTO_PUSH_DEBOUNCE_MS = 2500;
+    let isApplyingRemote = false;
+    let pushTimer = null;
+    let sessionPromise = null;
+
+    function getLocalData() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function setLocalData(payload) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload || {}));
+      document.dispatchEvent(new CustomEvent(SYNC_EVENT));
+    }
+
+    function stableStringify(value) {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return "";
+      }
+    }
+
+    function mergeStores(primary, secondary) {
+      const merged = { ...(primary || {}) };
+      for (const [key, secondaryValue] of Object.entries(secondary || {})) {
+        const primaryValue = merged[key];
+        if (Array.isArray(primaryValue) && Array.isArray(secondaryValue)) {
+          const seen = new Set();
+          merged[key] = [...primaryValue, ...secondaryValue].filter((entry) => {
+            const identity = stableStringify(entry);
+            if (seen.has(identity)) return false;
+            seen.add(identity);
+            return true;
+          });
+        } else if (!(key in merged)) {
+          merged[key] = secondaryValue;
+        }
+      }
+      return merged;
+    }
+
+    async function syncApi(path, options = {}) {
+      const method = String(options.method || "GET").toUpperCase();
+      const hasBody = Object.prototype.hasOwnProperty.call(options, "body");
+      const headers = { ...(options.headers || {}) };
+      if (hasBody && !headers["content-type"]) {
+        headers["content-type"] = "application/json";
+      }
+      const response = await fetch(`${SYNC_API_BASE}${path}`, {
+        credentials: "include",
+        ...options,
+        method,
+        headers
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(String(data?.error || `Sync request failed (${response.status})`));
+      }
+      return data;
+    }
+
+    async function ensureSession() {
+      if (sessionPromise) return sessionPromise;
+      sessionPromise = syncApi("/auth/session")
+        .then((result) => Boolean(result?.authenticated))
+        .catch(() => false);
+      return sessionPromise;
+    }
+
+    async function autoPull() {
+      const signedIn = await ensureSession();
+      if (!signedIn) return;
+      const result = await syncApi("/sync/export");
+      const remotePayload = (result?.payload && typeof result.payload === "object" && !Array.isArray(result.payload))
+        ? result.payload
+        : {};
+      const localPayload = getLocalData();
+      const merged = mergeStores(remotePayload, localPayload);
+      if (stableStringify(merged) === stableStringify(localPayload)) return;
+      isApplyingRemote = true;
+      setLocalData(merged);
+      isApplyingRemote = false;
+    }
+
+    async function pushNow() {
+      pushTimer = null;
+      if (isApplyingRemote) return;
+      const signedIn = await ensureSession();
+      if (!signedIn) return;
+      const payload = getLocalData();
+      await syncApi("/sync/import", {
+        method: "POST",
+        body: JSON.stringify({ payload, mode: "overwrite" })
+      });
+    }
+
+    function schedulePush() {
+      if (isApplyingRemote) return;
+      if (pushTimer) clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => {
+        void pushNow();
+      }, AUTO_PUSH_DEBOUNCE_MS);
+    }
+
+    function initAutoSync() {
+      if (!SYNC_API_BASE) return;
+      void autoPull();
+      document.addEventListener("simpletrackers:entries-updated", () => {
+        schedulePush();
+      });
+      window.addEventListener("online", () => {
+        schedulePush();
+      });
+    }
+
+    initAutoSync();
+    document.addEventListener("astro:page-load", initAutoSync);
+  </script>
+)}

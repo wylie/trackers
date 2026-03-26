@@ -3,6 +3,7 @@ import Header from './Header.astro';
 import Footer from './Footer.astro';
 import SEO from './SEO.astro';
 import AdSlot from './AdSlot.astro';
+import CloudSyncClient from './CloudSyncClient.astro';
 const { seoTitle, seoDescription, noindex = false } = Astro.props;
 
 const SITE_NAME = "SimpleTrackers";
@@ -95,6 +96,7 @@ const jsonLd = [
       </div>
     </main>
     <Footer />
+    <CloudSyncClient />
   </body>
 </html>
 

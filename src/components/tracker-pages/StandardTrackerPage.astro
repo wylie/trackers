@@ -1,0 +1,50 @@
+---
+import Layout from '../Layout.astro';
+import TrackerPageWrapper from '../TrackerPageWrapper.astro';
+import TrackerCard from '../TrackerCard.astro';
+import TrackerInsightsRail from '../TrackerInsightsRail.astro';
+import HowToUse from '../sections/HowToUse.astro';
+import Benefits from '../sections/Benefits.astro';
+import RelatedTrackers from '../sections/RelatedTrackers.astro';
+import RelatedCalculators from '../sections/RelatedCalculators.astro';
+
+const {
+  seoTitle = "",
+  seoDescription = "",
+  pageTitle,
+  pageDescription,
+  storageKey,
+  trackerCardProps = {},
+  steps = [],
+  benefits = [],
+  related = [],
+  relatedCalculators = []
+} = Astro.props;
+---
+
+<Layout seoTitle={seoTitle || pageTitle} seoDescription={seoDescription || pageDescription}>
+  <TrackerPageWrapper>
+    <main>
+      <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">{pageTitle}</h1>
+        <p class="text-gray-700 text-lg mb-6">{pageDescription}</p>
+        <section class="tracker-insights-layout">
+          <div class="tracker-insights-main">
+            <TrackerCard storageKey={storageKey} {...trackerCardProps} />
+          </div>
+          <TrackerInsightsRail storageKey={storageKey} />
+        </section>
+        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <HowToUse steps={steps} />
+            <Benefits benefits={benefits} />
+          </div>
+          <div class="col-span-1 md:col-span-2">
+            <RelatedTrackers related={related} />
+            <RelatedCalculators calculators={relatedCalculators} />
+          </div>
+        </section>
+      </div>
+    </main>
+  </TrackerPageWrapper>
+</Layout>

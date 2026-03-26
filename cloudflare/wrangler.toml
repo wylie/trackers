@@ -1,0 +1,17 @@
+name = "trackers"
+main = "src/index.ts"
+compatibility_date = "2026-03-26"
+
+[vars]
+APP_ORIGIN = "https://www.simpletrackers.io"
+AUTH_EMAIL_FROM = "SimpleTrackers <login@auth.simpletrackers.io>"
+AUTH_EMAIL_SUBJECT = "Your SimpleTrackers sign-in link"
+SESSION_COOKIE_NAME = "st_session"
+MAGIC_LINK_TTL_MINUTES = "20"
+SESSION_TTL_DAYS = "30"
+LOGIN_REDIRECT_URL = "https://www.simpletrackers.io/settings?sync=connected"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "trackers"
+database_id = "14d5fb18-30c6-4a18-b949-bf9e17e1ae63"

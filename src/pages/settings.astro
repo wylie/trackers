@@ -1,6 +1,7 @@
 ---
 import Layout from '../components/Layout.astro';
 import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
+const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.wylie.workers.dev").replace(/\/$/, "");
 ---
 
 <Layout seoTitle="Settings" seoDescription="Manage your local tracker data: download a backup or clear all saved data." noindex={true}>
@@ -9,6 +10,27 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
       <div class="max-w-3xl mx-auto">
         <h1 class="text-[30px] leading-[1.2] font-extrabold text-slate-900 mb-2">Settings</h1>
         <p class="text-[18px] leading-[1.45] text-slate-600 mb-6">Manage your locally saved tracker data.</p>
+
+        <section id="cloud-sync-settings" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+          <h2 class="text-[18px] font-bold text-slate-900 mb-2">Cloud Sync (Optional)</h2>
+          <p class="text-[15px] leading-7 text-slate-600 mb-4">Use magic-link sign in to sync your tracker data across devices.</p>
+
+          <div id="sync-auth-state" class="text-sm text-slate-500 mb-4">Checking sync session...</div>
+
+          <div id="sync-login-form" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 mb-4">
+            <input id="sync-email-input" type="email" placeholder="you@example.com" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <button id="sync-send-link-btn" type="button" class="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">Email Sign-In Link</button>
+          </div>
+
+          <div id="sync-actions" class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 hidden">
+            <button id="sync-pull-btn" type="button" class="w-full px-4 py-2 bg-slate-700 text-white rounded-md font-medium hover:bg-slate-800 transition">Pull From Cloud</button>
+            <button id="sync-push-btn" type="button" class="w-full px-4 py-2 bg-emerald-600 text-white rounded-md font-medium hover:bg-emerald-700 transition">Push Local To Cloud</button>
+            <button id="sync-signout-btn" type="button" class="w-full px-4 py-2 bg-gray-200 text-slate-800 rounded-md font-medium hover:bg-gray-300 transition">Sign Out</button>
+          </div>
+
+          <p class="text-sm text-slate-500">Local mode remains the default. Sync is only used when you sign in.</p>
+          <p id="sync-message" class="mt-3 text-sm hidden"></p>
+        </section>
 
         <section id="local-data-settings" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 class="text-[18px] font-bold text-slate-900 mb-2">Local Data</h2>
@@ -61,8 +83,9 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
   </TrackerPageWrapper>
 </Layout>
 
-<script>
+<script define:vars={{ syncApiBase }}>
   const STORAGE_KEY = "simpletrackers.io";
+  const SYNC_API_BASE = syncApiBase;
 
   function getData() {
     try {
@@ -108,6 +131,123 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
     const trackerCount = Object.values(data).filter((value) => Array.isArray(value) && value.length > 0).length;
     const entryCount = countEntries(data);
     summaryEl.textContent = `Saved trackers: ${trackerCount} • Total entries: ${entryCount}`;
+  }
+
+  async function syncApi(path, options = {}) {
+    const response = await fetch(`${SYNC_API_BASE}${path}`, {
+      credentials: "include",
+      ...options,
+      headers: {
+        "content-type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) {
+      throw new Error(String(data?.error || `Request failed (${response.status})`));
+    }
+    return data;
+  }
+
+  function initCloudSyncSection() {
+    const root = document.getElementById("cloud-sync-settings");
+    if (!root || root.dataset.bound === "true") return;
+
+    const authState = root.querySelector("#sync-auth-state");
+    const loginForm = root.querySelector("#sync-login-form");
+    const emailInput = root.querySelector("#sync-email-input");
+    const sendLinkBtn = root.querySelector("#sync-send-link-btn");
+    const syncActions = root.querySelector("#sync-actions");
+    const pullBtn = root.querySelector("#sync-pull-btn");
+    const pushBtn = root.querySelector("#sync-push-btn");
+    const signoutBtn = root.querySelector("#sync-signout-btn");
+    const message = root.querySelector("#sync-message");
+    if (!authState || !loginForm || !emailInput || !sendLinkBtn || !syncActions || !pullBtn || !pushBtn || !signoutBtn || !message) return;
+    root.dataset.bound = "true";
+
+    const setMessage = (text, isError = false) => {
+      message.textContent = text;
+      message.classList.remove("hidden");
+      message.className = `mt-3 text-sm ${isError ? "text-red-600" : "text-green-700"}`;
+    };
+
+    const setSignedIn = (signedIn, email = "") => {
+      loginForm.classList.toggle("hidden", signedIn);
+      syncActions.classList.toggle("hidden", !signedIn);
+      authState.textContent = signedIn ? `Signed in as ${email}` : "Not signed in. Use magic link to enable sync.";
+    };
+
+    const refreshSession = async () => {
+      try {
+        const result = await syncApi("/auth/session", { method: "GET" });
+        setSignedIn(Boolean(result?.authenticated), String(result?.user?.email || ""));
+      } catch (error) {
+        setSignedIn(false);
+        setMessage(error instanceof Error ? error.message : "Could not reach sync API.", true);
+      }
+    };
+
+    sendLinkBtn.addEventListener("click", async () => {
+      const email = String(emailInput.value || "").trim();
+      if (!email) {
+        setMessage("Enter your email first.", true);
+        return;
+      }
+      try {
+        sendLinkBtn.disabled = true;
+        await syncApi("/auth/request-link", {
+          method: "POST",
+          body: JSON.stringify({ email })
+        });
+        setMessage("Magic link sent. Check your inbox.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to send magic link.", true);
+      } finally {
+        sendLinkBtn.disabled = false;
+      }
+    });
+
+    pullBtn.addEventListener("click", async () => {
+      try {
+        const result = await syncApi("/sync/export", { method: "GET" });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(result?.payload || {}));
+        setMessage("Downloaded cloud data into this browser.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to pull data.", true);
+      }
+    });
+
+    pushBtn.addEventListener("click", async () => {
+      try {
+        const payload = getData();
+        await syncApi("/sync/import", {
+          method: "POST",
+          body: JSON.stringify({ payload, mode: "overwrite" })
+        });
+        setMessage("Uploaded local data to cloud.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to push data.", true);
+      }
+    });
+
+    signoutBtn.addEventListener("click", async () => {
+      try {
+        await syncApi("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+        setSignedIn(false);
+        setMessage("Signed out.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to sign out.", true);
+      }
+    });
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("sync") === "connected") {
+      setMessage("Sign-in complete. You can now sync data.");
+      url.searchParams.delete("sync");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+
+    void refreshSession();
   }
 
   function initSettingsPage() {
@@ -247,5 +387,7 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
   }
 
   initSettingsPage();
+  initCloudSyncSection();
   document.addEventListener("astro:page-load", initSettingsPage);
+  document.addEventListener("astro:page-load", initCloudSyncSection);
 </script>

@@ -134,13 +134,20 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
   }
 
   async function syncApi(path, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    const hasBody = Object.prototype.hasOwnProperty.call(options, "body");
+    const headers = {
+      ...(options.headers || {})
+    };
+    if (hasBody && !headers["content-type"]) {
+      headers["content-type"] = "application/json";
+    }
+
     const response = await fetch(`${SYNC_API_BASE}${path}`, {
       credentials: "include",
       ...options,
-      headers: {
-        "content-type": "application/json",
-        ...(options.headers || {})
-      }
+      method,
+      headers
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data?.ok === false) {

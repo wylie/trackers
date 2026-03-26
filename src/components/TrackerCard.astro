@@ -503,6 +503,24 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     line-height: 1;
     padding: 0.26rem 0.48rem;
   }
+  :global(.tracker-meta-chips) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.2rem;
+  }
+  :global(.tracker-meta-chip) {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #dbe4ef;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.26rem 0.48rem;
+  }
   :global(.reading-cover-shell) {
     width: calc(100% - 88px);
     max-width: calc(100% - 88px);
@@ -820,6 +838,12 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (weight > 0) parts.push(`${weight} lbs`);
     if (!parts.length) return "";
     return `<div class="tracker-metric-badges">${parts.map((part) => `<span class="tracker-metric-pill">${part}</span>`).join("")}</div>`;
+  }
+
+  function formatMetadataChips(chips) {
+    const values = Array.isArray(chips) ? chips.filter(Boolean) : [];
+    if (!values.length) return "";
+    return `<div class="tracker-meta-chips">${values.map((chip) => `<span class="tracker-meta-chip">${chip}</span>`).join("")}</div>`;
   }
 
   function getAudiobookLeftMinutes(entry) {
@@ -1640,21 +1664,19 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
             minute: "2-digit"
           })
         : "";
-      const metadataLines = [];
-      if (entry.author) metadataLines.push(`<div class=\"text-gray-600 text-sm\">by ${entry.author}</div>`);
-      if (entry.director) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Directed by ${entry.director}</div>`);
-      if (entry.publisher) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Published by ${entry.publisher}</div>`);
-      if (entry.category) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Category: <strong>${entry.category}</strong></div>`);
+      const metadataChips = [];
+      let workoutMetricBadges = "";
+      if (entry.author) metadataChips.push(`By ${entry.author}`);
+      if (entry.director) metadataChips.push(`Director ${entry.director}`);
+      if (entry.publisher) metadataChips.push(`Publisher ${entry.publisher}`);
+      if (entry.category) metadataChips.push(`Category ${entry.category}`);
       if (isTaskTracker) {
         const dueDate = formatSimpleDate(entry?.dueDate);
-        if (dueDate) metadataLines.push(`<div class=\"text-gray-600 text-sm\">Due: <strong>${dueDate}</strong></div>`);
-        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Status: <strong>${entry?.completed ? "Completed" : "Active"}</strong></div>`);
+        if (dueDate) metadataChips.push(`Due ${dueDate}`);
+        metadataChips.push(entry?.completed ? "Completed" : "Active");
       }
       if (isWorkoutTracker) {
-        const workoutMetricBadges = formatWorkoutMetricBadges(entry);
-        if (workoutMetricBadges) {
-          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Metrics:${workoutMetricBadges}</div>`);
-        }
+        workoutMetricBadges = formatWorkoutMetricBadges(entry);
       }
       if (isVideoGameTracker) {
         const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
@@ -1662,29 +1684,37 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         const aggregatedTotalHours = totalGameHours[normalizeGameKey(entry?.item)] || 0;
         const totalHours = explicitTotalHours > 0 ? explicitTotalHours : aggregatedTotalHours;
         if (sessionHours > 0 || totalHours > 0) {
-          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Session: ${formatGameHours(sessionHours)} • Total on this game: <strong>${formatGameHours(totalHours)}</strong></div>`);
+          metadataChips.push(`Session ${formatGameHours(sessionHours)}`);
+          metadataChips.push(`Total ${formatGameHours(totalHours)}`);
         }
       }
       if (isSleepTracker) {
         const { hours, minutes } = parseSleepDuration(entry);
         const { goalHours, goalMinutes } = getSleepGoalSettings();
         const grade = getSleepGrade(hours, minutes, goalHours, goalMinutes);
-        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Target: ${formatDurationLabel(goalHours, goalMinutes)} • Score: <strong>${grade.score ?? "N/A"}/100</strong>${grade.score !== null ? ` (${grade.detail})` : ""}</div>`);
+        metadataChips.push(`Target ${formatDurationLabel(goalHours, goalMinutes)}`);
+        metadataChips.push(`Score ${grade.score ?? "N/A"}/100`);
+        if (grade.score !== null && grade.detail) metadataChips.push(grade.detail);
       }
       if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
         const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
         const finished = entry.currentlyReading
           ? "Currently reading"
           : (entry.finishedDate ? `Finished ${formatSimpleDate(entry.finishedDate)}` : "");
-        metadataLines.push(`<div class=\"text-gray-600 text-sm\">${[started, finished].filter(Boolean).join(" • ")}</div>`);
+        if (started) metadataChips.push(started);
+        if (finished) metadataChips.push(finished);
       }
       if (enableReadingProgress && (entry.currentPage || entry.totalPages || entry.currentHours || entry.currentMinutes || entry.totalHours || entry.totalMinutes)) {
         const progress = formatProgressValue(entry);
-        const percentText = progress.total ? ` (${progress.percent}%)` : "";
-        metadataLines.push(`<div class=\"text-gray-600 text-sm\">Progress: ${progress.current}${progress.total ? ` / ${progress.total}` : ""} ${progress.unit}${percentText}</div>`);
+        metadataChips.push(`Progress ${progress.current}${progress.total ? ` / ${progress.total}` : ""} ${progress.unit}`);
+        if (progress.total) metadataChips.push(`${progress.percent}%`);
       }
-      const metadataHtml = metadataLines.length
-        ? `<div class=\"mt-1 space-y-0.5\">${metadataLines.join("")}</div>`
+      const metadataChipsHtml = formatMetadataChips(metadataChips);
+      const metricsHtml = workoutMetricBadges
+        ? `<div class="text-gray-600 text-sm mt-1">Metrics:${workoutMetricBadges}</div>`
+        : "";
+      const metadataHtml = (metadataChipsHtml || metricsHtml)
+        ? `<div class="mt-1 space-y-1">${metadataChipsHtml}${metricsHtml}</div>`
         : "";
       const showRating = !isSleepTracker && !isTaskTracker && !isFinanceTracker && !isHealthTracker && !(enableReadingProgress && entry.currentlyReading);
       const mediaImageUrl = isReadingTracker

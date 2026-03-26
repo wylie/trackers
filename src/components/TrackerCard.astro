@@ -485,6 +485,24 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   .tracker-date-input::-webkit-calendar-picker-indicator {
     opacity: 1;
   }
+  :global(.tracker-metric-badges) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.2rem;
+  }
+  :global(.tracker-metric-pill) {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #dbe4ef;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.26rem 0.48rem;
+  }
   :global(.reading-cover-shell) {
     width: calc(100% - 88px);
     max-width: calc(100% - 88px);
@@ -648,6 +666,40 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     return Number.isFinite(parsed) ? parsed : defaultValue;
   }
 
+  function simpleHash(value) {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i += 1) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+  }
+
+  function createLegacyId(entry) {
+    const clone = { ...(entry || {}) };
+    delete clone.id;
+    delete clone.updatedAt;
+    const basis = JSON.stringify(clone);
+    return `legacy_${simpleHash(basis || String(Date.now()))}`;
+  }
+
+  function createEntryId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    const randomPart = Math.random().toString(16).slice(2);
+    return `entry_${Date.now()}_${randomPart}`;
+  }
+
+  function ensureEntryIdentity(entry) {
+    if (!entry || typeof entry !== "object") return entry;
+    if (entry.id) return entry;
+    return {
+      ...entry,
+      id: createLegacyId(entry)
+    };
+  }
+
   function getWorkoutDurationParts(entry) {
     let hours = Math.max(0, Number(entry?.workoutDurationHours) || 0);
     let minutes = Math.max(0, Number(entry?.workoutDurationMinutes) || 0);
@@ -745,7 +797,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     toggleWorkoutMetricField(workoutWeightWrap, workoutWeightInput, profile.weight);
   }
 
-  function formatWorkoutMetricLine(entry) {
+  function formatWorkoutMetricBadges(entry) {
     if (!isWorkoutTracker) return "";
     const parts = [];
     const duration = getWorkoutDurationParts(entry);
@@ -766,7 +818,8 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (sets > 0) parts.push(`${sets} sets`);
     if (reps > 0) parts.push(`${reps} reps`);
     if (weight > 0) parts.push(`${weight} lbs`);
-    return parts.join(" • ");
+    if (!parts.length) return "";
+    return `<div class="tracker-metric-badges">${parts.map((part) => `<span class="tracker-metric-pill">${part}</span>`).join("")}</div>`;
   }
 
   function getAudiobookLeftMinutes(entry) {
@@ -1150,12 +1203,15 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
   }
 
   function saveEntries(entries) {
+    const normalizedEntries = Array.isArray(entries)
+      ? entries.map((entry) => ensureEntryIdentity(entry))
+      : [];
     const allEntries = getAllEntries();
-    allEntries[storageKey] = entries;
+    allEntries[storageKey] = normalizedEntries;
     localStorage.setItem("simpletrackers.io", JSON.stringify(allEntries));
     try {
       document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", {
-        detail: { storageKey, count: entries.length }
+        detail: { storageKey, count: normalizedEntries.length }
       }));
     } catch {
       // Don't block saves if cross-component event dispatch fails.
@@ -1595,9 +1651,9 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
         metadataLines.push(`<div class=\"text-gray-600 text-sm\">Status: <strong>${entry?.completed ? "Completed" : "Active"}</strong></div>`);
       }
       if (isWorkoutTracker) {
-        const workoutMetricLine = formatWorkoutMetricLine(entry);
-        if (workoutMetricLine) {
-          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Metrics: ${workoutMetricLine}</div>`);
+        const workoutMetricBadges = formatWorkoutMetricBadges(entry);
+        if (workoutMetricBadges) {
+          metadataLines.push(`<div class=\"text-gray-600 text-sm\">Metrics:${workoutMetricBadges}</div>`);
         }
       }
       if (isVideoGameTracker) {
@@ -1688,10 +1744,11 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       if (toggleCompleteButton) {
         toggleCompleteButton.onclick = () => {
           const entries = getEntries();
-          const currentEntry = entries[idx];
+          const currentEntry = ensureEntryIdentity(entries[idx]);
           if (!currentEntry) return;
           currentEntry.completed = !Boolean(currentEntry.completed);
           currentEntry.completedAt = currentEntry.completed ? new Date().toISOString() : "";
+          currentEntry.updatedAt = Date.now();
           entries[idx] = currentEntry;
           saveEntries(entries);
           renderEntries();
@@ -1936,11 +1993,12 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
     if (editingIdx >= 0 && entries[editingIdx]) {
       const date = buildEntryDateIso(entryDateValue, entries[editingIdx]?.date || "");
       const updatedEntry = {
-        ...entries[editingIdx],
+        ...ensureEntryIdentity(entries[editingIdx]),
         item,
         notes,
         rating,
-        date
+        date,
+        updatedAt: Date.now()
       };
       if (isSleepTracker) {
         updatedEntry.sleepHours = sleepHours;
@@ -2011,14 +2069,15 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
           );
           const mergedTotal = priorTotal + sessionHours;
           const mergedEntry = {
-            ...existingEntry,
+            ...ensureEntryIdentity(existingEntry),
             item,
             notes: notes || existingEntry.notes || "",
             rating: rating || existingEntry.rating || 0,
             date: buildEntryDateIso(entryDateValue, existingEntry.date || ""),
             sessionHours: mergedTotal,
             totalHours: mergedTotal,
-            lastSessionHours: sessionHours
+            lastSessionHours: sessionHours,
+            updatedAt: Date.now()
           };
           if (enablePublisherField && publisher) {
             mergedEntry.publisher = publisher;
@@ -2040,7 +2099,7 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
       }
 
       const date = buildEntryDateIso(entryDateValue);
-      const nextEntry = { item, notes, rating, date };
+      const nextEntry = { id: createEntryId(), item, notes, rating, date, updatedAt: Date.now() };
       if (isSleepTracker) {
         nextEntry.sleepHours = sleepHours;
         nextEntry.sleepMinutes = sleepMinutes;

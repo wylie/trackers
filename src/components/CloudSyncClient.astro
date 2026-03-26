@@ -33,18 +33,54 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
       }
     }
 
+    function simpleHash(value) {
+      let hash = 2166136261;
+      for (let i = 0; i < value.length; i += 1) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return (hash >>> 0).toString(16);
+    }
+
+    function getEntryIdentity(entry) {
+      if (!entry || typeof entry !== "object") return "";
+      const directId = String(entry.id || "").trim();
+      if (directId) return `id:${directId}`;
+      const clone = { ...entry };
+      delete clone.id;
+      delete clone.updatedAt;
+      return `legacy:${simpleHash(stableStringify(clone))}`;
+    }
+
+    function getEntryUpdatedAt(entry) {
+      const explicit = Number(entry?.updatedAt);
+      if (Number.isFinite(explicit) && explicit > 0) return explicit;
+      const fromDate = entry?.date ? new Date(entry.date).getTime() : 0;
+      return Number.isFinite(fromDate) && fromDate > 0 ? fromDate : 0;
+    }
+
+    function mergeEntryArrays(primaryEntries, secondaryEntries) {
+      const byIdentity = new Map();
+      for (const entry of [...(primaryEntries || []), ...(secondaryEntries || [])]) {
+        const identity = getEntryIdentity(entry) || `raw:${stableStringify(entry)}`;
+        const existing = byIdentity.get(identity);
+        if (!existing) {
+          byIdentity.set(identity, entry);
+          continue;
+        }
+        const incomingUpdatedAt = getEntryUpdatedAt(entry);
+        const existingUpdatedAt = getEntryUpdatedAt(existing);
+        byIdentity.set(identity, incomingUpdatedAt >= existingUpdatedAt ? entry : existing);
+      }
+      return Array.from(byIdentity.values());
+    }
+
     function mergeStores(primary, secondary) {
       const merged = { ...(primary || {}) };
       for (const [key, secondaryValue] of Object.entries(secondary || {})) {
         const primaryValue = merged[key];
         if (Array.isArray(primaryValue) && Array.isArray(secondaryValue)) {
-          const seen = new Set();
-          merged[key] = [...primaryValue, ...secondaryValue].filter((entry) => {
-            const identity = stableStringify(entry);
-            if (seen.has(identity)) return false;
-            seen.add(identity);
-            return true;
-          });
+          merged[key] = mergeEntryArrays(primaryValue, secondaryValue);
         } else if (!(key in merged)) {
           merged[key] = secondaryValue;
         }

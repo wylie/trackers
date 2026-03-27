@@ -48,6 +48,31 @@ const normalizedCategoryOptions = Array.isArray(categoryOptions)
   ? categoryOptions.map((option) => String(option || "").trim()).filter(Boolean)
   : [];
 normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
+const trackerCardConfig = {
+  storageKey,
+  addLabel,
+  enableOmdbAutocomplete,
+  omdbApiKey,
+  autocompleteEndpoint,
+  enableAuthorField,
+  autoPopulateAuthor,
+  enableDirectorField,
+  autoPopulateDirector,
+  enablePublisherField,
+  autoPopulatePublisher,
+  enableCategoryField,
+  enableReadingProgress,
+  autoPopulateTotalPages,
+  isSleepTracker,
+  sleepSettingsKey,
+  isReadingTracker,
+  isMovieTracker,
+  isVideoGameTracker,
+  isWorkoutTracker,
+  isTaskTracker,
+  isFinanceTracker,
+  isHealthTracker
+};
 ---
 
 <section aria-labelledby="tracker-title" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
@@ -555,32 +580,17 @@ normalizedCategoryOptions.sort((a, b) => a.localeCompare(b));
 </style>
 </section>
 
-<script type="module" define:vars={{ storageKey, addLabel, enableOmdbAutocomplete, omdbApiKey, autocompleteEndpoint, enableAuthorField, autoPopulateAuthor, enableDirectorField, autoPopulateDirector, enablePublisherField, autoPopulatePublisher, enableCategoryField, enableReadingProgress, autoPopulateTotalPages, isSleepTracker, sleepSettingsKey, isReadingTracker, isMovieTracker, isVideoGameTracker, isWorkoutTracker, isTaskTracker, isFinanceTracker, isHealthTracker }}>
+<script type="application/json" id="tracker-card-config" set:html={JSON.stringify(trackerCardConfig)}></script>
+<script type="module">
   import { initTrackerCard } from "../lib/tracker-card/client.js";
 
-  initTrackerCard({
-    storageKey,
-    addLabel,
-    enableOmdbAutocomplete,
-    omdbApiKey,
-    autocompleteEndpoint,
-    enableAuthorField,
-    autoPopulateAuthor,
-    enableDirectorField,
-    autoPopulateDirector,
-    enablePublisherField,
-    autoPopulatePublisher,
-    enableCategoryField,
-    enableReadingProgress,
-    autoPopulateTotalPages,
-    isSleepTracker,
-    sleepSettingsKey,
-    isReadingTracker,
-    isMovieTracker,
-    isVideoGameTracker,
-    isWorkoutTracker,
-    isTaskTracker,
-    isFinanceTracker,
-    isHealthTracker
-  });
+  const configEl = document.getElementById("tracker-card-config");
+  if (configEl) {
+    try {
+      const config = JSON.parse(configEl.textContent || "{}");
+      initTrackerCard(config);
+    } catch {
+      // If parsing fails, leave the form usable without JS enhancements.
+    }
+  }
 </script>

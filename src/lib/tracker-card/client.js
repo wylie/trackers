@@ -95,6 +95,7 @@ export function initTrackerCard(config) {
   const taskSortInput = document.getElementById("tracker-task-sort");
   const itemSuggestions = document.getElementById("tracker-item-suggestions");
   const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
+  if (!form || !list || !notesInput) return;
   const ratingController = initRatingInput({ container: ratingStarsElement, input: ratingInput });
 
   let editingIdx = -1;

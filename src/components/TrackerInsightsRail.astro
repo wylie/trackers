@@ -4,6 +4,7 @@ import { getTrackerFlags } from '../lib/tracker-flags';
 const { storageKey, heading = "Insights" } = Astro.props;
 const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
 const { isWorkoutTracker } = getTrackerFlags(storageKey);
+const trackerInsightsConfig = { storageKey, idPrefix, isWorkoutTracker };
 ---
 
 <aside class="ti-side" aria-label={`${heading} for this tracker`}>
@@ -40,10 +41,19 @@ const { isWorkoutTracker } = getTrackerFlags(storageKey);
   </div>
 </aside>
 
-<script type="module" define:vars={{ storageKey, idPrefix, isWorkoutTracker }}>
+<script type="application/json" id={`${idPrefix}-insights-config`} set:html={JSON.stringify(trackerInsightsConfig)}></script>
+<script type="module">
   import { initTrackerInsightsRail } from "../lib/tracker-insights/client.js";
 
-  initTrackerInsightsRail({ storageKey, idPrefix, isWorkoutTracker });
+  const configEl = document.querySelector('[id$="-insights-config"]');
+  if (configEl) {
+    try {
+      const config = JSON.parse(configEl.textContent || "{}");
+      initTrackerInsightsRail(config);
+    } catch {
+      // Keep page functional if config parsing fails.
+    }
+  }
 </script>
 
 <style is:global>

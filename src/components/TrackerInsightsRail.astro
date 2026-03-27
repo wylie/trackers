@@ -42,7 +42,7 @@ const trackerInsightsConfig = { storageKey, idPrefix, isWorkoutTracker };
 </aside>
 
 <script type="application/json" id={`${idPrefix}-insights-config`} set:html={JSON.stringify(trackerInsightsConfig)}></script>
-<script type="module">
+<script>
   import { initTrackerInsightsRail } from "../lib/tracker-insights/client.js";
 
   const configEl = document.querySelector('[id$="-insights-config"]');

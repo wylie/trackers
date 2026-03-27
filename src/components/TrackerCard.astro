@@ -581,7 +581,7 @@ const trackerCardConfig = {
 </section>
 
 <script type="application/json" id="tracker-card-config" set:html={JSON.stringify(trackerCardConfig)}></script>
-<script type="module">
+<script>
   import { initTrackerCard } from "../lib/tracker-card/client.js";
 
   const configEl = document.getElementById("tracker-card-config");

@@ -110,6 +110,139 @@ export function initTrackerCard(config) {
   let selectedImdbId = "";
   let isEnrichingMoviePosters = false;
   let hasNormalizedReadingEntries = false;
+  const notesViewStateByEntryId = new Map();
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function normalizeNoteTimestamp(rawTimestamp, fallbackDate = "") {
+    const direct = Number(rawTimestamp);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const parsedFallback = fallbackDate ? new Date(fallbackDate).getTime() : 0;
+    if (Number.isFinite(parsedFallback) && parsedFallback > 0) return parsedFallback;
+    return Date.now();
+  }
+
+  function getEntryNotesHistory(entry) {
+    const history = [];
+    const rawHistory = Array.isArray(entry?.notesHistory) ? entry.notesHistory : [];
+    rawHistory.forEach((item) => {
+      const note = String(item?.note || "").trim();
+      if (!note) return;
+      history.push({
+        note,
+        createdAt: normalizeNoteTimestamp(item?.createdAt, entry?.date || "")
+      });
+    });
+
+    const legacyNote = String(entry?.notes || "").trim();
+    if (legacyNote && !history.some((item) => item.note === legacyNote)) {
+      history.push({
+        note: legacyNote,
+        createdAt: normalizeNoteTimestamp(entry?.updatedAt, entry?.date || "")
+      });
+    }
+
+    history.sort((a, b) => a.createdAt - b.createdAt);
+    return history;
+  }
+
+  function withUpdatedNotes(entry, submittedNotes, { preserveWhenBlank = false, noteTimestamp } = {}) {
+    const trimmed = String(submittedNotes || "").trim();
+    const history = getEntryNotesHistory(entry);
+    const normalizedNoteTimestamp = normalizeNoteTimestamp(noteTimestamp, entry?.date || "");
+    if (trimmed) {
+      const last = history[history.length - 1];
+      if (!last || last.note !== trimmed) {
+        history.push({ note: trimmed, createdAt: normalizedNoteTimestamp });
+      }
+    }
+
+    const nextNotes = trimmed || (preserveWhenBlank ? String(entry?.notes || "").trim() : "");
+    return {
+      notes: nextNotes,
+      notesHistory: history
+    };
+  }
+
+  function formatNoteTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function getNotesViewState(entry) {
+    const entryId = String(entry?.id || "");
+    if (!entryId) {
+      return { sort: "newest", range: "all" };
+    }
+    const existing = notesViewStateByEntryId.get(entryId);
+    if (existing) return existing;
+    const initial = { sort: "newest", range: "all" };
+    notesViewStateByEntryId.set(entryId, initial);
+    return initial;
+  }
+
+  function filterNotesByRange(history, range) {
+    if (!Array.isArray(history) || !history.length) return [];
+    if (range === "all") return history;
+    const days = range === "7d" ? 7 : 30;
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    return history.filter((item) => Number(item?.createdAt) >= cutoff);
+  }
+
+  function renderNotesHtml(entry) {
+    const history = getEntryNotesHistory(entry);
+    if (!history.length) {
+      const fallback = String(entry?.notes || "").trim();
+      return fallback ? `<div class=\"text-gray-700 text-sm leading-relaxed\">${escapeHtml(fallback).replace(/\n/g, "<br />")}</div>` : "";
+    }
+    const state = getNotesViewState(entry);
+    const filtered = filterNotesByRange(history, state.range);
+    const sorted = [...filtered].sort((a, b) => state.sort === "oldest" ? (a.createdAt - b.createdAt) : (b.createdAt - a.createdAt));
+    const rows = sorted
+      .map((item) => `
+        <div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+          <div class="text-[11px] text-gray-500">${formatNoteTimestamp(item.createdAt)}</div>
+          <div class="text-gray-700 text-sm leading-relaxed">${escapeHtml(item.note).replace(/\n/g, "<br />")}</div>
+        </div>
+      `)
+      .join("");
+    const entryId = String(entry?.id || "");
+    const controls = entryId
+      ? `<div class="flex items-center justify-between gap-2 mb-2">
+          <div class="text-xs text-gray-500">Notes ${history.length > 0 ? `(${history.length})` : ""}</div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500" for="notes-sort-${entryId}">Sort</label>
+            <select id="notes-sort-${entryId}" data-action="notes-sort" data-entry-id="${entryId}" class="border border-gray-300 rounded px-2 py-1 text-xs bg-white">
+              <option value="newest" ${state.sort === "newest" ? "selected" : ""}>Newest</option>
+              <option value="oldest" ${state.sort === "oldest" ? "selected" : ""}>Oldest</option>
+            </select>
+            <label class="text-xs text-gray-500" for="notes-range-${entryId}">Range</label>
+            <select id="notes-range-${entryId}" data-action="notes-range" data-entry-id="${entryId}" class="border border-gray-300 rounded px-2 py-1 text-xs bg-white">
+              <option value="all" ${state.range === "all" ? "selected" : ""}>All</option>
+              <option value="30d" ${state.range === "30d" ? "selected" : ""}>30d</option>
+              <option value="7d" ${state.range === "7d" ? "selected" : ""}>7d</option>
+            </select>
+          </div>
+        </div>`
+      : "";
+    const emptyState = sorted.length
+      ? rows
+      : `<div class="text-xs text-gray-500 rounded-md border border-gray-200 bg-gray-50 px-2 py-2">No notes in this range.</div>`;
+    return `<div class=\"mt-1\">${controls}<div class=\"space-y-2 max-h-48 overflow-y-auto pr-1\">${emptyState}</div></div>`;
+  }
 
   function showSleepGoalMessage(message) {
     if (!goalMessage) return;
@@ -269,7 +402,8 @@ export function initTrackerCard(config) {
     selectedCoverUrl = entry.coverUrl || "";
     selectedPosterUrl = entry.posterUrl || "";
     selectedImdbId = entry.imdbID || "";
-    notesInput.value = entry.notes || "";
+    const notesHistory = getEntryNotesHistory(entry);
+    notesInput.value = entry.notes || notesHistory[notesHistory.length - 1]?.note || "";
     ratingController.setRating(Number(entry.rating) || 0);
     setEditingMode(true);
     syncReadingModeUI();
@@ -621,6 +755,7 @@ export function initTrackerCard(config) {
       const coverHtml = hasMediaImage
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} /></div>`
         : "";
+      const notesHtml = renderNotesHtml(entry);
       li.innerHTML = `
         <div class=\"relative bg-white rounded-lg shadow border border-gray-200 px-4 py-3 flex ${hasMediaImage ? "flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start" : "flex-col"} ${completedClass}\">
           ${coverHtml}
@@ -640,7 +775,7 @@ export function initTrackerCard(config) {
               ${metadataHtml}
             </div>
           </div>
-          <div class=\"text-gray-700 text-sm leading-relaxed\">${entry.notes}</div>
+          ${notesHtml}
           ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStaticStars(entry.rating || 0)}</div>` : ""}
           </div>
           </div>
@@ -679,6 +814,28 @@ export function initTrackerCard(config) {
           saveEntries(entries);
           renderEntries();
         };
+      }
+      const notesSortSelect = li.querySelector("[data-action=\"notes-sort\"]");
+      if (notesSortSelect) {
+        notesSortSelect.addEventListener("change", (event) => {
+          const target = event.currentTarget;
+          const entryId = String(target?.getAttribute("data-entry-id") || "");
+          if (!entryId) return;
+          const existing = notesViewStateByEntryId.get(entryId) || { sort: "newest", range: "all" };
+          notesViewStateByEntryId.set(entryId, { ...existing, sort: String(target.value || "newest") });
+          renderEntries();
+        });
+      }
+      const notesRangeSelect = li.querySelector("[data-action=\"notes-range\"]");
+      if (notesRangeSelect) {
+        notesRangeSelect.addEventListener("change", (event) => {
+          const target = event.currentTarget;
+          const entryId = String(target?.getAttribute("data-entry-id") || "");
+          if (!entryId) return;
+          const existing = notesViewStateByEntryId.get(entryId) || { sort: "newest", range: "all" };
+          notesViewStateByEntryId.set(entryId, { ...existing, range: String(target.value || "all") });
+          renderEntries();
+        });
       }
       list.appendChild(li);
     });
@@ -789,11 +946,11 @@ export function initTrackerCard(config) {
       const updatedEntry = {
         ...ensureEntryIdentity(entries[editingIdx]),
         item,
-        notes,
         rating,
         date,
         updatedAt: Date.now()
       };
+      Object.assign(updatedEntry, withUpdatedNotes(entries[editingIdx], notes, { noteTimestamp: date }));
       if (isSleepTracker) {
         updatedEntry.sleepHours = sleepHours;
         updatedEntry.sleepMinutes = sleepMinutes;
@@ -862,17 +1019,21 @@ export function initTrackerCard(config) {
             Number(existingEntry.totalHours) || Number(existingEntry.sessionHours) || 0
           );
           const mergedTotal = priorTotal + sessionHours;
+          const mergedDate = buildEntryDateIso(entryDateValue, existingEntry.date || "");
           const mergedEntry = {
             ...ensureEntryIdentity(existingEntry),
             item,
-            notes: notes || existingEntry.notes || "",
             rating: rating || existingEntry.rating || 0,
-            date: buildEntryDateIso(entryDateValue, existingEntry.date || ""),
+            date: mergedDate,
             sessionHours: mergedTotal,
             totalHours: mergedTotal,
             lastSessionHours: sessionHours,
             updatedAt: Date.now()
           };
+          Object.assign(mergedEntry, withUpdatedNotes(existingEntry, notes, {
+            preserveWhenBlank: true,
+            noteTimestamp: mergedDate
+          }));
           if (enablePublisherField && publisher) {
             mergedEntry.publisher = publisher;
           }
@@ -893,7 +1054,8 @@ export function initTrackerCard(config) {
       }
 
       const date = buildEntryDateIso(entryDateValue);
-      const nextEntry = { id: createEntryId(), item, notes, rating, date, updatedAt: Date.now() };
+      const nextEntry = { id: createEntryId(), item, rating, date, updatedAt: Date.now() };
+      Object.assign(nextEntry, withUpdatedNotes({}, notes, { noteTimestamp: date }));
       if (isSleepTracker) {
         nextEntry.sleepHours = sleepHours;
         nextEntry.sleepMinutes = sleepMinutes;

@@ -1,13 +1,5 @@
 ---
-import Layout from '../../components/Layout.astro';
-import TrackerPageWrapper from '../../components/TrackerPageWrapper.astro';
-
-import TrackerCard from '../../components/TrackerCard.astro';
-import TrackerInsightsRail from '../../components/TrackerInsightsRail.astro';
-import HowToUse from '../../components/sections/HowToUse.astro';
-import Benefits from '../../components/sections/Benefits.astro';
-import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
-import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
+import StandardTrackerPage from '../../components/tracker-pages/StandardTrackerPage.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
@@ -44,41 +36,25 @@ const financeCategories = [
   "Travel",
   "Other"
 ];
-const relatedCalculators = getRelatedCalculators("finance-tracker");
 ---
 
-<Layout seoTitle="Finance Tracker" seoDescription="Track your finances privately and easily. No login, no accounts, data stays in your browser.">
-  <TrackerPageWrapper>
-    <main>
-      <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Finance Tracker</h1>
-        <p class="text-gray-700 text-lg mb-6">Track your finances privately and easily. No login, no accounts, data stays in your browser.</p>
-        <section class="tracker-insights-layout">
-          <div class="tracker-insights-main">
-            <TrackerCard
-              description="Log your expenses, income, and notes."
-              storageKey="finance-tracker-entries"
-              title="Finance Log"
-              icon="attach_money"
-              itemPlaceholder="Transaction"
-              enableCategoryField={true}
-              categoryPlaceholder="Category"
-              categoryOptions={financeCategories}
-            />
-          </div>
-          <TrackerInsightsRail storageKey="finance-tracker-entries" />
-        </section>
-        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <HowToUse steps={steps} />
-            <Benefits benefits={benefits} />
-          </div>
-          <div class="col-span-1 md:col-span-2">
-            <RelatedTrackers related={related} />
-            <RelatedCalculators calculators={relatedCalculators} />
-          </div>
-        </section>
-      </div>
-    </main>
-  </TrackerPageWrapper>
-</Layout>
+<StandardTrackerPage
+  seoTitle="Finance Tracker"
+  seoDescription="Track your finances privately and easily. No login, no accounts, data stays in your browser."
+  pageTitle="Finance Tracker"
+  pageDescription="Track your finances privately and easily. No login, no accounts, data stays in your browser."
+  storageKey="finance-tracker-entries"
+  trackerCardProps={{
+    description: "Log your expenses, income, and notes.",
+    title: "Finance Log",
+    icon: "attach_money",
+    itemPlaceholder: "Transaction",
+    enableCategoryField: true,
+    categoryPlaceholder: "Category",
+    categoryOptions: financeCategories
+  }}
+  steps={steps}
+  benefits={benefits}
+  related={related}
+  relatedCalculators={getRelatedCalculators("finance-tracker")}
+/>

@@ -1,13 +1,5 @@
 ---
-import Layout from '../../components/Layout.astro';
-import TrackerPageWrapper from '../../components/TrackerPageWrapper.astro';
-
-import TrackerCard from '../../components/TrackerCard.astro';
-import TrackerInsightsRail from '../../components/TrackerInsightsRail.astro';
-import HowToUse from '../../components/sections/HowToUse.astro';
-import Benefits from '../../components/sections/Benefits.astro';
-import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
-import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
+import StandardTrackerPage from '../../components/tracker-pages/StandardTrackerPage.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
@@ -29,38 +21,22 @@ const related = [
   { name: "Habit Tracker", url: "/habit-tracker", icon: "check_circle" },
   { name: "Finance Tracker", url: "/finance-tracker", icon: "attach_money" }
 ];
-const relatedCalculators = getRelatedCalculators("health-tracker");
 ---
 
-<Layout seoTitle="Health Tracker" seoDescription="Track your health habits privately and easily. No login, no accounts, data stays in your browser.">
-  <TrackerPageWrapper>
-    <main>
-      <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Health Tracker</h1>
-        <p class="text-gray-700 text-lg mb-6">Track your health habits privately and easily. No login, no accounts, data stays in your browser.</p>
-        <section class="tracker-insights-layout">
-          <div class="tracker-insights-main">
-            <TrackerCard
-              title="Health Log"
-              description="Log your health habits, progress, and notes."
-              storageKey="health-tracker-entries"
-              icon="favorite"
-              itemPlaceholder="Health Entry"
-            />
-          </div>
-          <TrackerInsightsRail storageKey="health-tracker-entries" />
-        </section>
-        <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <HowToUse steps={steps} />
-            <Benefits benefits={benefits} />
-          </div>
-          <div class="col-span-1 md:col-span-2">
-            <RelatedTrackers related={related} />
-            <RelatedCalculators calculators={relatedCalculators} />
-          </div>
-        </section>
-      </div>
-    </main>
-  </TrackerPageWrapper>
-</Layout>
+<StandardTrackerPage
+  seoTitle="Health Tracker"
+  seoDescription="Track your health habits privately and easily. No login, no accounts, data stays in your browser."
+  pageTitle="Health Tracker"
+  pageDescription="Track your health habits privately and easily. No login, no accounts, data stays in your browser."
+  storageKey="health-tracker-entries"
+  trackerCardProps={{
+    title: "Health Log",
+    description: "Log your health habits, progress, and notes.",
+    icon: "favorite",
+    itemPlaceholder: "Health Entry"
+  }}
+  steps={steps}
+  benefits={benefits}
+  related={related}
+  relatedCalculators={getRelatedCalculators("health-tracker")}
+/>

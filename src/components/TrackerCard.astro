@@ -287,15 +287,12 @@ const trackerCardConfig = {
     {isVideoGameTracker && (
       <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
         <div class="flex flex-col gap-1">
-          <label for="tracker-session-hours" class="text-sm text-gray-700">Hours Played This Session</label>
-          <input
-            type="number"
-            id="tracker-session-hours"
-            min="0"
-            step="any"
-            placeholder="Example: 1.5"
-            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
+          <label class="text-sm text-gray-700">Duration (h:m:s)</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="tracker-session-duration-hours" min="0" step="1" placeholder="h" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="number" id="tracker-session-duration-minutes" min="0" max="59" step="1" placeholder="m" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <input type="number" id="tracker-session-duration-seconds" min="0" max="59" step="1" placeholder="s" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
         </div>
         <div class="text-sm text-slate-500 pb-2">If the game already exists, this adds time to that game.</div>
       </div>

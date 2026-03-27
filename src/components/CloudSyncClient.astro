@@ -42,14 +42,30 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
       return (hash >>> 0).toString(16);
     }
 
+    function stableStringifyObject(value) {
+      if (value === null || typeof value !== "object") {
+        return JSON.stringify(value);
+      }
+      if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringifyObject(item)).join(",")}]`;
+      }
+      const keys = Object.keys(value).sort();
+      return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringifyObject(value[key])}`).join(",")}}`;
+    }
+
+    function getEntrySignature(entry) {
+      if (!entry || typeof entry !== "object") return "";
+      const clone = { ...entry };
+      delete clone.id;
+      delete clone.updatedAt;
+      return `sig:${simpleHash(stableStringifyObject(clone))}`;
+    }
+
     function getEntryIdentity(entry) {
       if (!entry || typeof entry !== "object") return "";
       const directId = String(entry.id || "").trim();
       if (directId) return `id:${directId}`;
-      const clone = { ...entry };
-      delete clone.id;
-      delete clone.updatedAt;
-      return `legacy:${simpleHash(stableStringify(clone))}`;
+      return getEntrySignature(entry);
     }
 
     function getEntryUpdatedAt(entry) {
@@ -61,18 +77,23 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
 
     function mergeEntryArrays(primaryEntries, secondaryEntries) {
       const byIdentity = new Map();
+      const bySignature = new Map();
       for (const entry of [...(primaryEntries || []), ...(secondaryEntries || [])]) {
         const identity = getEntryIdentity(entry) || `raw:${stableStringify(entry)}`;
-        const existing = byIdentity.get(identity);
+        const signature = getEntrySignature(entry);
+        const existing = byIdentity.get(identity) || (signature ? bySignature.get(signature) : undefined);
         if (!existing) {
           byIdentity.set(identity, entry);
+          if (signature) bySignature.set(signature, entry);
           continue;
         }
         const incomingUpdatedAt = getEntryUpdatedAt(entry);
         const existingUpdatedAt = getEntryUpdatedAt(existing);
-        byIdentity.set(identity, incomingUpdatedAt >= existingUpdatedAt ? entry : existing);
+        const winner = incomingUpdatedAt >= existingUpdatedAt ? entry : existing;
+        byIdentity.set(identity, winner);
+        if (signature) bySignature.set(signature, winner);
       }
-      return Array.from(byIdentity.values());
+      return Array.from(new Set(byIdentity.values()));
     }
 
     function mergeStores(primary, secondary) {

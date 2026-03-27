@@ -1,6 +1,8 @@
 # build output
 dist/
 .vercel/
+.wrangler/
+cloudflare/.wrangler/
 # generated types
 .astro/
 

@@ -6,7 +6,7 @@ export function getAllEntries() {
 
 export function getEntries(storageKey) {
   const allEntries = getAllEntries();
-  return allEntries[storageKey] || [];
+  return Array.isArray(allEntries[storageKey]) ? allEntries[storageKey] : [];
 }
 
 export function saveEntries({ storageKey, entries, ensureEntryIdentity }) {

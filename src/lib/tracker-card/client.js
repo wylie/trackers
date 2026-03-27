@@ -520,6 +520,7 @@ export function initTrackerCard(config) {
     }
 
     renderedEntries.forEach(({ entry, idx }) => {
+      if (!entry || typeof entry !== "object") return;
       const li = document.createElement("li");
       li.className = "mb-3";
       const entryDate = entry.date ? new Date(entry.date) : null;
@@ -633,20 +634,26 @@ export function initTrackerCard(config) {
           </div>
         </div>
       `;
-      li.querySelector("[data-action=\"delete\"]").onclick = () => {
-        const entries = getEntries();
-        entries.splice(idx, 1);
-        saveEntries(entries);
-        if (editingIdx === idx) {
-          clearForm();
-        } else if (editingIdx > idx) {
-          editingIdx -= 1;
-        }
-        renderEntries();
-      };
-      li.querySelector("[data-action=\"edit\"]").onclick = () => {
-        startEditing(idx);
-      };
+      const deleteButton = li.querySelector("[data-action=\"delete\"]");
+      if (deleteButton) {
+        deleteButton.onclick = () => {
+          const entries = getEntries();
+          entries.splice(idx, 1);
+          saveEntries(entries);
+          if (editingIdx === idx) {
+            clearForm();
+          } else if (editingIdx > idx) {
+            editingIdx -= 1;
+          }
+          renderEntries();
+        };
+      }
+      const editButton = li.querySelector("[data-action=\"edit\"]");
+      if (editButton) {
+        editButton.onclick = () => {
+          startEditing(idx);
+        };
+      }
       const toggleCompleteButton = li.querySelector("[data-action=\"toggle-complete\"]");
       if (toggleCompleteButton) {
         toggleCompleteButton.onclick = () => {

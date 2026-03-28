@@ -1,5 +1,6 @@
 ---
 const path = Astro.url.pathname;
+const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, "");
 const trackerLinks = [
   { label: "Habit Tracker", href: "/trackers/habit-tracker" },
   { label: "Reading Tracker", href: "/trackers/reading-tracker" },
@@ -63,6 +64,30 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     </nav>
   </div>
 
+  <div id="auth-status-bar" class="hidden border-t border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50">
+    <div class="max-w-5xl mx-auto px-4 py-2.5">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div class="inline-flex items-center gap-2 text-sm text-slate-700">
+          <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified_user</span>
+          </span>
+          <span class="font-medium">Signed in as</span>
+          <span id="auth-status-email" class="font-semibold text-slate-900 break-all"></span>
+        </div>
+        <button
+          id="auth-logout-btn"
+          type="button"
+          class="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:self-auto"
+          aria-label="Log out"
+          title="Log out"
+        >
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">logout</span>
+          <span>Log out</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="mobile-nav-panel" class="hidden md:hidden border-t border-slate-100">
     <nav aria-label="Mobile navigation" class="px-4 py-3">
       <ul class="flex flex-col gap-1.5">
@@ -99,12 +124,15 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
   </div>
 </header>
 
-<script>
+<script define:vars={{ syncApiBase }}>
   document.addEventListener("DOMContentLoaded", () => {
     const mobileToggle = document.getElementById("mobile-nav-toggle");
     const mobilePanel = document.getElementById("mobile-nav-panel");
     const mobileTrackersToggle = document.getElementById("mobile-trackers-toggle");
     const mobileTrackersList = document.getElementById("mobile-trackers-list");
+    const authStatusBar = document.getElementById("auth-status-bar");
+    const authStatusEmail = document.getElementById("auth-status-email");
+    const logoutButton = document.getElementById("auth-logout-btn");
 
     if (!mobileToggle || !mobilePanel) return;
 
@@ -155,5 +183,67 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
         setMobileMenu(false);
       });
     });
+
+    async function syncApi(path, options = {}) {
+      const method = String(options.method || "GET").toUpperCase();
+      const hasBody = Object.prototype.hasOwnProperty.call(options, "body");
+      const headers = { ...(options.headers || {}) };
+      if (hasBody && !headers["content-type"]) {
+        headers["content-type"] = "application/json";
+      }
+      const response = await fetch(`${syncApiBase}${path}`, {
+        credentials: "include",
+        ...options,
+        method,
+        headers
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(String(data?.error || `Request failed (${response.status})`));
+      }
+      return data;
+    }
+
+    function hideAuthStatus() {
+      authStatusBar?.classList.add("hidden");
+      if (authStatusEmail) authStatusEmail.textContent = "";
+    }
+
+    function showAuthStatus(email) {
+      if (!authStatusBar || !authStatusEmail) return;
+      authStatusEmail.textContent = String(email || "");
+      authStatusBar.classList.remove("hidden");
+    }
+
+    async function refreshAuthStatus() {
+      if (!syncApiBase) {
+        hideAuthStatus();
+        return;
+      }
+      try {
+        const result = await syncApi("/auth/session", { method: "GET" });
+        if (result?.authenticated && result?.user?.email) {
+          showAuthStatus(String(result.user.email));
+          return;
+        }
+      } catch {
+        // Keep status hidden on network or auth errors.
+      }
+      hideAuthStatus();
+    }
+
+    logoutButton?.addEventListener("click", async () => {
+      if (!syncApiBase) return;
+      logoutButton.setAttribute("disabled", "true");
+      try {
+        await syncApi("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+      } catch {
+        // Ignore and still refresh to reflect current auth state.
+      } finally {
+        window.location.reload();
+      }
+    });
+
+    void refreshAuthStatus();
   });
 </script>

@@ -7,6 +7,7 @@ import HowToUse from '../../components/sections/HowToUse.astro';
 import Benefits from '../../components/sections/Benefits.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
 import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
+import SupportButton from '../../components/SupportButton.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
@@ -67,6 +68,7 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
               <div id="mv-14d" class="mv-14d"></div>
               <p class="mv-note">Movies logged per day.</p>
             </div>
+            <SupportButton />
           </aside>
         </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -2,7 +2,6 @@
 import Header from './Header.astro';
 import Footer from './Footer.astro';
 import SEO from './SEO.astro';
-import AdSlot from './AdSlot.astro';
 import CloudSyncClient from './CloudSyncClient.astro';
 const { seoTitle, seoDescription, noindex = false } = Astro.props;
 
@@ -87,13 +86,7 @@ const jsonLd = [
   <body class="flex flex-col min-h-screen bg-gray-100 text-slate-900 font-sans">
     <Header />
     <main id="main-content" class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-      <div class="mb-2">
-        <AdSlot location="Top Banner" />
-      </div>
       <slot />
-      <div class="mt-2">
-        <AdSlot location="Bottom Banner" />
-      </div>
     </main>
     <Footer />
     <CloudSyncClient />

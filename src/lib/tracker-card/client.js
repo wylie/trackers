@@ -8,6 +8,7 @@ import { getMoviePosterUrl, getVideoGameCoverUrl } from './media.js';
 import { getTodayDateInputValue, toDateInputValue, buildEntryDateIso, formatSimpleDate } from './dates.js';
 import { getAllEntries, getEntries as getEntriesFromStore, saveEntries as saveEntriesToStore } from './storage.js';
 import { getSleepGoalSettings as resolveSleepGoalSettings, saveSleepGoalSettings as persistSleepGoalSettings } from './sleep-goals.js';
+import { getWaterGoalSettings as resolveWaterGoalSettings, saveWaterGoalSettings as persistWaterGoalSettings } from './water-goals.js';
 import { initItemAutocomplete } from './autocomplete.js';
 import { renderStaticStars, initRatingInput } from './rating-ui.js';
 
@@ -35,7 +36,10 @@ export function initTrackerCard(config) {
     isWorkoutTracker,
     isTaskTracker,
     isFinanceTracker,
-    isHealthTracker
+    isWaterTracker,
+    isHealthTracker,
+    waterSettingsKey,
+    waterDrinkOptions = []
   } = config;
   const form = document.getElementById("tracker-form");
   const itemInput = document.getElementById("tracker-item");
@@ -46,6 +50,10 @@ export function initTrackerCard(config) {
   const goalSaveButton = document.getElementById("tracker-save-goal");
   const goalSummary = document.getElementById("tracker-goal-summary");
   const goalMessage = document.getElementById("tracker-goal-message");
+  const waterGoalOuncesInput = document.getElementById("tracker-goal-ounces");
+  const waterGoalSaveButton = document.getElementById("tracker-save-goal-ounces");
+  const waterGoalSummary = document.getElementById("tracker-water-goal-summary");
+  const waterGoalMessage = document.getElementById("tracker-water-goal-message");
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
@@ -69,6 +77,12 @@ export function initTrackerCard(config) {
   const sessionDurationHoursInput = document.getElementById("tracker-session-duration-hours");
   const sessionDurationMinutesInput = document.getElementById("tracker-session-duration-minutes");
   const sessionDurationSecondsInput = document.getElementById("tracker-session-duration-seconds");
+  const waterOuncesInput = document.getElementById("tracker-water-ounces");
+  const waterDrinkTypeInput = document.getElementById("tracker-water-drink-type");
+  const waterCustomNameWrap = document.getElementById("tracker-water-custom-name-wrap");
+  const waterCustomNameInput = document.getElementById("tracker-water-custom-name");
+  const waterCustomImpactWrap = document.getElementById("tracker-water-custom-impact-wrap");
+  const waterCustomImpactInput = document.getElementById("tracker-water-custom-impact");
   const startedDateInput = document.getElementById("tracker-started-date");
   const finishedDateInput = document.getElementById("tracker-finished-date");
   const currentlyReadingInput = document.getElementById("tracker-currently-reading");
@@ -102,6 +116,7 @@ export function initTrackerCard(config) {
 
   let editingIdx = -1;
   let goalMessageTimer = null;
+  let waterGoalMessageTimer = null;
   let selectedCoverId = 0;
   let selectedCoverEditionKey = "";
   let selectedCoverUrl = "";
@@ -254,6 +269,16 @@ export function initTrackerCard(config) {
     }, 2200);
   }
 
+  function showWaterGoalMessage(message) {
+    if (!waterGoalMessage) return;
+    waterGoalMessage.textContent = message;
+    waterGoalMessage.classList.remove("hidden");
+    clearTimeout(waterGoalMessageTimer);
+    waterGoalMessageTimer = window.setTimeout(() => {
+      waterGoalMessage.classList.add("hidden");
+    }, 2200);
+  }
+
   function syncWorkoutMetricsUI() {
     syncWorkoutMetricsUIHelper({
       isWorkoutTracker,
@@ -286,11 +311,61 @@ export function initTrackerCard(config) {
     persistSleepGoalSettings({ allEntries, sleepSettingsKey, goalHours, goalMinutes });
   }
 
+  function getWaterGoalSettings(allEntries = getAllEntries()) {
+    return resolveWaterGoalSettings({ allEntries, waterSettingsKey });
+  }
+
+  function saveWaterGoalSettings(goalOunces) {
+    const allEntries = getAllEntries();
+    persistWaterGoalSettings({ allEntries, waterSettingsKey, goalOunces });
+  }
+
   function updateSleepGoalSummary() {
     if (!isSleepTracker || !goalSummary) return;
     const goalHours = Number(goalHoursInput?.value || 0);
     const goalMinutes = Number(goalMinutesInput?.value || 0);
     goalSummary.textContent = `Current target: ${formatDurationLabel(goalHours, goalMinutes)}`;
+  }
+
+  function getWaterDayTotal(entries, dateValue) {
+    const targetDate = dateValue ? new Date(`${dateValue}T00:00:00`) : new Date();
+    const yyyy = targetDate.getFullYear();
+    const mm = targetDate.getMonth();
+    const dd = targetDate.getDate();
+    return entries.reduce((sum, entry) => {
+      const when = entry?.date ? new Date(entry.date) : null;
+      if (!when || Number.isNaN(when.getTime())) return sum;
+      if (when.getFullYear() !== yyyy || when.getMonth() !== mm || when.getDate() !== dd) return sum;
+      const drinkOz = Math.max(0, Number(entry?.waterOunces) || 0);
+      const hydrationOz = Math.max(0, Number(entry?.hydrationOunces) || (drinkOz * (Number(entry?.waterHydrationImpact) || 1)));
+      return sum + hydrationOz;
+    }, 0);
+  }
+
+  function updateWaterGoalSummary() {
+    if (!isWaterTracker || !waterGoalSummary) return;
+    const goalOunces = Math.max(0, Number(waterGoalOuncesInput?.value || 0));
+    const currentDate = entryDateInput?.value || getTodayDateInputValue();
+    const todayTotal = getWaterDayTotal(getEntries(), currentDate);
+    if (goalOunces > 0) {
+      const pct = Math.min(999, Math.round((todayTotal / goalOunces) * 100));
+      waterGoalSummary.textContent = `Hydration today: ${todayTotal.toFixed(1).replace(/\.0$/, "")} / ${goalOunces.toFixed(1).replace(/\.0$/, "")} oz (${pct}%)`;
+    } else {
+      waterGoalSummary.textContent = `Hydration today: ${todayTotal.toFixed(1).replace(/\.0$/, "")} oz`;
+    }
+  }
+
+  function getDefaultWaterDrinkByValue(value) {
+    return waterDrinkOptions.find((option) => option.value === value) || null;
+  }
+
+  function syncWaterDrinkUI() {
+    if (!isWaterTracker) return;
+    const isCustom = String(waterDrinkTypeInput?.value || "") === "custom";
+    if (waterCustomNameWrap) waterCustomNameWrap.classList.toggle("hidden", !isCustom);
+    if (waterCustomImpactWrap) waterCustomImpactWrap.classList.toggle("hidden", !isCustom);
+    if (waterCustomNameInput) waterCustomNameInput.required = isCustom;
+    if (waterCustomImpactInput) waterCustomImpactInput.required = isCustom;
   }
 
   function setEditingMode(isEditing) {
@@ -322,6 +397,10 @@ export function initTrackerCard(config) {
     if (sessionDurationHoursInput) sessionDurationHoursInput.value = "";
     if (sessionDurationMinutesInput) sessionDurationMinutesInput.value = "";
     if (sessionDurationSecondsInput) sessionDurationSecondsInput.value = "";
+    if (waterOuncesInput) waterOuncesInput.value = "";
+    if (waterDrinkTypeInput) waterDrinkTypeInput.value = "water";
+    if (waterCustomNameInput) waterCustomNameInput.value = "";
+    if (waterCustomImpactInput) waterCustomImpactInput.value = "";
     if (startedDateInput) startedDateInput.value = "";
     if (finishedDateInput) finishedDateInput.value = "";
     if (currentlyReadingInput) currentlyReadingInput.checked = enableReadingProgress;
@@ -344,6 +423,7 @@ export function initTrackerCard(config) {
     setEditingMode(false);
     syncReadingModeUI();
     syncWorkoutMetricsUI();
+    syncWaterDrinkUI();
   }
 
   function startEditing(idx) {
@@ -383,6 +463,12 @@ export function initTrackerCard(config) {
     if (sessionDurationHoursInput) sessionDurationHoursInput.value = sessionEditHours ? String(sessionEditHours) : "";
     if (sessionDurationMinutesInput) sessionDurationMinutesInput.value = sessionEditMinutes ? String(sessionEditMinutes) : "";
     if (sessionDurationSecondsInput) sessionDurationSecondsInput.value = sessionEditSeconds ? String(sessionEditSeconds) : "";
+    if (waterOuncesInput) waterOuncesInput.value = entry.waterOunces != null ? String(entry.waterOunces) : "";
+    const savedDrinkType = String(entry.waterDrinkType || "water");
+    const defaultDrink = getDefaultWaterDrinkByValue(savedDrinkType);
+    if (waterDrinkTypeInput) waterDrinkTypeInput.value = defaultDrink ? savedDrinkType : "custom";
+    if (waterCustomNameInput) waterCustomNameInput.value = entry.waterDrinkLabel || "";
+    if (waterCustomImpactInput) waterCustomImpactInput.value = entry.waterHydrationImpact != null ? String(entry.waterHydrationImpact) : "";
     if (startedDateInput) startedDateInput.value = entry.startedDate || "";
     if (finishedDateInput) finishedDateInput.value = entry.finishedDate || "";
     if (currentlyReadingInput) currentlyReadingInput.checked = Boolean(entry.currentlyReading);
@@ -408,6 +494,7 @@ export function initTrackerCard(config) {
     setEditingMode(true);
     syncReadingModeUI();
     syncWorkoutMetricsUI();
+    syncWaterDrinkUI();
     if (itemInput) {
       itemInput.focus();
     } else if (sleepHoursInput) {
@@ -578,6 +665,24 @@ export function initTrackerCard(config) {
     });
   }
 
+  if (isWaterTracker) {
+    const { goalOunces } = getWaterGoalSettings();
+    if (waterGoalOuncesInput) waterGoalOuncesInput.value = String(goalOunces);
+    updateWaterGoalSummary();
+
+    waterGoalOuncesInput?.addEventListener("change", updateWaterGoalSummary);
+    waterDrinkTypeInput?.addEventListener("change", syncWaterDrinkUI);
+    waterGoalSaveButton?.addEventListener("click", function() {
+      const nextGoalOunces = Math.max(0, Number(waterGoalOuncesInput?.value || 0));
+      saveWaterGoalSettings(nextGoalOunces);
+      updateWaterGoalSummary();
+      showWaterGoalMessage(`Saved goal: ${nextGoalOunces.toFixed(1).replace(/\.0$/, "")} oz/day`);
+      renderEntries();
+    });
+    entryDateInput?.addEventListener("change", updateWaterGoalSummary);
+    syncWaterDrinkUI();
+  }
+
   initItemAutocomplete({
     enableOmdbAutocomplete,
     omdbApiKey,
@@ -720,6 +825,23 @@ export function initTrackerCard(config) {
         metadataChips.push(`Score ${grade.score ?? "N/A"}/100`);
         if (grade.score !== null && grade.detail) metadataChips.push(grade.detail);
       }
+      if (isWaterTracker) {
+        const entryOunces = Math.max(0, Number(entry?.waterOunces) || 0);
+        const hydrationOunces = Math.max(0, Number(entry?.hydrationOunces) || (entryOunces * (Number(entry?.waterHydrationImpact) || 1)));
+        const impact = Math.max(0, Number(entry?.waterHydrationImpact) || 1);
+        const drinkLabel = String(entry?.waterDrinkLabel || "Water").trim();
+        const { goalOunces } = getWaterGoalSettings();
+        if (drinkLabel) metadataChips.push(drinkLabel);
+        if (entryOunces > 0) metadataChips.push(`Drink ${entryOunces.toFixed(1).replace(/\.0$/, "")} oz`);
+        if (hydrationOunces > 0) metadataChips.push(`Hydration ${hydrationOunces.toFixed(1).replace(/\.0$/, "")} oz`);
+        metadataChips.push(`Impact ${impact.toFixed(2)}`);
+        if (goalOunces > 0 && hydrationOunces > 0) {
+          const pct = Math.round((hydrationOunces / goalOunces) * 100);
+          metadataChips.push(`${pct}% of daily goal`);
+        } else if (goalOunces > 0) {
+          metadataChips.push(`Goal ${goalOunces.toFixed(1).replace(/\.0$/, "")} oz/day`);
+        }
+      }
       if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
         const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
         const finished = entry.currentlyReading
@@ -842,6 +964,9 @@ export function initTrackerCard(config) {
 
     void enrichReadingCovers();
     void enrichMoviePosters();
+    if (isWaterTracker) {
+      updateWaterGoalSummary();
+    }
   }
 
   async function enrichMoviePosters() {
@@ -901,9 +1026,6 @@ export function initTrackerCard(config) {
     e.preventDefault();
     const sleepHours = Number(sleepHoursInput?.value || 0);
     const sleepMinutes = Number(sleepMinutesInput?.value || 0);
-    const item = isSleepTracker
-      ? formatSleepDuration(sleepHours, sleepMinutes)
-      : (itemInput?.value.trim() || "");
     const author = authorInput?.value.trim() || "";
     const director = directorInput?.value.trim() || "";
     const publisher = publisherInput?.value.trim() || "";
@@ -922,6 +1044,20 @@ export function initTrackerCard(config) {
     const sessionDurationMinutes = Math.max(0, Math.min(59, getIntValue(sessionDurationMinutesInput, 0)));
     const sessionDurationSeconds = Math.max(0, Math.min(59, getIntValue(sessionDurationSecondsInput, 0)));
     const sessionHours = (sessionDurationHours * 3600 + sessionDurationMinutes * 60 + sessionDurationSeconds) / 3600;
+    const waterOunces = Math.max(0, getFloatValue(waterOuncesInput, 0));
+    const selectedWaterDrinkType = String(waterDrinkTypeInput?.value || "water");
+    const selectedDefaultWaterDrink = getDefaultWaterDrinkByValue(selectedWaterDrinkType);
+    const waterDrinkLabel = selectedWaterDrinkType === "custom"
+      ? (waterCustomNameInput?.value.trim() || "")
+      : (selectedDefaultWaterDrink?.label || "Water");
+    const waterHydrationImpactRaw = selectedWaterDrinkType === "custom"
+      ? getFloatValue(waterCustomImpactInput, 1)
+      : Number(selectedDefaultWaterDrink?.impact ?? 1);
+    const waterHydrationImpact = Math.max(0, Math.min(1.2, waterHydrationImpactRaw || 1));
+    const hydrationOunces = waterOunces * waterHydrationImpact;
+    const item = isSleepTracker
+      ? formatSleepDuration(sleepHours, sleepMinutes)
+      : (isWaterTracker ? `${waterOunces.toFixed(1).replace(/\.0$/, "")} oz ${waterDrinkLabel}` : (itemInput?.value.trim() || ""));
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
     const isAudiobook = isReadingTracker && Boolean(audiobookInput?.checked);
@@ -938,8 +1074,14 @@ export function initTrackerCard(config) {
     const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
     const rating = isSleepTracker
       ? (sleepGrade?.stars || 0)
-      : ((isTaskTracker || isFinanceTracker || isHealthTracker) ? 0 : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0)));
-    if (!item || (enableCategoryField && !category) || (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) || (isVideoGameTracker && sessionHours <= 0)) return;
+      : ((isTaskTracker || isFinanceTracker || isHealthTracker || isWaterTracker) ? 0 : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0)));
+    if (
+      !item ||
+      (enableCategoryField && !category) ||
+      (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) ||
+      (isVideoGameTracker && sessionHours <= 0) ||
+      (isWaterTracker && (waterOunces <= 0 || !waterDrinkLabel))
+    ) return;
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
       const date = buildEntryDateIso(entryDateValue, entries[editingIdx]?.date || "");
@@ -979,6 +1121,14 @@ export function initTrackerCard(config) {
         updatedEntry.lastSessionHours = sessionHours;
         updatedEntry.totalHours = sessionHours;
         updatedEntry.coverUrl = selectedCoverUrl || updatedEntry.coverUrl || "";
+      }
+      if (isWaterTracker) {
+        updatedEntry.item = `${waterOunces.toFixed(1).replace(/\.0$/, "")} oz ${waterDrinkLabel}`;
+        updatedEntry.waterOunces = waterOunces;
+        updatedEntry.waterDrinkType = selectedWaterDrinkType;
+        updatedEntry.waterDrinkLabel = waterDrinkLabel;
+        updatedEntry.waterHydrationImpact = waterHydrationImpact;
+        updatedEntry.hydrationOunces = hydrationOunces;
       }
       if (enableReadingProgress) {
         const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);
@@ -1086,6 +1236,14 @@ export function initTrackerCard(config) {
         nextEntry.totalHours = sessionHours;
         nextEntry.lastSessionHours = sessionHours;
         nextEntry.coverUrl = selectedCoverUrl || "";
+      }
+      if (isWaterTracker) {
+        nextEntry.item = `${waterOunces.toFixed(1).replace(/\.0$/, "")} oz ${waterDrinkLabel}`;
+        nextEntry.waterOunces = waterOunces;
+        nextEntry.waterDrinkType = selectedWaterDrinkType;
+        nextEntry.waterDrinkLabel = waterDrinkLabel;
+        nextEntry.waterHydrationImpact = waterHydrationImpact;
+        nextEntry.hydrationOunces = hydrationOunces;
       }
       if (enableReadingProgress) {
         const totalAudioMinutes = totalMinutesFromParts(totalHours, totalMinutes);

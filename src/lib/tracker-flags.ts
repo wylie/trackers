@@ -8,6 +8,7 @@ export function getTrackerFlags(storageKey: string) {
   const isTaskTracker = key === "task-tracker-entries";
   const isFinanceTracker = key === "finance-tracker-entries";
   const isHealthTracker = key === "health-tracker-entries";
+  const isWaterTracker = key === "water-tracker-entries";
 
   return {
     isSleepTracker,
@@ -18,6 +19,7 @@ export function getTrackerFlags(storageKey: string) {
     isTaskTracker,
     isFinanceTracker,
     isHealthTracker,
-    hidesRating: isSleepTracker || isTaskTracker || isFinanceTracker || isHealthTracker
+    isWaterTracker,
+    hidesRating: isSleepTracker || isTaskTracker || isFinanceTracker || isHealthTracker || isWaterTracker
   };
 }

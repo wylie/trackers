@@ -76,6 +76,12 @@ const calculatorMap: Record<string, RelatedCalculator[]> = {
     { name: "Calories Burned Calculator", url: "https://simplecalculators.io/calories-burned/", icon: "local_fire_department" },
     { name: "Heart Rate Zone Calculator", url: "https://simplecalculators.io/heart-rate-zone-calculator/", icon: "favorite" },
     { name: "Target Heart Rate Calculator", url: "https://simplecalculators.io/target-heart-rate/", icon: "favorite" }
+  ],
+  "water-tracker": [
+    { name: "Water Intake Calculator", url: "https://simplecalculators.io/water-intake/", icon: "water_drop" },
+    { name: "Hydration Calculator", url: "https://simplecalculators.io/hydration-calculator/", icon: "water_drop" },
+    { name: "Ounces to Cups Converter", url: "https://simplecalculators.io/ounces-to-cups/", icon: "local_drink" },
+    { name: "Ounces to Liters Converter", url: "https://simplecalculators.io/ounces-to-liters/", icon: "straighten" }
   ]
 };
 

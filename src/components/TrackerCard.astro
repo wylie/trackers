@@ -113,8 +113,12 @@ const trackerCardConfig = {
   </h2>
   <p class="text-gray-700 mb-4">{description}</p>
   {isSleepTracker && (
-    <div class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-      <div class="flex flex-col gap-3">
+    <div id="tracker-sleep-goal-panel" class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+      <div id="tracker-sleep-goal-compact" class="goal-compact-row hidden">
+        <p id="tracker-sleep-goal-compact-text" class="goal-compact-text"></p>
+        <button id="tracker-sleep-goal-edit" type="button" class="goal-compact-edit">Edit Goal</button>
+      </div>
+      <div id="tracker-sleep-goal-editor" class="flex flex-col gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">Nightly Sleep Goal</h3>
           <p class="text-sm text-slate-600">Set your target once and each sleep entry will be graded against it.</p>
@@ -162,8 +166,12 @@ const trackerCardConfig = {
     </div>
   )}
   {isWaterTracker && (
-    <div class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-      <div class="flex flex-col gap-3">
+    <div id="tracker-water-goal-panel" class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+      <div id="tracker-water-goal-compact" class="goal-compact-row hidden">
+        <p id="tracker-water-goal-compact-text" class="goal-compact-text"></p>
+        <button id="tracker-water-goal-edit" type="button" class="goal-compact-edit">Edit Goal</button>
+      </div>
+      <div id="tracker-water-goal-editor" class="flex flex-col gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">Daily Water Goal</h3>
           <p class="text-sm text-slate-600">Set your daily hydration target and track progress as you log drinks.</p>
@@ -204,8 +212,12 @@ const trackerCardConfig = {
     </div>
   )}
   {isReadingTracker && (
-    <div class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-      <div class="flex flex-col gap-3">
+    <div id="tracker-reading-goal-panel" class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+      <div id="tracker-reading-goal-compact" class="goal-compact-row hidden">
+        <p id="tracker-reading-goal-compact-text" class="goal-compact-text"></p>
+        <button id="tracker-reading-goal-edit" type="button" class="goal-compact-edit">Edit Goal</button>
+      </div>
+      <div id="tracker-reading-goal-editor" class="flex flex-col gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">Daily Reading Goal</h3>
           <p class="text-sm text-slate-600">Set your minutes/day target and track progress as you log reading time.</p>
@@ -890,6 +902,29 @@ const trackerCardConfig = {
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 0.15rem;
+  }
+  .goal-compact-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .goal-compact-text {
+    margin: 0;
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .goal-compact-edit {
+    border-radius: 9px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 0.34rem 0.62rem;
+    white-space: nowrap;
   }
   .tracker-modal {
     position: fixed;

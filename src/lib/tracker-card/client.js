@@ -54,16 +54,28 @@ export function initTrackerCard(config) {
   const goalSaveButton = document.getElementById("tracker-save-goal");
   const goalSummary = document.getElementById("tracker-goal-summary");
   const goalMessage = document.getElementById("tracker-goal-message");
+  const sleepGoalCompact = document.getElementById("tracker-sleep-goal-compact");
+  const sleepGoalCompactText = document.getElementById("tracker-sleep-goal-compact-text");
+  const sleepGoalEditButton = document.getElementById("tracker-sleep-goal-edit");
+  const sleepGoalEditor = document.getElementById("tracker-sleep-goal-editor");
   const waterGoalOuncesLabel = document.getElementById("tracker-goal-ounces-label");
   const waterGoalOuncesInput = document.getElementById("tracker-goal-ounces");
   const waterVolumeUnitInput = document.getElementById("tracker-water-volume-unit");
   const waterGoalSaveButton = document.getElementById("tracker-save-goal-ounces");
   const waterGoalSummary = document.getElementById("tracker-water-goal-summary");
   const waterGoalMessage = document.getElementById("tracker-water-goal-message");
+  const waterGoalCompact = document.getElementById("tracker-water-goal-compact");
+  const waterGoalCompactText = document.getElementById("tracker-water-goal-compact-text");
+  const waterGoalEditButton = document.getElementById("tracker-water-goal-edit");
+  const waterGoalEditor = document.getElementById("tracker-water-goal-editor");
   const readingGoalMinutesInput = document.getElementById("tracker-reading-goal-minutes");
   const readingGoalSaveButton = document.getElementById("tracker-save-reading-goal");
   const readingGoalSummary = document.getElementById("tracker-reading-goal-summary");
   const readingGoalMessage = document.getElementById("tracker-reading-goal-message");
+  const readingGoalCompact = document.getElementById("tracker-reading-goal-compact");
+  const readingGoalCompactText = document.getElementById("tracker-reading-goal-compact-text");
+  const readingGoalEditButton = document.getElementById("tracker-reading-goal-edit");
+  const readingGoalEditor = document.getElementById("tracker-reading-goal-editor");
   const authorInput = document.getElementById("tracker-author");
   const directorInput = document.getElementById("tracker-director");
   const publisherInput = document.getElementById("tracker-publisher");
@@ -346,6 +358,49 @@ export function initTrackerCard(config) {
     }, 2200);
   }
 
+  function hasPersistedSleepGoalSettings() {
+    const allEntries = getAllEntries();
+    const settings = allEntries?.[sleepSettingsKey];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+    const goalHours = Math.max(0, Number(settings.goalHours) || 0);
+    const goalMinutes = Math.max(0, Number(settings.goalMinutes) || 0);
+    return (goalHours * 60) + goalMinutes > 0;
+  }
+
+  function hasPersistedWaterGoalSettings() {
+    const allEntries = getAllEntries();
+    const settings = allEntries?.[waterSettingsKey];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+    const goalOunces = Math.max(0, Number(settings.goalOunces) || 0);
+    return goalOunces > 0;
+  }
+
+  function hasPersistedReadingGoalSettings() {
+    const allEntries = getAllEntries();
+    const settings = allEntries?.[readingSettingsKey];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+    const dailyGoalMinutes = Math.max(0, Number(settings.dailyGoalMinutes) || 0);
+    return dailyGoalMinutes > 0;
+  }
+
+  function setSleepGoalCollapsed(collapsed) {
+    if (!sleepGoalCompact || !sleepGoalEditor) return;
+    sleepGoalCompact.classList.toggle("hidden", !collapsed);
+    sleepGoalEditor.classList.toggle("hidden", collapsed);
+  }
+
+  function setWaterGoalCollapsed(collapsed) {
+    if (!waterGoalCompact || !waterGoalEditor) return;
+    waterGoalCompact.classList.toggle("hidden", !collapsed);
+    waterGoalEditor.classList.toggle("hidden", collapsed);
+  }
+
+  function setReadingGoalCollapsed(collapsed) {
+    if (!readingGoalCompact || !readingGoalEditor) return;
+    readingGoalCompact.classList.toggle("hidden", !collapsed);
+    readingGoalEditor.classList.toggle("hidden", collapsed);
+  }
+
   function closeDeleteModal(confirmed) {
     if (deleteModal) deleteModal.classList.add("hidden");
     if (typeof resolveDeletePrompt === "function") {
@@ -418,7 +473,9 @@ export function initTrackerCard(config) {
     if (!isSleepTracker || !goalSummary) return;
     const goalHours = Number(goalHoursInput?.value || 0);
     const goalMinutes = Number(goalMinutesInput?.value || 0);
-    goalSummary.textContent = `Current target: ${formatDurationLabel(goalHours, goalMinutes)}`;
+    const summary = `Current target: ${formatDurationLabel(goalHours, goalMinutes)}`;
+    goalSummary.textContent = summary;
+    if (sleepGoalCompactText) sleepGoalCompactText.textContent = summary;
   }
 
   function getWaterDayTotal(entries, dateValue) {
@@ -496,12 +553,15 @@ export function initTrackerCard(config) {
     const todayTotal = getWaterDayTotal(getEntries(), currentDate);
     const todayDisplay = formatWaterInputValue(fromWaterOunces(todayTotal, unit), unit);
     const goalDisplay = formatWaterInputValue(fromWaterOunces(goalOunces, unit), unit);
+    let summaryText = "";
     if (goalOunces > 0) {
       const pct = Math.min(999, Math.round((todayTotal / goalOunces) * 100));
-      waterGoalSummary.textContent = `Hydration today: ${todayDisplay} / ${goalDisplay} ${unit} (${pct}%)`;
+      summaryText = `Hydration today: ${todayDisplay} / ${goalDisplay} ${unit} (${pct}%)`;
     } else {
-      waterGoalSummary.textContent = `Hydration today: ${todayDisplay} ${unit}`;
+      summaryText = `Hydration today: ${todayDisplay} ${unit}`;
     }
+    waterGoalSummary.textContent = summaryText;
+    if (waterGoalCompactText) waterGoalCompactText.textContent = summaryText;
   }
 
   function updateReadingGoalSummary() {
@@ -509,12 +569,15 @@ export function initTrackerCard(config) {
     const goalMinutes = Math.max(0, Number(readingGoalMinutesInput?.value || 0));
     const currentDate = entryDateInput?.value || getTodayDateInputValue();
     const todayTotalMinutes = getReadingDayTotalMinutes(getEntries(), currentDate);
+    let summaryText = "";
     if (goalMinutes > 0) {
       const pct = Math.min(999, Math.round((todayTotalMinutes / goalMinutes) * 100));
-      readingGoalSummary.textContent = `Reading today: ${todayTotalMinutes} / ${goalMinutes} min (${pct}%)`;
+      summaryText = `Reading today: ${todayTotalMinutes} / ${goalMinutes} min (${pct}%)`;
     } else {
-      readingGoalSummary.textContent = `Reading today: ${todayTotalMinutes} min`;
+      summaryText = `Reading today: ${todayTotalMinutes} min`;
     }
+    readingGoalSummary.textContent = summaryText;
+    if (readingGoalCompactText) readingGoalCompactText.textContent = summaryText;
   }
 
   function getDefaultWaterDrinkByValue(value) {
@@ -1144,15 +1207,21 @@ export function initTrackerCard(config) {
     if (goalHoursInput) goalHoursInput.value = String(goalHours);
     if (goalMinutesInput) goalMinutesInput.value = String(goalMinutes);
     updateSleepGoalSummary();
+    setSleepGoalCollapsed(hasPersistedSleepGoalSettings());
 
     goalHoursInput?.addEventListener("change", updateSleepGoalSummary);
     goalMinutesInput?.addEventListener("change", updateSleepGoalSummary);
+    sleepGoalEditButton?.addEventListener("click", function() {
+      setSleepGoalCollapsed(false);
+      goalHoursInput?.focus();
+    });
     goalSaveButton?.addEventListener("click", function() {
       const nextGoalHours = Number(goalHoursInput?.value || 0);
       const nextGoalMinutes = Number(goalMinutesInput?.value || 0);
       saveSleepGoalSettings(nextGoalHours, nextGoalMinutes);
       updateSleepGoalSummary();
       showSleepGoalMessage(`Saved goal: ${formatDurationLabel(nextGoalHours, nextGoalMinutes)}`);
+      setSleepGoalCollapsed((nextGoalHours * 60) + nextGoalMinutes > 0);
       renderEntries();
     });
   }
@@ -1169,6 +1238,7 @@ export function initTrackerCard(config) {
       );
     }
     updateWaterGoalSummary();
+    setWaterGoalCollapsed(hasPersistedWaterGoalSettings());
 
     waterGoalOuncesInput?.addEventListener("change", updateWaterGoalSummary);
     waterVolumeUnitInput?.addEventListener("change", function() {
@@ -1199,6 +1269,10 @@ export function initTrackerCard(config) {
       updateWaterGoalSummary();
       renderEntries(false);
     });
+    waterGoalEditButton?.addEventListener("click", function() {
+      setWaterGoalCollapsed(false);
+      waterGoalOuncesInput?.focus();
+    });
     waterDrinkTypeInput?.addEventListener("change", syncWaterDrinkUI);
     waterGoalSaveButton?.addEventListener("click", function() {
       const unit = normalizeWaterVolumeUnit(selectedWaterVolumeUnit);
@@ -1207,6 +1281,7 @@ export function initTrackerCard(config) {
       saveWaterGoalSettings(nextGoalOunces, unit);
       updateWaterGoalSummary();
       showWaterGoalMessage(`Saved goal: ${formatWaterVolumeFromOunces(nextGoalOunces, unit)}/day`);
+      setWaterGoalCollapsed(nextGoalOunces > 0);
       renderEntries();
     });
     entryDateInput?.addEventListener("change", updateWaterGoalSummary);
@@ -1217,12 +1292,18 @@ export function initTrackerCard(config) {
     const { dailyGoalMinutes } = getReadingGoalSettings();
     if (readingGoalMinutesInput) readingGoalMinutesInput.value = String(dailyGoalMinutes);
     updateReadingGoalSummary();
+    setReadingGoalCollapsed(hasPersistedReadingGoalSettings());
     readingGoalMinutesInput?.addEventListener("change", updateReadingGoalSummary);
+    readingGoalEditButton?.addEventListener("click", function() {
+      setReadingGoalCollapsed(false);
+      readingGoalMinutesInput?.focus();
+    });
     readingGoalSaveButton?.addEventListener("click", function() {
       const nextGoalMinutes = Math.max(0, getIntValue(readingGoalMinutesInput, 0));
       saveReadingGoalSettings(nextGoalMinutes);
       updateReadingGoalSummary();
       showReadingGoalMessage(`Saved goal: ${nextGoalMinutes} min/day`);
+      setReadingGoalCollapsed(nextGoalMinutes > 0);
       renderEntries(false);
     });
     entryDateInput?.addEventListener("change", updateReadingGoalSummary);

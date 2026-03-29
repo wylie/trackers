@@ -48,7 +48,12 @@ const last14Note = last14NoteByTracker[String(storageKey || "")] || "Days with l
 
   <div class="ti-card">
     <h3 class="ti-title">Last 14 Days</h3>
-    <div id={`${idPrefix}-last-14`} class="ti-14d"></div>
+    <div class="ti-14d-wrap">
+      <div id={`${idPrefix}-last-14`} class="ti-14d"></div>
+      <div id={`${idPrefix}-last-14-goal-line`} class="ti-goal-line hidden">
+        <span id={`${idPrefix}-last-14-goal-label`} class="ti-goal-line-label"></span>
+      </div>
+    </div>
     <p class="ti-note">{last14Note}</p>
   </div>
 
@@ -214,6 +219,32 @@ const last14Note = last14NoteByTracker[String(storageKey || "")] || "Days with l
     gap: 3px;
   }
 
+  .ti-14d-wrap {
+    position: relative;
+  }
+
+  .ti-goal-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed rgba(16, 185, 129, 0.8);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .ti-goal-line-label {
+    position: absolute;
+    right: 0;
+    top: -0.78rem;
+    font-size: 0.58rem;
+    line-height: 1;
+    color: #047857;
+    background: rgba(236, 253, 245, 0.95);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    border-radius: 999px;
+    padding: 0.08rem 0.32rem;
+  }
+
   .ti-day-col {
     display: flex;
     flex-direction: column;
@@ -226,7 +257,7 @@ const last14Note = last14NoteByTracker[String(storageKey || "")] || "Days with l
     width: 100%;
     border-radius: 3px 3px 0 0;
     background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
-    min-height: 8px;
+    min-height: 0;
   }
 
   .ti-day-label {

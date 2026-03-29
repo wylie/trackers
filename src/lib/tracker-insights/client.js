@@ -1,5 +1,5 @@
 import { escapeHtml, aggregateTopItemsByTracker, aggregateLast14DaysByTracker, formatLast14Value, getWorkoutDurationSeconds, isDateInRange, formatDurationLabel } from './aggregates.js';
-import { getEntriesForKey } from '../storage/simpletrackers-store.js';
+import { getEntriesForKey, readSimpletrackersStore } from '../storage/simpletrackers-store.js';
 
 export function initTrackerInsightsRail(config) {
   const {
@@ -64,16 +64,26 @@ export function initTrackerInsightsRail(config) {
 
   function renderLast14(entries) {
     const root = document.getElementById(`${idPrefix}-last-14`);
+    const goalLine = document.getElementById(`${idPrefix}-last-14-goal-line`);
+    const goalLabel = document.getElementById(`${idPrefix}-last-14-goal-label`);
     if (!root) return;
     if (!entries.length) {
       root.innerHTML = `<p class="ti-empty">No activity yet.</p>`;
+      if (goalLine) goalLine.classList.add("hidden");
       return;
     }
 
     const series = aggregateLast14DaysByTracker(entries, { storageKey });
-    const max = Math.max(...series.map((day) => day.value), 1);
+    const goalSpec = getGoalLineSpec();
+    const max = Math.max(
+      ...series.map((day) => day.value),
+      goalSpec ? goalSpec.value : 0,
+      1
+    );
     root.innerHTML = series.map((day) => {
-      const height = Math.max(8, Math.round((day.value / max) * 68));
+      const height = day.value > 0
+        ? Math.max(8, Math.round((day.value / max) * 68))
+        : 0;
       const fullLabel = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
       const valueLabel = formatLast14Value(day.value, { storageKey });
       return `
@@ -83,6 +93,36 @@ export function initTrackerInsightsRail(config) {
         </div>
       `;
     }).join("");
+
+    if (goalLine && goalSpec) {
+      const barHeight = 68;
+      const baselineOffset = 12;
+      const lineBottom = baselineOffset + Math.round((goalSpec.value / max) * barHeight);
+      goalLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
+      goalLine.classList.remove("hidden");
+      if (goalLabel) goalLabel.textContent = goalSpec.label;
+    } else if (goalLine) {
+      goalLine.classList.add("hidden");
+    }
+  }
+
+  function getGoalLineSpec() {
+    const store = readSimpletrackersStore();
+    if (storageKey === "water-tracker-entries") {
+      const goal = Math.max(0, Number(store?.["water-tracker-settings"]?.goalOunces) || 0);
+      if (goal > 0) {
+        return { value: goal, label: `Goal ${goal.toFixed(1).replace(/\.0$/, "")}oz` };
+      }
+    }
+    if (storageKey === "sleep-tracker-entries") {
+      const goalHours = Math.max(0, Number(store?.["sleep-tracker-settings"]?.goalHours) || 0);
+      const goalMinutes = Math.max(0, Number(store?.["sleep-tracker-settings"]?.goalMinutes) || 0);
+      const goal = goalHours + (goalMinutes / 60);
+      if (goal > 0) {
+        return { value: goal, label: `Goal ${goal.toFixed(1).replace(/\.0$/, "")}h` };
+      }
+    }
+    return null;
   }
 
   function renderWorkoutTotal(entries) {

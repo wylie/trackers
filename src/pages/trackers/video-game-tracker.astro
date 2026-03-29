@@ -209,7 +209,7 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     const last14 = aggregateLast14Days(entries);
     const maxDay = Math.max(...last14.map((day) => day.hours), 0.25);
     trendEl.innerHTML = last14.map((day) => {
-      const height = Math.max(8, Math.round((day.hours / maxDay) * 68));
+      const height = day.hours > 0 ? Math.max(8, Math.round((day.hours / maxDay) * 68)) : 0;
       const label = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
       return `<div class="vg-day-col"><span class="vg-day-bar" style="height:${height}px" title="${label}: ${formatHours(day.hours)}"></span><span class="vg-day-label">${label.split("/")[1] || label}</span></div>`;
     }).join("");
@@ -423,7 +423,7 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     width: 100%;
     border-radius: 3px 3px 0 0;
     background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
-    min-height: 8px;
+    min-height: 0;
   }
 
   .vg-day-label {

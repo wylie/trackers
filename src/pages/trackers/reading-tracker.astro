@@ -74,7 +74,12 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
                 <span><i class="rd-legend-swatch rd-legend-swatch--pages"></i>Pages</span>
                 <span><i class="rd-legend-swatch rd-legend-swatch--audio"></i>Listened</span>
               </div>
-              <div id="rd-14d" class="rd-14d"></div>
+              <div class="rd-14d-wrap">
+                <div id="rd-14d" class="rd-14d"></div>
+                <div id="rd-14d-goal-line" class="rd-goal-line hidden">
+                  <span id="rd-14d-goal-label" class="rd-goal-line-label"></span>
+                </div>
+              </div>
               <p class="rd-note">Blue = pages read, green = audiobook time listened.</p>
             </div>
             <TrackerBadgesCard storageKey="reading-tracker-entries" />
@@ -292,6 +297,8 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const pie = document.getElementById("rd-status-pie");
     const legend = document.getElementById("rd-status-legend");
     const trend = document.getElementById("rd-14d");
+    const goalLine = document.getElementById("rd-14d-goal-line");
+    const goalLabel = document.getElementById("rd-14d-goal-label");
     const challenge = document.getElementById("rd-yearly-challenge");
     if (!bars || !pie || !legend || !trend) return;
 
@@ -332,7 +339,9 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
 
     const last14 = aggregateLast14Days(entries);
     const maxPages = Math.max(...last14.map((day) => day.pages), 1);
-    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), 1);
+    const settings = getReadingSettings();
+    const dailyAudioGoalMinutes = Math.max(0, Number(settings?.dailyGoalMinutes) || 0);
+    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), dailyAudioGoalMinutes, 1);
     trend.innerHTML = last14.map((day) => {
       const pages = Math.round(day.pages * 10) / 10;
       const audioMinutes = Math.round(day.audioMinutes);
@@ -345,6 +354,17 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
       const pageLabel = pages.toFixed(1).replace(/\\.0$/, "");
       return `<div class="rd-day-col"><span class="rd-day-bars" title="${d}: ${pageLabel} pages, ${audioLabel} listened"><span class="rd-day-bar rd-day-bar--pages" style="height:${hPages}px"></span><span class="rd-day-bar rd-day-bar--audio" style="height:${hAudio}px"></span></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
     }).join("");
+
+    if (goalLine && dailyAudioGoalMinutes > 0) {
+      const barHeight = 68;
+      const baselineOffset = 12;
+      const lineBottom = baselineOffset + Math.round((dailyAudioGoalMinutes / maxAudio) * barHeight);
+      goalLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
+      goalLine.classList.remove("hidden");
+      if (goalLabel) goalLabel.textContent = `Goal ${dailyAudioGoalMinutes}m`;
+    } else if (goalLine) {
+      goalLine.classList.add("hidden");
+    }
   }
 
   function renderYearlyChallenge(root, entries) {
@@ -453,6 +473,9 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   .rd-leg-name { color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rd-leg-val { color: #64748b; font-weight: 700; }
   .rd-14d { height: 96px; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: 3px; }
+  .rd-14d-wrap { position: relative; }
+  .rd-goal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(22, 163, 74, 0.85); pointer-events: none; z-index: 1; }
+  .rd-goal-line-label { position: absolute; right: 0; top: -0.78rem; font-size: 0.58rem; line-height: 1; color: #166534; background: rgba(240, 253, 244, 0.96); border: 1px solid rgba(22, 163, 74, 0.45); border-radius: 999px; padding: 0.08rem 0.32rem; }
   .rd-day-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
   .rd-legend-inline { display: flex; align-items: center; gap: 0.65rem; margin: -0.2rem 0 0.45rem; font-size: 0.62rem; color: #64748b; font-weight: 700; }
   .rd-legend-inline span { display: inline-flex; align-items: center; gap: 0.25rem; }

@@ -1324,13 +1324,15 @@ export function initTrackerCard(config) {
       } else if (filterValue === "completed") {
         renderedEntries = renderedEntries.filter(({ entry }) => Boolean(entry?.completed));
       }
-      renderedEntries.sort(compareTaskEntries);
     } else if (enableReadingProgress) {
       renderedEntries = renderedEntries.filter(({ entry }) => isReadingEntryVisible(entry));
-      renderedEntries.sort((a, b) => getEntryActivityTimestamp(b.entry) - getEntryActivityTimestamp(a.entry));
-    } else {
-      renderedEntries = renderedEntries.reverse();
     }
+
+    renderedEntries.sort((a, b) => {
+      const timeDiff = getEntryActivityTimestamp(b.entry) - getEntryActivityTimestamp(a.entry);
+      if (timeDiff !== 0) return timeDiff;
+      return b.idx - a.idx;
+    });
 
     if (resetVisibleCount || visibleEntriesCount <= 0) {
       visibleEntriesCount = LIST_PAGE_SIZE;

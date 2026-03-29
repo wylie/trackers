@@ -1,4 +1,4 @@
-import { escapeHtml, aggregateTopItems, aggregateLast14Days, getWorkoutDurationSeconds, isDateInRange, formatDurationLabel } from './aggregates.js';
+import { escapeHtml, aggregateTopItems, aggregateLast14DaysByTracker, formatLast14Value, getWorkoutDurationSeconds, isDateInRange, formatDurationLabel } from './aggregates.js';
 import { getEntriesForKey } from '../storage/simpletrackers-store.js';
 
 export function initTrackerInsightsRail(config) {
@@ -70,14 +70,15 @@ export function initTrackerInsightsRail(config) {
       return;
     }
 
-    const series = aggregateLast14Days(entries);
-    const max = Math.max(...series.map((day) => day.count), 1);
+    const series = aggregateLast14DaysByTracker(entries, { storageKey });
+    const max = Math.max(...series.map((day) => day.value), 1);
     root.innerHTML = series.map((day) => {
-      const height = Math.max(8, Math.round((day.count / max) * 68));
+      const height = Math.max(8, Math.round((day.value / max) * 68));
       const fullLabel = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      const valueLabel = formatLast14Value(day.value, { storageKey });
       return `
         <div class="ti-day-col">
-          <span class="ti-day-bar" style="height:${height}px" title="${fullLabel}: ${day.count}"></span>
+          <span class="ti-day-bar" style="height:${height}px" title="${fullLabel}: ${valueLabel}"></span>
           <span class="ti-day-label">${fullLabel.split("/")[1] || fullLabel}</span>
         </div>
       `;

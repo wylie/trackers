@@ -67,7 +67,7 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
             <div class="mv-card">
               <h3 class="mv-title">Last 14 Days</h3>
               <div id="mv-14d" class="mv-14d"></div>
-              <p class="mv-note">Movies logged per day.</p>
+              <p class="mv-note">Days with a logged movie.</p>
             </div>
             <TrackerBadgesCard storageKey="movie-watch-tracker-entries" />
             <SupportButton />
@@ -116,7 +116,7 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
       if (!when || Number.isNaN(when.getTime())) continue;
       const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
       const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
-      if (idx >= 0 && idx < series.length) series[idx].count += 1;
+      if (idx >= 0 && idx < series.length) series[idx].count = 1;
     }
     return series;
   }
@@ -182,7 +182,8 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
     trend.innerHTML = last14.map((day) => {
       const h = Math.max(8, Math.round((day.count / maxDay) * 68));
       const d = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
-      return `<div class="mv-day-col"><span class="mv-day-bar" style="height:${h}px" title="${d}: ${day.count}"></span><span class="mv-day-label">${d.split("/")[1] || d}</span></div>`;
+      const label = day.count > 0 ? "Logged" : "No log";
+      return `<div class="mv-day-col"><span class="mv-day-bar" style="height:${h}px" title="${d}: ${label}"></span><span class="mv-day-label">${d.split("/")[1] || d}</span></div>`;
     }).join("");
   }
 

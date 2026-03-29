@@ -3,8 +3,8 @@ import StandardTrackerPage from '../../components/tracker-pages/StandardTrackerP
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
-  "Set your daily water goal in ounces.",
-  "Log each drink in ounces throughout the day.",
+  "Set your daily hydration goal in oz or ml.",
+  "Log each drink amount throughout the day.",
   "Track your daily hydration progress over time.",
   "Your data is saved locally in your browser.",
   "No account or login required."
@@ -13,7 +13,7 @@ const benefits = [
   "Simple, distraction-free hydration logging",
   "Private: your data never leaves your device",
   "No registration or login required",
-  "Daily goal tracking in ounces"
+  "Daily goal tracking in oz or ml"
 ];
 const related = [
   { name: "Health Tracker", url: "/health-tracker", icon: "favorite" },
@@ -25,9 +25,9 @@ const related = [
 
 <StandardTrackerPage
   seoTitle="Water Intake Tracker"
-  seoDescription="Track your daily water intake in ounces with a hydration goal. Private, browser-based, and no login required."
+  seoDescription="Track your daily hydration in oz or ml with customizable drink impact and a daily goal. Private, browser-based, and no login required."
   pageTitle="Water Intake Tracker"
-  pageDescription="Track your daily hydration in ounces with a simple goal-based water log."
+  pageDescription="Track your daily hydration in oz or ml with a simple goal-based water log."
   storageKey="water-tracker-entries"
   trackerCardProps={{
     title: "Water Intake Log",

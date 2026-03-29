@@ -20,13 +20,54 @@ export function aggregateTopItems(entries) {
 }
 
 export function aggregateLast14Days(entries) {
+  return aggregateLast14DaysByTracker(entries, { storageKey: "" });
+}
+
+function getSleepDurationHours(entry) {
+  const hours = Math.max(0, Number(entry?.sleepHours) || 0);
+  const minutes = Math.max(0, Number(entry?.sleepMinutes) || 0);
+  const total = hours + (minutes / 60);
+  return Math.round(total * 100) / 100;
+}
+
+function getWaterHydrationOunces(entry) {
+  const drinkOz = Math.max(0, Number(entry?.waterOunces) || 0);
+  const hydrationImpact = Math.max(0, Number(entry?.waterHydrationImpact) || 1);
+  const hydrationOz = Math.max(0, Number(entry?.hydrationOunces) || (drinkOz * hydrationImpact));
+  return Math.round(hydrationOz * 100) / 100;
+}
+
+function getVideoGameSessionHours(entry) {
+  const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+  return Math.round(sessionHours * 100) / 100;
+}
+
+function getLast14ValueForEntry(entry, storageKey) {
+  if (storageKey === "workout-tracker-entries") {
+    const seconds = getWorkoutDurationSeconds(entry);
+    return Math.round((seconds / 3600) * 100) / 100;
+  }
+  if (storageKey === "water-tracker-entries") {
+    return getWaterHydrationOunces(entry);
+  }
+  if (storageKey === "sleep-tracker-entries") {
+    return getSleepDurationHours(entry);
+  }
+  if (storageKey === "video-game-tracker-entries") {
+    return getVideoGameSessionHours(entry);
+  }
+  // Trackers without a meaningful numeric quantity are binary activity logs.
+  return 1;
+}
+
+export function aggregateLast14DaysByTracker(entries, { storageKey = "" } = {}) {
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   start.setDate(start.getDate() - 13);
   const msPerDay = 24 * 60 * 60 * 1000;
   const series = Array.from({ length: 14 }, (_, idx) => ({
     day: new Date(start.getTime() + idx * msPerDay),
-    count: 0
+    value: 0
   }));
 
   for (const entry of entries) {
@@ -35,11 +76,42 @@ export function aggregateLast14Days(entries) {
     const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
     const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
     if (idx >= 0 && idx < series.length) {
-      series[idx].count += 1;
+      const value = Math.max(0, Number(getLast14ValueForEntry(entry, storageKey)) || 0);
+      if (storageKey === "habit-tracker-entries"
+        || storageKey === "reading-tracker-entries"
+        || storageKey === "movie-watch-tracker-entries"
+        || storageKey === "finance-tracker-entries"
+        || storageKey === "health-tracker-entries"
+        || storageKey === "meal-tracker-entries"
+        || storageKey === "task-tracker-entries"
+        || storageKey === "custom-tracker-entries") {
+        series[idx].value = Math.max(series[idx].value, value > 0 ? 1 : 0);
+      } else {
+        series[idx].value += value;
+      }
     }
   }
 
   return series;
+}
+
+function formatNumericValue(value, digits = 1) {
+  const safe = Math.max(0, Number(value) || 0);
+  return safe.toFixed(digits).replace(/\.0$/, "");
+}
+
+export function formatLast14Value(value, { storageKey = "" } = {}) {
+  const safe = Math.max(0, Number(value) || 0);
+  if (storageKey === "workout-tracker-entries" || storageKey === "video-game-tracker-entries") {
+    return `${formatNumericValue(safe, 2)}h`;
+  }
+  if (storageKey === "water-tracker-entries") {
+    return `${formatNumericValue(safe, 1)}oz hydration`;
+  }
+  if (storageKey === "sleep-tracker-entries") {
+    return `${formatNumericValue(safe, 2)}h sleep`;
+  }
+  return safe > 0 ? "Logged" : "No log";
 }
 
 export function getWorkoutDurationSeconds(entry) {

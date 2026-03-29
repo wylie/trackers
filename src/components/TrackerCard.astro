@@ -284,6 +284,39 @@ const trackerCardConfig = {
           />
         </div>
       </div>
+    ) : isFinanceTracker ? (
+      <div class="grid grid-cols-1 sm:grid-cols-[200px_minmax(0,1fr)] gap-2">
+        <div class="flex flex-col gap-1">
+          <input
+            type="number"
+            id="tracker-finance-amount"
+            min="0"
+            step="0.01"
+            placeholder="Amount: $"
+            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            aria-label="Amount in dollars"
+          />
+        </div>
+        <div class="relative">
+          <input
+            type="text"
+            id="tracker-item"
+            placeholder={itemPlaceholder}
+            autocomplete={autocompleteEnabled ? "off" : "on"}
+            aria-autocomplete={autocompleteEnabled ? "list" : undefined}
+            aria-expanded={autocompleteEnabled ? "false" : undefined}
+            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full"
+          />
+          {autocompleteEnabled && (
+            <div
+              id="tracker-item-suggestions"
+              class="hidden absolute left-0 right-0 top-[calc(100%+0.3rem)] z-20 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden"
+            >
+              <ul id="tracker-item-suggestions-list" class="max-h-64 overflow-y-auto py-1"></ul>
+            </div>
+          )}
+        </div>
+      </div>
     ) : (
       <div class="relative">
         <input

@@ -37,6 +37,11 @@ export function aggregateTopItemsByTracker(entries, { storageKey = "" } = {}) {
         counts.set(label, (counts.get(label) || 0) + 1);
       });
     }
+  } else if (storageKey === "finance-tracker-entries") {
+    for (const entry of entries) {
+      const category = String(entry?.category || "").trim() || "Uncategorized";
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
   } else {
     for (const entry of entries) {
       const item = String(entry?.item || "").trim() || "Untitled";

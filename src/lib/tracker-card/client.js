@@ -61,6 +61,7 @@ export function initTrackerCard(config) {
   const publisherInput = document.getElementById("tracker-publisher");
   const categoryInput = document.getElementById("tracker-category");
   const entryDateInput = document.getElementById("tracker-entry-date");
+  const financeAmountInput = document.getElementById("tracker-finance-amount");
   const workoutMetricsContainer = document.getElementById("tracker-workout-metrics");
   const workoutDurationWrap = document.getElementById("tracker-workout-duration-wrap");
   const workoutDistanceWrap = document.getElementById("tracker-workout-distance-wrap");
@@ -589,6 +590,7 @@ export function initTrackerCard(config) {
   function clearForm() {
     if (entryDateInput) entryDateInput.value = getTodayDateInputValue();
     if (itemInput) itemInput.value = "";
+    if (financeAmountInput) financeAmountInput.value = "";
     if (sleepHoursInput) sleepHoursInput.value = "0";
     if (sleepMinutesInput) sleepMinutesInput.value = "0";
     if (authorInput) authorInput.value = "";
@@ -644,6 +646,10 @@ export function initTrackerCard(config) {
       itemInput.value = entry.item || "";
     }
     if (entryDateInput) entryDateInput.value = toDateInputValue(entry.date);
+    if (financeAmountInput) {
+      const financeAmount = Math.max(0, Number(entry?.financeAmount) || 0);
+      financeAmountInput.value = financeAmount > 0 ? financeAmount.toFixed(2).replace(/\.00$/, "") : "";
+    }
     if (isSleepTracker) {
       const { hours, minutes } = parseSleepDuration(entry);
       if (sleepHoursInput) sleepHoursInput.value = String(hours);
@@ -1184,6 +1190,13 @@ export function initTrackerCard(config) {
           metadataChips.push(`Goal ${formatWaterVolumeFromOunces(goalOunces, displayUnit)}/day`);
         }
       }
+      let displayItemTitle = entry.item;
+      if (isFinanceTracker) {
+        const financeAmount = Math.max(0, Number(entry?.financeAmount) || 0);
+        if (financeAmount > 0) {
+          displayItemTitle = `${entry.item} • $${financeAmount.toFixed(2)}`;
+        }
+      }
       if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
         const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
         const finished = entry.currentlyReading
@@ -1220,7 +1233,6 @@ export function initTrackerCard(config) {
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} /></div>`
         : "";
       const notesHtml = renderNotesHtml(entry);
-      let displayItemTitle = entry.item;
       if (isWaterTracker) {
         const { volumeUnit } = getWaterGoalSettings();
         const displayUnit = normalizeWaterVolumeUnit(volumeUnit || selectedWaterVolumeUnit);
@@ -1386,6 +1398,7 @@ export function initTrackerCard(config) {
     const publisher = publisherInput?.value.trim() || "";
     const category = categoryInput?.value || "";
     const entryDateValue = entryDateInput?.value || "";
+    const financeAmount = Math.max(0, getFloatValue(financeAmountInput, 0));
     const workoutDurationHours = Math.max(0, getIntValue(workoutDurationHoursInput, 0));
     const workoutDurationMinutes = Math.max(0, Math.min(59, getIntValue(workoutDurationMinutesInput, 0)));
     const workoutDurationSeconds = Math.max(0, Math.min(59, getIntValue(workoutDurationSecondsInput, 0)));
@@ -1435,6 +1448,7 @@ export function initTrackerCard(config) {
     if (
       !item ||
       (enableCategoryField && !category) ||
+      (isFinanceTracker && financeAmount <= 0) ||
       (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) ||
       (isVideoGameTracker && sessionHours <= 0) ||
       (isWaterTracker && (waterOunces <= 0 || !waterDrinkLabel))
@@ -1462,6 +1476,7 @@ export function initTrackerCard(config) {
       if (enableDirectorField) updatedEntry.director = director;
       if (enablePublisherField) updatedEntry.publisher = publisher;
       if (enableCategoryField) updatedEntry.category = category;
+      if (isFinanceTracker) updatedEntry.financeAmount = financeAmount;
       if (isTaskTracker) {
         updatedEntry.dueDate = dueDate;
       }
@@ -1666,6 +1681,7 @@ export function initTrackerCard(config) {
       if (enableDirectorField) nextEntry.director = director;
       if (enablePublisherField) nextEntry.publisher = publisher;
       if (enableCategoryField) nextEntry.category = category;
+      if (isFinanceTracker) nextEntry.financeAmount = financeAmount;
       if (isTaskTracker) {
         nextEntry.dueDate = dueDate;
         nextEntry.completed = false;

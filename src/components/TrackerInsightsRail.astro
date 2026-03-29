@@ -7,6 +7,9 @@ const { storageKey, heading = "Insights" } = Astro.props;
 const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
 const { isWorkoutTracker } = getTrackerFlags(storageKey);
 const trackerInsightsConfig = { storageKey, idPrefix, isWorkoutTracker };
+const topItemsTitle = String(storageKey || "") === "finance-tracker-entries"
+  ? "Top Logged Categories"
+  : "Top Logged Items";
 const last14NoteByTracker = {
   "water-tracker-entries": "Hydration logged per day.",
   "sleep-tracker-entries": "Sleep duration per day.",
@@ -39,7 +42,7 @@ const last14Note = last14NoteByTracker[String(storageKey || "")] || "Days with l
   )}
 
   <div class="ti-card">
-    <h3 class="ti-title">Top Logged Items</h3>
+    <h3 class="ti-title">{topItemsTitle}</h3>
     <div id={`${idPrefix}-top-items`} class="ti-bars"></div>
   </div>
 

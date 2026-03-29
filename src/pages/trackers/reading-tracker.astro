@@ -67,6 +67,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
                 <div id="rd-status-legend" class="rd-legend"></div>
               </div>
             </div>
+            <div id="rd-yearly-challenge" class="rd-card"></div>
             <div class="rd-card">
               <h3 class="rd-title">Last 14 Days</h3>
               <div class="rd-legend-inline">
@@ -98,6 +99,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
 <script>
   const STORAGE_KEY = "simpletrackers.io";
   const READING_KEY = "reading-tracker-entries";
+  const READING_SETTINGS_KEY = "reading-tracker-settings";
 
   function parseStore() {
     try {
@@ -110,6 +112,64 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   function getReadingEntries() {
     const store = parseStore();
     return Array.isArray(store[READING_KEY]) ? store[READING_KEY] : [];
+  }
+
+  function getReadingSettings() {
+    const store = parseStore();
+    const settings = store?.[READING_SETTINGS_KEY];
+    const yearlyGoalBooks = Math.max(0, Number(settings?.yearlyGoalBooks) || 0);
+    return { yearlyGoalBooks };
+  }
+
+  function saveReadingSettings(nextSettings) {
+    const all = parseStore();
+    all[READING_SETTINGS_KEY] = {
+      yearlyGoalBooks: Math.max(0, Number(nextSettings?.yearlyGoalBooks) || 0)
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  }
+
+  function getYearBounds(year) {
+    return {
+      start: new Date(year, 0, 1).getTime(),
+      end: new Date(year + 1, 0, 1).getTime()
+    };
+  }
+
+  function parseFinishedTimestamp(entry) {
+    const finishedDate = String(entry?.finishedDate || "").trim();
+    if (finishedDate) {
+      const ts = new Date(`${finishedDate}T12:00:00`).getTime();
+      if (Number.isFinite(ts) && ts > 0) return ts;
+    }
+    const dateTs = entry?.date ? new Date(entry.date).getTime() : 0;
+    return Number.isFinite(dateTs) && dateTs > 0 ? dateTs : 0;
+  }
+
+  function getFinishedBooksThisYear(entries, year) {
+    const { start, end } = getYearBounds(year);
+    const latestByBook = new Map();
+    for (const entry of entries) {
+      if (entry?.currentlyReading) continue;
+      const finishedTs = parseFinishedTimestamp(entry);
+      if (finishedTs < start || finishedTs >= end) continue;
+      const key = `${String(entry?.item || "").trim().toLowerCase()}|${String(entry?.author || "").trim().toLowerCase()}`;
+      if (!key || key === "|") continue;
+      const existing = latestByBook.get(key);
+      if (!existing || finishedTs > existing.ts) {
+        latestByBook.set(key, { ts: finishedTs, entry });
+      }
+    }
+    return Array.from(latestByBook.values()).sort((a, b) => b.ts - a.ts);
+  }
+
+  function dayProgressInYear(now = new Date()) {
+    const year = now.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const nextYear = new Date(year + 1, 0, 1);
+    const elapsed = Math.max(1, Math.floor((now.getTime() - yearStart.getTime()) / 86400000) + 1);
+    const total = Math.floor((nextYear.getTime() - yearStart.getTime()) / 86400000);
+    return { elapsed, total };
   }
 
   function totalMinutes(hours, minutes) {
@@ -228,9 +288,13 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const pie = document.getElementById("rd-status-pie");
     const legend = document.getElementById("rd-status-legend");
     const trend = document.getElementById("rd-14d");
+    const challenge = document.getElementById("rd-yearly-challenge");
     if (!bars || !pie || !legend || !trend) return;
 
     const entries = getReadingEntries();
+    if (challenge) {
+      renderYearlyChallenge(challenge, entries);
+    }
     if (!entries.length) {
       const empty = "<p class='rd-empty'>No reading data yet.</p>";
       bars.innerHTML = empty;
@@ -279,6 +343,60 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     }).join("");
   }
 
+  function renderYearlyChallenge(root, entries) {
+    if (!root) return;
+    const currentYear = new Date().getFullYear();
+    const settings = getReadingSettings();
+    const finished = getFinishedBooksThisYear(entries, currentYear);
+    const completedBooks = finished.length;
+    const goal = settings.yearlyGoalBooks;
+    const { elapsed, total } = dayProgressInYear(new Date());
+    const expectedByNow = goal > 0 ? (goal * (elapsed / total)) : 0;
+    const delta = completedBooks - expectedByNow;
+    const deltaLabel = goal > 0
+      ? (delta >= 0 ? `${Math.round(delta * 10) / 10} ahead of pace` : `${Math.round(Math.abs(delta) * 10) / 10} behind pace`)
+      : "Set a goal to track your pace.";
+    const progressPct = goal > 0 ? Math.min(100, Math.round((completedBooks / goal) * 100)) : 0;
+
+    root.innerHTML = `
+      <div class="rd-challenge-head">
+        <div>
+          <h3 class="rd-title">Yearly Reading Challenge</h3>
+          <p class="rd-note rd-note-tight">${currentYear} completed books</p>
+        </div>
+      </div>
+      <div class="rd-challenge-goal-row">
+        <label for="rd-yearly-goal-input" class="sr-only">Books goal for ${currentYear}</label>
+        <input id="rd-yearly-goal-input" type="number" min="0" step="1" value="${goal || ""}" placeholder="Books goal" class="rd-goal-input" />
+        <button id="rd-yearly-goal-save" type="button" class="rd-goal-btn">Save</button>
+      </div>
+      <div class="rd-challenge-stats">
+        <div class="rd-stat"><span>Read</span><strong>${completedBooks}</strong></div>
+        <div class="rd-stat"><span>Goal</span><strong>${goal > 0 ? goal : "-"}</strong></div>
+        <div class="rd-stat"><span>Progress</span><strong>${goal > 0 ? `${progressPct}%` : "-"}</strong></div>
+      </div>
+      <div class="rd-challenge-track">
+        <span class="rd-challenge-fill" style="width:${goal > 0 ? Math.max(2, progressPct) : 0}%"></span>
+      </div>
+      <p class="rd-note rd-note-tight">${deltaLabel}</p>
+    `;
+
+    const saveButton = root.querySelector("#rd-yearly-goal-save");
+    const goalInput = root.querySelector("#rd-yearly-goal-input");
+    const persist = () => {
+      const nextGoal = Math.max(0, Number(goalInput?.value || 0));
+      saveReadingSettings({ yearlyGoalBooks: nextGoal });
+      renderReadingInsights();
+    };
+    saveButton?.addEventListener("click", persist);
+    goalInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        persist();
+      }
+    });
+  }
+
   function initReadingInsights() {
     renderReadingInsights();
   }
@@ -301,6 +419,18 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   @media (min-width: 1100px) { .rd-side { position: sticky; top: 5.25rem; } }
   .rd-side-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0; }
   .rd-card { border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; padding: 0.75rem; box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7); }
+  .rd-note-tight { margin-top: 0.2rem; }
+  .rd-challenge-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+  .rd-challenge-goal-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem; margin-bottom: 0.45rem; }
+  .rd-goal-input { border: 1px solid #cbd5e1; border-radius: 9px; padding: 0.42rem 0.6rem; font-size: 0.8rem; color: #0f172a; background: #fff; }
+  .rd-goal-input:focus { outline: 2px solid #bfdbfe; outline-offset: 1px; border-color: #93c5fd; }
+  .rd-goal-btn { border: 1px solid #1d4ed8; border-radius: 9px; background: #2563eb; color: #fff; padding: 0.42rem 0.68rem; font-size: 0.76rem; font-weight: 700; }
+  .rd-challenge-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; margin-bottom: 0.45rem; }
+  .rd-stat { border: 1px solid #dbe4ef; border-radius: 8px; background: #f8fafc; padding: 0.3rem 0.35rem; display: grid; gap: 0.02rem; }
+  .rd-stat span { color: #64748b; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+  .rd-stat strong { color: #0f172a; font-size: 0.86rem; font-weight: 800; }
+  .rd-challenge-track { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin-bottom: 0.35rem; }
+  .rd-challenge-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); }
   .rd-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; font-weight: 700; margin: 0 0 0.6rem 0; }
   .rd-bars { display: grid; gap: 0.45rem; }
   .rd-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto; gap: 0.4rem; align-items: center; }

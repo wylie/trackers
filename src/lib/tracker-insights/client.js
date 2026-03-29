@@ -1,4 +1,4 @@
-import { escapeHtml, aggregateTopItems, aggregateLast14DaysByTracker, formatLast14Value, getWorkoutDurationSeconds, isDateInRange, formatDurationLabel } from './aggregates.js';
+import { escapeHtml, aggregateTopItemsByTracker, aggregateLast14DaysByTracker, formatLast14Value, getWorkoutDurationSeconds, isDateInRange, formatDurationLabel } from './aggregates.js';
 import { getEntriesForKey } from '../storage/simpletrackers-store.js';
 
 export function initTrackerInsightsRail(config) {
@@ -43,7 +43,7 @@ export function initTrackerInsightsRail(config) {
   function renderTopItems(entries) {
     const root = document.getElementById(`${idPrefix}-top-items`);
     if (!root) return;
-    const rows = aggregateTopItems(entries);
+    const rows = aggregateTopItemsByTracker(entries, { storageKey });
     if (!rows.length) {
       root.innerHTML = `<p class="ti-empty">No items yet.</p>`;
       return;

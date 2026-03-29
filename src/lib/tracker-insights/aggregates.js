@@ -8,10 +8,40 @@ export function escapeHtml(value) {
 }
 
 export function aggregateTopItems(entries) {
+  return aggregateTopItemsByTracker(entries, { storageKey: "" });
+}
+
+function resolveWaterDrinkLabel(entry) {
+  const explicit = String(entry?.waterDrinkLabel || "").trim();
+  if (explicit) return explicit;
+  const fallback = String(entry?.item || "").trim();
+  const match = fallback.match(/^\s*\d+(?:\.\d+)?\s*(?:oz|ml)\s+(.+)$/i);
+  return (match?.[1] || fallback || "Water").trim() || "Water";
+}
+
+function getWaterDrinkHistoryLabels(entry) {
+  const rawHistory = Array.isArray(entry?.waterDrinkHistory) ? entry.waterDrinkHistory : [];
+  const labels = rawHistory
+    .map((item) => String(item?.label || "").trim())
+    .filter(Boolean);
+  if (labels.length) return labels;
+  return [resolveWaterDrinkLabel(entry)];
+}
+
+export function aggregateTopItemsByTracker(entries, { storageKey = "" } = {}) {
   const counts = new Map();
-  for (const entry of entries) {
-    const item = String(entry?.item || "").trim() || "Untitled";
-    counts.set(item, (counts.get(item) || 0) + 1);
+  if (storageKey === "water-tracker-entries") {
+    for (const entry of entries) {
+      const labels = getWaterDrinkHistoryLabels(entry);
+      labels.forEach((label) => {
+        counts.set(label, (counts.get(label) || 0) + 1);
+      });
+    }
+  } else {
+    for (const entry of entries) {
+      const item = String(entry?.item || "").trim() || "Untitled";
+      counts.set(item, (counts.get(item) || 0) + 1);
+    }
   }
   return Array.from(counts.entries())
     .map(([label, count]) => ({ label, count }))

@@ -4,9 +4,26 @@ import TrackerPageWrapper from '../components/TrackerPageWrapper.astro';
 import FAQ from '../components/sections/FAQ.astro';
 
 const faqs = [
-  { question: "Is my data private?", answer: "Yes, all data is stored locally in your browser." },
-  { question: "Do I need an account?", answer: "No, SimpleTrackers.io does not require registration or login." },
-  { question: "Can I export my data?", answer: "Export functionality is coming soon!" }
+  {
+    question: "Is my data private?",
+    answer: "SimpleTrackers is local-first. Your entries are stored in your browser by default. If you choose to sign in, data can be synced to the cloud so it is available across your devices."
+  },
+  {
+    question: "Do I need an account?",
+    answer: "No. You can use all trackers without an account. Email sign-in is optional and only needed if you want cloud sync."
+  },
+  {
+    question: "Can I sync across devices?",
+    answer: "Yes. In Settings, use Cloud Sync (Optional) to sign in with a magic link, then pull/push tracker data across devices."
+  },
+  {
+    question: "Can I export or back up my data?",
+    answer: "Yes. In Settings > Local Data, you can download a JSON backup and upload it later to merge or restore data."
+  },
+  {
+    question: "Can I delete my data?",
+    answer: "Yes. You can clear local data in Settings (Danger Zone), and restore points are available for undoing accidental changes."
+  }
 ];
 ---
 

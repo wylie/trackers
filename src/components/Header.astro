@@ -2,18 +2,18 @@
 const path = Astro.url.pathname;
 const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, "");
 const trackerLinks = [
-  { label: "Habit Tracker", href: "/trackers/habit-tracker" },
-  { label: "Reading Tracker", href: "/trackers/reading-tracker" },
-  { label: "Movie Watch Tracker", href: "/trackers/movie-watch-tracker" },
-  { label: "Finance Tracker", href: "/trackers/finance-tracker" },
-  { label: "Health Tracker", href: "/trackers/health-tracker" },
-  { label: "Video Game Tracker", href: "/trackers/video-game-tracker" },
-  { label: "Workout Tracker", href: "/trackers/workout-tracker" },
-  { label: "Meal Tracker", href: "/trackers/meal-tracker" },
-  { label: "Water Intake Tracker", href: "/trackers/water-tracker" },
-  { label: "Sleep Tracker", href: "/trackers/sleep-tracker" },
-  { label: "Task Tracker", href: "/trackers/task-tracker" },
-  { label: "Custom Tracker", href: "/trackers/custom-tracker" }
+  { label: "Habit Tracker", href: "/trackers/habit-tracker", icon: "check_circle" },
+  { label: "Reading Tracker", href: "/trackers/reading-tracker", icon: "menu_book" },
+  { label: "Movie Watch Tracker", href: "/trackers/movie-watch-tracker", icon: "movie" },
+  { label: "Finance Tracker", href: "/trackers/finance-tracker", icon: "attach_money" },
+  { label: "Health Tracker", href: "/trackers/health-tracker", icon: "favorite" },
+  { label: "Video Game Tracker", href: "/trackers/video-game-tracker", icon: "sports_esports" },
+  { label: "Workout Tracker", href: "/trackers/workout-tracker", icon: "fitness_center" },
+  { label: "Meal Tracker", href: "/trackers/meal-tracker", icon: "restaurant" },
+  { label: "Water Intake Tracker", href: "/trackers/water-tracker", icon: "water_drop" },
+  { label: "Sleep Tracker", href: "/trackers/sleep-tracker", icon: "bed" },
+  { label: "Task Tracker", href: "/trackers/task-tracker", icon: "assignment" },
+  { label: "Custom Tracker", href: "/trackers/custom-tracker", icon: "tune" }
 ];
 
 const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition md:px-4 md:rounded-md ${
@@ -53,7 +53,10 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
           <div class="absolute left-1/2 -translate-x-1/2 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto pointer-events-none transition-opacity z-50">
             <div class="flex flex-col p-2">
               {trackerLinks.map((tracker) => (
-                <a href={tracker.href} class="block py-1.5 px-2 text-slate-600 hover:bg-blue-50 rounded">{tracker.label}</a>
+                <a href={tracker.href} class="flex items-center gap-2 py-1.5 px-2 text-slate-600 hover:bg-blue-50 rounded">
+                  <span class="material-symbols-outlined text-[17px] text-slate-500" aria-hidden="true">{tracker.icon}</span>
+                  <span>{tracker.label}</span>
+                </a>
               ))}
             </div>
           </div>
@@ -113,7 +116,10 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
           <div id="mobile-trackers-list" class="hidden pl-2 pt-1">
             <div class="grid grid-cols-1 gap-1">
               {trackerLinks.map((tracker) => (
-                <a href={tracker.href} class="block rounded-md px-3 py-1.5 text-[14px] text-slate-600 hover:bg-blue-50">{tracker.label}</a>
+                <a href={tracker.href} class="flex items-center gap-2 rounded-md px-3 py-1.5 text-[14px] text-slate-600 hover:bg-blue-50">
+                  <span class="material-symbols-outlined text-[17px] text-slate-500" aria-hidden="true">{tracker.icon}</span>
+                  <span>{tracker.label}</span>
+                </a>
               ))}
             </div>
           </div>

@@ -414,7 +414,7 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
       return sum + hydrationOz;
     }, 0);
     const badges = [];
-    if (totalEntries >= 1) badges.push("First Entry");
+    if (totalEntries >= 1) badges.push("First Log");
     if (totalEntries >= 25) badges.push("Momentum: 25+ Entries");
     if (totalEntries >= 100) badges.push("Century Club: 100+ Entries");
     if (totalEntries >= 250) badges.push("Power Logger: 250+ Entries");
@@ -455,7 +455,7 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
 
   function getAchievementMeta(label) {
     const normalized = String(label || "").toLowerCase();
-    if (normalized.includes("first entry") || normalized.includes("momentum") || normalized.includes("century") || normalized.includes("power logger")) {
+    if (normalized.includes("first entry") || normalized.includes("first log") || normalized.includes("momentum") || normalized.includes("century") || normalized.includes("power logger")) {
       return { icon: normalized.includes("power logger") ? "trophy" : (normalized.includes("momentum") ? "bolt" : (normalized.includes("century") ? "workspace_premium" : "military_tech")), tone: "ach-badge--entries" };
     }
     if (normalized.includes("habit")) {
@@ -554,7 +554,7 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
       welcomeLine.innerHTML = `Welcome back! ${continueHtml}.`;
       const badges = shouldPreviewAllBadges()
         ? [
-            "First Entry",
+            "First Log",
             "Momentum: 25+ Entries",
             "Century Club: 100+ Entries",
             "Power Logger: 250+ Entries",

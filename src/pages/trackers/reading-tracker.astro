@@ -118,12 +118,16 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const store = parseStore();
     const settings = store?.[READING_SETTINGS_KEY];
     const yearlyGoalBooks = Math.max(0, Number(settings?.yearlyGoalBooks) || 0);
-    return { yearlyGoalBooks };
+    const dailyGoalMinutes = Math.max(0, Number(settings?.dailyGoalMinutes) || 0);
+    return { yearlyGoalBooks, dailyGoalMinutes };
   }
 
   function saveReadingSettings(nextSettings) {
     const all = parseStore();
+    const existing = all?.[READING_SETTINGS_KEY];
+    const existingObject = existing && typeof existing === "object" ? existing : {};
     all[READING_SETTINGS_KEY] = {
+      ...existingObject,
       yearlyGoalBooks: Math.max(0, Number(nextSettings?.yearlyGoalBooks) || 0)
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));

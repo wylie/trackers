@@ -46,6 +46,7 @@ const sleepHourOptions = Array.from({ length: 25 }, (_, value) => value);
 const sleepMinuteOptions = Array.from({ length: 60 }, (_, value) => value);
 const sleepSettingsKey = "sleep-tracker-settings";
 const waterSettingsKey = "water-tracker-settings";
+const readingSettingsKey = "reading-tracker-settings";
 const waterDrinkOptions = [
   { value: "water", label: "Water", impact: 1 },
   { value: "sparkling-water", label: "Sparkling Water", impact: 1 },
@@ -92,6 +93,7 @@ const trackerCardConfig = {
   isMealTracker,
   isWaterTracker,
   isHealthTracker,
+  readingSettingsKey,
   waterSettingsKey,
   waterDrinkOptions
 };
@@ -198,6 +200,38 @@ const trackerCardConfig = {
         </div>
         <p id="tracker-water-goal-summary" class="text-sm text-slate-600"></p>
         <p id="tracker-water-goal-message" class="hidden text-sm font-medium text-green-700"></p>
+      </div>
+    </div>
+  )}
+  {isReadingTracker && (
+    <div class="mb-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+      <div class="flex flex-col gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-900">Daily Reading Goal</h3>
+          <p class="text-sm text-slate-600">Set your minutes/day target and track progress as you log reading time.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+          <div class="flex flex-col gap-1">
+            <label for="tracker-reading-goal-minutes" class="text-sm text-gray-700">Goal (min/day)</label>
+            <input
+              id="tracker-reading-goal-minutes"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="30"
+              class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+          <button
+            id="tracker-save-reading-goal"
+            type="button"
+            class="px-4 py-2 bg-slate-900 text-white rounded-md font-medium hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            Save Goal
+          </button>
+        </div>
+        <p id="tracker-reading-goal-summary" class="text-sm text-slate-600"></p>
+        <p id="tracker-reading-goal-message" class="hidden text-sm font-medium text-green-700"></p>
       </div>
     </div>
   )}
@@ -682,6 +716,10 @@ const trackerCardConfig = {
               </div>
             </>
           )}
+        </div>
+        <div class="sm:col-span-2 flex flex-col gap-1">
+          <label for="tracker-reading-session-minutes" class="text-sm text-gray-700">Reading Time This Session (minutes)</label>
+          <input type="number" min="0" step="1" id="tracker-reading-session-minutes" placeholder="Example: 25" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
         <div id="tracker-finished-fields" class="sm:col-span-2">
           <div class="flex flex-col gap-1">

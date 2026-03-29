@@ -107,8 +107,13 @@ export function initTrackerCard(config) {
   const submitButton = document.getElementById("tracker-submit");
   const cancelEditButton = document.getElementById("tracker-cancel-edit");
   const list = document.getElementById("tracker-list");
+  const listScrollContainer = document.getElementById("tracker-list-scroll");
+  const deleteModal = document.getElementById("tracker-delete-modal");
+  const deleteConfirmButton = document.getElementById("tracker-delete-confirm");
+  const deleteCancelButton = document.getElementById("tracker-delete-cancel");
   const taskFilterInput = document.getElementById("tracker-task-filter");
   const taskSortInput = document.getElementById("tracker-task-sort");
+  const readingListFilterRoot = document.getElementById("tracker-reading-list-filter");
   const itemSuggestions = document.getElementById("tracker-item-suggestions");
   const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
   if (!form || !list || !notesInput) return;
@@ -126,7 +131,11 @@ export function initTrackerCard(config) {
   let isEnrichingMoviePosters = false;
   let hasNormalizedReadingEntries = false;
   let hasNormalizedWaterEntries = false;
+  let selectedReadingListFilter = "all";
+  let visibleEntriesCount = 0;
+  let resolveDeletePrompt = null;
   const notesViewStateByEntryId = new Map();
+  const LIST_PAGE_SIZE = 20;
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -236,10 +245,14 @@ export function initTrackerCard(config) {
       `)
       .join("");
     const entryId = String(entry?.id || "");
+    const NOTES_VISIBLE_COUNT = 3;
+    const hasOverflow = sorted.length > NOTES_VISIBLE_COUNT;
+    const hasCustomState = state.sort !== "newest" || state.range !== "all";
+    const showSortRangeControls = Boolean(entryId) && (hasOverflow || hasCustomState);
     const controls = entryId
       ? `<div class="flex items-center justify-between gap-2 mb-2">
           <div class="text-xs text-gray-500">Notes ${history.length > 0 ? `(${history.length})` : ""}</div>
-          <div class="flex items-center gap-2">
+          ${showSortRangeControls ? `<div class="flex items-center gap-2">
             <label class="text-xs text-gray-500" for="notes-sort-${entryId}">Sort</label>
             <select id="notes-sort-${entryId}" data-action="notes-sort" data-entry-id="${entryId}" class="border border-gray-300 rounded px-2 py-1 text-xs bg-white">
               <option value="newest" ${state.sort === "newest" ? "selected" : ""}>Newest</option>
@@ -251,7 +264,7 @@ export function initTrackerCard(config) {
               <option value="30d" ${state.range === "30d" ? "selected" : ""}>30d</option>
               <option value="7d" ${state.range === "7d" ? "selected" : ""}>7d</option>
             </select>
-          </div>
+          </div>` : ""}
         </div>`
       : "";
     const emptyState = sorted.length
@@ -278,6 +291,24 @@ export function initTrackerCard(config) {
     waterGoalMessageTimer = window.setTimeout(() => {
       waterGoalMessage.classList.add("hidden");
     }, 2200);
+  }
+
+  function closeDeleteModal(confirmed) {
+    if (deleteModal) deleteModal.classList.add("hidden");
+    if (typeof resolveDeletePrompt === "function") {
+      resolveDeletePrompt(Boolean(confirmed));
+      resolveDeletePrompt = null;
+    }
+  }
+
+  function requestDeleteConfirmation() {
+    if (!deleteModal || !deleteConfirmButton || !deleteCancelButton) {
+      return Promise.resolve(window.confirm("Delete this item? This action cannot be undone."));
+    }
+    deleteModal.classList.remove("hidden");
+    return new Promise((resolve) => {
+      resolveDeletePrompt = resolve;
+    });
   }
 
   function syncWorkoutMetricsUI() {
@@ -871,7 +902,7 @@ export function initTrackerCard(config) {
     }
   });
 
-  function renderEntries() {
+  function renderEntries(resetVisibleCount = true) {
     normalizeReadingEntries();
     normalizeWaterEntries();
     list.innerHTML = "";
@@ -912,6 +943,19 @@ export function initTrackerCard(config) {
       return getDueDateTimestamp(a.entry) - getDueDateTimestamp(b.entry);
     }
 
+    function getEntryActivityTimestamp(entry) {
+      const updatedAt = Number(entry?.updatedAt) || 0;
+      const dateTs = entry?.date ? new Date(entry.date).getTime() : 0;
+      return Math.max(updatedAt, Number.isFinite(dateTs) ? dateTs : 0);
+    }
+
+    function isReadingEntryVisible(entry) {
+      if (!enableReadingProgress) return true;
+      if (selectedReadingListFilter === "reading") return Boolean(entry?.currentlyReading);
+      if (selectedReadingListFilter === "finished") return !Boolean(entry?.currentlyReading);
+      return true;
+    }
+
     let renderedEntries = entries.map((entry, idx) => ({ entry, idx }));
     if (isTaskTracker) {
       const filterValue = String(taskFilterInput?.value || "active");
@@ -921,11 +965,22 @@ export function initTrackerCard(config) {
         renderedEntries = renderedEntries.filter(({ entry }) => Boolean(entry?.completed));
       }
       renderedEntries.sort(compareTaskEntries);
+    } else if (enableReadingProgress) {
+      renderedEntries = renderedEntries.filter(({ entry }) => isReadingEntryVisible(entry));
+      renderedEntries.sort((a, b) => getEntryActivityTimestamp(b.entry) - getEntryActivityTimestamp(a.entry));
     } else {
       renderedEntries = renderedEntries.reverse();
     }
 
-    renderedEntries.forEach(({ entry, idx }) => {
+    if (resetVisibleCount || visibleEntriesCount <= 0) {
+      visibleEntriesCount = LIST_PAGE_SIZE;
+    }
+    const visibleLimit = Math.min(Math.max(LIST_PAGE_SIZE, visibleEntriesCount), renderedEntries.length);
+    visibleEntriesCount = visibleLimit;
+    list.dataset.totalCount = String(renderedEntries.length);
+    list.dataset.visibleCount = String(visibleLimit);
+
+    renderedEntries.slice(0, visibleLimit).forEach(({ entry, idx }) => {
       if (!entry || typeof entry !== "object") return;
       const li = document.createElement("li");
       li.className = "mb-3";
@@ -1064,7 +1119,9 @@ export function initTrackerCard(config) {
       `;
       const deleteButton = li.querySelector("[data-action=\"delete\"]");
       if (deleteButton) {
-        deleteButton.onclick = () => {
+        deleteButton.onclick = async () => {
+          const confirmed = await requestDeleteConfirmation();
+          if (!confirmed) return;
           const entries = getEntries();
           entries.splice(idx, 1);
           saveEntries(entries);
@@ -1543,4 +1600,60 @@ export function initTrackerCard(config) {
   });
   taskFilterInput?.addEventListener("change", renderEntries);
   taskSortInput?.addEventListener("change", renderEntries);
+  if (deleteCancelButton && !deleteCancelButton.dataset.bound) {
+    deleteCancelButton.dataset.bound = "1";
+    deleteCancelButton.addEventListener("click", () => closeDeleteModal(false));
+  }
+  if (deleteConfirmButton && !deleteConfirmButton.dataset.bound) {
+    deleteConfirmButton.dataset.bound = "1";
+    deleteConfirmButton.addEventListener("click", () => closeDeleteModal(true));
+  }
+  if (deleteModal && !deleteModal.dataset.bound) {
+    deleteModal.dataset.bound = "1";
+    deleteModal.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest("[data-action=\"close-delete-modal\"]")) {
+        closeDeleteModal(false);
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !deleteModal.classList.contains("hidden")) {
+        closeDeleteModal(false);
+      }
+    });
+  }
+  if (listScrollContainer && !listScrollContainer.dataset.boundInfinite) {
+    listScrollContainer.dataset.boundInfinite = "1";
+    listScrollContainer.addEventListener("scroll", () => {
+      const total = Number(list.dataset.totalCount || 0);
+      const visible = Number(list.dataset.visibleCount || 0);
+      if (!Number.isFinite(total) || !Number.isFinite(visible) || visible >= total) return;
+      const remaining = listScrollContainer.scrollHeight - (listScrollContainer.scrollTop + listScrollContainer.clientHeight);
+      if (remaining > 140) return;
+      visibleEntriesCount = visible + LIST_PAGE_SIZE;
+      renderEntries(false);
+    });
+  }
+  if (readingListFilterRoot && !readingListFilterRoot.dataset.bound) {
+    readingListFilterRoot.dataset.bound = "1";
+    const syncReadingListFilterButtons = () => {
+      const buttons = readingListFilterRoot.querySelectorAll("[data-filter]");
+      buttons.forEach((candidate) => {
+        const isActive = candidate.getAttribute("data-filter") === selectedReadingListFilter;
+        candidate.classList.toggle("is-active", isActive);
+        candidate.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    };
+    syncReadingListFilterButtons();
+    readingListFilterRoot.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-filter]");
+      if (!button) return;
+      const nextFilter = String(button.getAttribute("data-filter") || "all");
+      if (nextFilter === selectedReadingListFilter) return;
+      selectedReadingListFilter = nextFilter;
+      syncReadingListFilterButtons();
+      renderEntries();
+    });
+  }
 }

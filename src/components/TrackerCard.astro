@@ -512,7 +512,29 @@ const trackerCardConfig = {
       </div>
     </div>
   )}
-  <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
+  {isReadingTracker && (
+    <div class="mb-3">
+      <div id="tracker-reading-list-filter" class="tracker-list-toggle" role="group" aria-label="Reading entries filter">
+        <button type="button" class="tracker-list-toggle-btn is-active" data-filter="all">All</button>
+        <button type="button" class="tracker-list-toggle-btn" data-filter="finished">Finished</button>
+        <button type="button" class="tracker-list-toggle-btn" data-filter="reading">Reading</button>
+      </div>
+    </div>
+  )}
+  <div id="tracker-list-scroll" class="tracker-list-scroll">
+    <ul id="tracker-list" class="list-none p-0 mb-4"></ul>
+  </div>
+  <div id="tracker-delete-modal" class="tracker-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tracker-delete-title">
+    <div class="tracker-modal-backdrop" data-action="close-delete-modal"></div>
+    <div class="tracker-modal-panel">
+      <h3 id="tracker-delete-title" class="tracker-modal-title">Delete this item?</h3>
+      <p class="tracker-modal-copy">This action cannot be undone.</p>
+      <div class="tracker-modal-actions">
+        <button id="tracker-delete-cancel" type="button" class="tracker-modal-btn tracker-modal-btn--secondary">Cancel</button>
+        <button id="tracker-delete-confirm" type="button" class="tracker-modal-btn tracker-modal-btn--danger">Delete</button>
+      </div>
+    </div>
+  </div>
 <style>
   :global(.star) {
     font-size: 1.3rem;
@@ -606,6 +628,98 @@ const trackerCardConfig = {
   }
   .tracker-date-input::-webkit-calendar-picker-indicator {
     opacity: 1;
+  }
+  .tracker-list-scroll {
+    max-height: min(68vh, 980px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.15rem;
+  }
+  .tracker-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tracker-modal.hidden {
+    display: none;
+  }
+  .tracker-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .tracker-modal-panel {
+    position: relative;
+    width: min(92vw, 420px);
+    border-radius: 14px;
+    border: 1px solid #dbe4ef;
+    background: #fff;
+    box-shadow: 0 20px 48px -22px rgba(15, 23, 42, 0.65);
+    padding: 1rem;
+  }
+  .tracker-modal-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .tracker-modal-copy {
+    margin: 0.45rem 0 0;
+    font-size: 0.88rem;
+    color: #475569;
+  }
+  .tracker-modal-actions {
+    margin-top: 0.9rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.45rem;
+  }
+  .tracker-modal-btn {
+    border-radius: 9px;
+    border: 1px solid transparent;
+    font-size: 0.84rem;
+    font-weight: 700;
+    padding: 0.45rem 0.75rem;
+  }
+  .tracker-modal-btn--secondary {
+    background: #f1f5f9;
+    border-color: #dbe4ef;
+    color: #334155;
+  }
+  .tracker-modal-btn--danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+  }
+  .tracker-list-toggle {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    max-width: 380px;
+  }
+  .tracker-list-toggle-btn {
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.48rem 0.55rem;
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  .tracker-list-toggle-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+  }
+  .tracker-list-toggle-btn.is-active {
+    border-color: #93c5fd;
+    background: #dbeafe;
+    color: #1d4ed8;
   }
   :global(.tracker-metric-badges) {
     display: flex;

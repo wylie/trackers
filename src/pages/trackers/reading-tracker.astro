@@ -58,11 +58,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
             <h2 class="rd-side-title">Insights</h2>
             <div class="rd-card">
               <h3 class="rd-title">Progress by Book</h3>
-              <div class="rd-filter-toggle" id="rd-progress-filter" role="group" aria-label="Reading progress filter">
-                <button type="button" class="rd-toggle-btn is-active" data-filter="all">All</button>
-                <button type="button" class="rd-toggle-btn" data-filter="finished">Finished</button>
-                <button type="button" class="rd-toggle-btn" data-filter="reading">Reading</button>
-              </div>
               <div id="rd-progress-bars" class="rd-bars"></div>
             </div>
             <div class="rd-card">
@@ -99,7 +94,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
 <script>
   const STORAGE_KEY = "simpletrackers.io";
   const READING_KEY = "reading-tracker-entries";
-  let selectedProgressFilter = "all";
 
   function parseStore() {
     try {
@@ -155,27 +149,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     })).sort((a, b) => b.percent - a.percent);
   }
 
-  function filterBooksByStatus(books, filterValue) {
-    if (filterValue === "reading") {
-      return books.filter((book) => Boolean(book.entry?.currentlyReading));
-    }
-    if (filterValue === "finished") {
-      return books.filter((book) => !Boolean(book.entry?.currentlyReading));
-    }
-    return books;
-  }
-
-  function syncProgressFilterButtons() {
-    const toggleRoot = document.getElementById("rd-progress-filter");
-    if (!toggleRoot) return;
-    const buttons = toggleRoot.querySelectorAll("[data-filter]");
-    buttons.forEach((button) => {
-      const isActive = button.getAttribute("data-filter") === selectedProgressFilter;
-      button.classList.toggle("is-active", isActive);
-      button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    });
-  }
-
   function aggregateLast14Days(entries) {
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -211,15 +184,14 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     }
 
     const allBooks = latestByBook(entries);
-    const filteredBooks = filterBooksByStatus(allBooks, selectedProgressFilter);
-    const booksForBars = filteredBooks.slice(0, 6);
+    const booksForBars = allBooks.filter((book) => Boolean(book.entry?.currentlyReading)).slice(0, 6);
     bars.innerHTML = booksForBars.length ? booksForBars.map((book) => `
       <div class="rd-row">
         <span class="rd-name" title="${book.name}">${book.name}</span>
         <span class="rd-track"><span class="rd-fill" style="width:${Math.max(2, book.percent)}%"></span></span>
         <span class="rd-metric">${book.percent}%</span>
       </div>
-    `).join("") : "<p class='rd-empty'>No books in this filter yet.</p>";
+    `).join("") : "<p class='rd-empty'>No currently reading books yet.</p>";
 
     const currentlyReading = allBooks.filter((book) => Boolean(book.entry?.currentlyReading)).length;
     const finished = Math.max(0, allBooks.length - currentlyReading);
@@ -242,20 +214,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   }
 
   function initReadingInsights() {
-    const toggleRoot = document.getElementById("rd-progress-filter");
-    if (toggleRoot && !toggleRoot.dataset.bound) {
-      toggleRoot.dataset.bound = "1";
-      toggleRoot.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-filter]");
-        if (!button) return;
-        const nextFilter = button.getAttribute("data-filter");
-        if (!nextFilter || nextFilter === selectedProgressFilter) return;
-        selectedProgressFilter = nextFilter;
-        syncProgressFilterButtons();
-        renderReadingInsights();
-      });
-    }
-    syncProgressFilterButtons();
     renderReadingInsights();
   }
 
@@ -278,25 +236,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   .rd-side-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0; }
   .rd-card { border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; padding: 0.75rem; box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7); }
   .rd-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; font-weight: 700; margin: 0 0 0.6rem 0; }
-  .rd-filter-toggle { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; margin: -0.1rem 0 0.6rem; }
-  .rd-toggle-btn {
-    border: 1px solid #dbe4ef;
-    border-radius: 10px;
-    background: #f1f5f9;
-    color: #475569;
-    font-size: 0.72rem;
-    font-weight: 700;
-    line-height: 1;
-    padding: 0.42rem 0.5rem;
-    cursor: pointer;
-    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
-  }
-  .rd-toggle-btn:hover { background: #e2e8f0; color: #334155; }
-  .rd-toggle-btn.is-active {
-    border-color: #93c5fd;
-    background: #dbeafe;
-    color: #1d4ed8;
-  }
   .rd-bars { display: grid; gap: 0.45rem; }
   .rd-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto; gap: 0.4rem; align-items: center; }
   .rd-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; color: #334155; font-weight: 700; }

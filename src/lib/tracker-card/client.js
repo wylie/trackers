@@ -36,6 +36,7 @@ export function initTrackerCard(config) {
     isWorkoutTracker,
     isTaskTracker,
     isFinanceTracker,
+    isMealTracker,
     isWaterTracker,
     isHealthTracker,
     waterSettingsKey,
@@ -71,6 +72,15 @@ export function initTrackerCard(config) {
   const healthMedicationInput = document.getElementById("tracker-health-medication");
   const healthProviderInput = document.getElementById("tracker-health-provider");
   const healthTagsInput = document.getElementById("tracker-health-tags");
+  const mealTypeInput = document.getElementById("tracker-meal-type");
+  const mealTimeInput = document.getElementById("tracker-meal-time");
+  const mealCaloriesInput = document.getElementById("tracker-meal-calories");
+  const mealProteinInput = document.getElementById("tracker-meal-protein");
+  const mealCarbsInput = document.getElementById("tracker-meal-carbs");
+  const mealFatInput = document.getElementById("tracker-meal-fat");
+  const mealServingsInput = document.getElementById("tracker-meal-servings");
+  const mealLocationInput = document.getElementById("tracker-meal-location");
+  const mealTagsInput = document.getElementById("tracker-meal-tags");
   const workoutMetricsContainer = document.getElementById("tracker-workout-metrics");
   const workoutDurationWrap = document.getElementById("tracker-workout-duration-wrap");
   const workoutDistanceWrap = document.getElementById("tracker-workout-distance-wrap");
@@ -425,6 +435,14 @@ export function initTrackerCard(config) {
       .slice(0, 24);
   }
 
+  function parseMealTags(tagsValue) {
+    return String(tagsValue || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+
   function normalizeWaterVolumeUnit(value) {
     return String(value || "").trim().toLowerCase() === "ml" ? "ml" : "oz";
   }
@@ -617,6 +635,15 @@ export function initTrackerCard(config) {
     if (healthMedicationInput) healthMedicationInput.value = "";
     if (healthProviderInput) healthProviderInput.value = "";
     if (healthTagsInput) healthTagsInput.value = "";
+    if (mealTypeInput) mealTypeInput.value = "";
+    if (mealTimeInput) mealTimeInput.value = "";
+    if (mealCaloriesInput) mealCaloriesInput.value = "";
+    if (mealProteinInput) mealProteinInput.value = "";
+    if (mealCarbsInput) mealCarbsInput.value = "";
+    if (mealFatInput) mealFatInput.value = "";
+    if (mealServingsInput) mealServingsInput.value = "";
+    if (mealLocationInput) mealLocationInput.value = "";
+    if (mealTagsInput) mealTagsInput.value = "";
     if (sleepHoursInput) sleepHoursInput.value = "0";
     if (sleepMinutesInput) sleepMinutesInput.value = "0";
     if (authorInput) authorInput.value = "";
@@ -687,6 +714,30 @@ export function initTrackerCard(config) {
     if (healthTagsInput) {
       const tags = Array.isArray(entry?.healthTags) ? entry.healthTags : [];
       healthTagsInput.value = tags.join(", ");
+    }
+    if (mealTypeInput) mealTypeInput.value = String(entry?.mealType || "").trim();
+    if (mealTimeInput) mealTimeInput.value = String(entry?.mealTime || "").trim();
+    if (mealCaloriesInput) {
+      const mealCalories = Math.max(0, Number(entry?.mealCalories) || 0);
+      mealCaloriesInput.value = mealCalories > 0 ? String(Math.round(mealCalories)) : "";
+    }
+    if (mealProteinInput) {
+      const mealProtein = Math.max(0, Number(entry?.mealProteinGrams) || 0);
+      mealProteinInput.value = mealProtein > 0 ? String(mealProtein) : "";
+    }
+    if (mealCarbsInput) {
+      const mealCarbs = Math.max(0, Number(entry?.mealCarbsGrams) || 0);
+      mealCarbsInput.value = mealCarbs > 0 ? String(mealCarbs) : "";
+    }
+    if (mealFatInput) {
+      const mealFat = Math.max(0, Number(entry?.mealFatGrams) || 0);
+      mealFatInput.value = mealFat > 0 ? String(mealFat) : "";
+    }
+    if (mealServingsInput) mealServingsInput.value = String(entry?.mealServings || "").trim();
+    if (mealLocationInput) mealLocationInput.value = String(entry?.mealLocation || "").trim();
+    if (mealTagsInput) {
+      const mealTags = Array.isArray(entry?.mealTags) ? entry.mealTags : [];
+      mealTagsInput.value = mealTags.join(", ");
     }
     if (isSleepTracker) {
       const { hours, minutes } = parseSleepDuration(entry);
@@ -1199,6 +1250,26 @@ export function initTrackerCard(config) {
         if (provider) metadataChips.push(`Provider ${provider}`);
         if (tags.length) metadataChips.push(`Tags ${tags.join(", ")}`);
       }
+      if (isMealTracker) {
+        const mealType = String(entry?.mealType || "").trim();
+        const mealTime = String(entry?.mealTime || "").trim();
+        const mealCalories = Math.max(0, Number(entry?.mealCalories) || 0);
+        const mealProtein = Math.max(0, Number(entry?.mealProteinGrams) || 0);
+        const mealCarbs = Math.max(0, Number(entry?.mealCarbsGrams) || 0);
+        const mealFat = Math.max(0, Number(entry?.mealFatGrams) || 0);
+        const mealServings = String(entry?.mealServings || "").trim();
+        const mealLocation = String(entry?.mealLocation || "").trim();
+        const mealTags = Array.isArray(entry?.mealTags) ? entry.mealTags : [];
+        if (mealType) metadataChips.push(mealType);
+        if (mealTime) metadataChips.push(`Time ${mealTime}`);
+        if (mealCalories > 0) metadataChips.push(`${Math.round(mealCalories)} kcal`);
+        if (mealProtein > 0 || mealCarbs > 0 || mealFat > 0) {
+          metadataChips.push(`P${mealProtein.toFixed(1).replace(/\.0$/, "")} C${mealCarbs.toFixed(1).replace(/\.0$/, "")} F${mealFat.toFixed(1).replace(/\.0$/, "")}g`);
+        }
+        if (mealServings) metadataChips.push(mealServings);
+        if (mealLocation) metadataChips.push(mealLocation);
+        if (mealTags.length) metadataChips.push(`Tags ${mealTags.join(", ")}`);
+      }
       if (isTaskTracker) {
         const dueDate = formatSimpleDate(entry?.dueDate);
         if (dueDate) metadataChips.push(`Due ${dueDate}`);
@@ -1274,7 +1345,7 @@ export function initTrackerCard(config) {
       const metadataHtml = (metadataChipsHtml || metricsHtml)
         ? `<div class="mt-1 space-y-1">${metadataChipsHtml}${metricsHtml}</div>`
         : "";
-      const showRating = !isSleepTracker && !isTaskTracker && !isFinanceTracker && !isHealthTracker && !isWaterTracker && !(enableReadingProgress && entry.currentlyReading);
+      const showRating = !isSleepTracker && !isTaskTracker && !isFinanceTracker && !isMealTracker && !isHealthTracker && !isWaterTracker && !(enableReadingProgress && entry.currentlyReading);
       const mediaImageUrl = isReadingTracker
         ? getReadingCoverUrl(entry, isReadingTracker)
         : (isMovieTracker ? getMoviePosterUrl(entry, isMovieTracker) : (isVideoGameTracker ? getVideoGameCoverUrl(entry, isVideoGameTracker) : ""));
@@ -1465,6 +1536,15 @@ export function initTrackerCard(config) {
     const healthMedication = String(healthMedicationInput?.value || "").trim();
     const healthProvider = String(healthProviderInput?.value || "").trim();
     const healthTags = parseHealthTags(healthTagsInput?.value || "");
+    const mealType = String(mealTypeInput?.value || "").trim();
+    const mealTime = String(mealTimeInput?.value || "").trim();
+    const mealCalories = Math.max(0, getIntValue(mealCaloriesInput, 0));
+    const mealProteinGrams = Math.max(0, getFloatValue(mealProteinInput, 0));
+    const mealCarbsGrams = Math.max(0, getFloatValue(mealCarbsInput, 0));
+    const mealFatGrams = Math.max(0, getFloatValue(mealFatInput, 0));
+    const mealServings = String(mealServingsInput?.value || "").trim();
+    const mealLocation = String(mealLocationInput?.value || "").trim();
+    const mealTags = parseMealTags(mealTagsInput?.value || "");
     const workoutDurationHours = Math.max(0, getIntValue(workoutDurationHoursInput, 0));
     const workoutDurationMinutes = Math.max(0, Math.min(59, getIntValue(workoutDurationMinutesInput, 0)));
     const workoutDurationSeconds = Math.max(0, Math.min(59, getIntValue(workoutDurationSecondsInput, 0)));
@@ -1513,7 +1593,7 @@ export function initTrackerCard(config) {
     const sleepGrade = isSleepTracker ? getSleepGrade(sleepHours, sleepMinutes, goalHours, goalMinutes) : null;
     const rating = isSleepTracker
       ? (sleepGrade?.stars || 0)
-      : ((isTaskTracker || isFinanceTracker || isHealthTracker || isWaterTracker) ? 0 : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0)));
+      : ((isTaskTracker || isFinanceTracker || isMealTracker || isHealthTracker || isWaterTracker) ? 0 : (currentlyReading ? 0 : (parseFloat(ratingInput?.value) || 0)));
     if (
       !item ||
       (enableCategoryField && !category) ||
@@ -1557,6 +1637,17 @@ export function initTrackerCard(config) {
         updatedEntry.healthMedication = healthMedication;
         updatedEntry.healthProvider = healthProvider;
         updatedEntry.healthTags = healthTags;
+      }
+      if (isMealTracker) {
+        updatedEntry.mealType = mealType;
+        updatedEntry.mealTime = mealTime;
+        updatedEntry.mealCalories = mealCalories;
+        updatedEntry.mealProteinGrams = mealProteinGrams;
+        updatedEntry.mealCarbsGrams = mealCarbsGrams;
+        updatedEntry.mealFatGrams = mealFatGrams;
+        updatedEntry.mealServings = mealServings;
+        updatedEntry.mealLocation = mealLocation;
+        updatedEntry.mealTags = mealTags;
       }
       if (isTaskTracker) {
         updatedEntry.dueDate = dueDate;
@@ -1773,6 +1864,17 @@ export function initTrackerCard(config) {
         nextEntry.healthMedication = healthMedication;
         nextEntry.healthProvider = healthProvider;
         nextEntry.healthTags = healthTags;
+      }
+      if (isMealTracker) {
+        nextEntry.mealType = mealType;
+        nextEntry.mealTime = mealTime;
+        nextEntry.mealCalories = mealCalories;
+        nextEntry.mealProteinGrams = mealProteinGrams;
+        nextEntry.mealCarbsGrams = mealCarbsGrams;
+        nextEntry.mealFatGrams = mealFatGrams;
+        nextEntry.mealServings = mealServings;
+        nextEntry.mealLocation = mealLocation;
+        nextEntry.mealTags = mealTags;
       }
       if (isTaskTracker) {
         nextEntry.dueDate = dueDate;

@@ -36,6 +36,7 @@ const {
   isWorkoutTracker,
   isTaskTracker,
   isFinanceTracker,
+  isMealTracker,
   isWaterTracker,
   isHealthTracker,
   hidesRating
@@ -86,6 +87,7 @@ const trackerCardConfig = {
   isWorkoutTracker,
   isTaskTracker,
   isFinanceTracker,
+  isMealTracker,
   isWaterTracker,
   isHealthTracker,
   waterSettingsKey,
@@ -417,6 +419,55 @@ const trackerCardConfig = {
         <div class="flex flex-col gap-1 sm:col-span-2">
           <label for="tracker-health-tags" class="text-sm text-gray-700">Tags / Triggers</label>
           <input type="text" id="tracker-health-tags" placeholder="Example: stress, poor sleep, caffeine" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+      </div>
+    )}
+    {isMealTracker && (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-type" class="text-sm text-gray-700">Meal Type</label>
+          <div class="relative">
+            <select id="tracker-meal-type" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+              <option value="">Not set</option>
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snack">Snack</option>
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-time" class="text-sm text-gray-700">Time</label>
+          <input type="time" id="tracker-meal-time" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-calories" class="text-sm text-gray-700">Calories</label>
+          <input type="number" id="tracker-meal-calories" min="0" step="1" placeholder="Example: 520" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-protein" class="text-sm text-gray-700">Protein (g)</label>
+          <input type="number" id="tracker-meal-protein" min="0" step="0.1" placeholder="Example: 32" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-carbs" class="text-sm text-gray-700">Carbs (g)</label>
+          <input type="number" id="tracker-meal-carbs" min="0" step="0.1" placeholder="Example: 45" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-fat" class="text-sm text-gray-700">Fat (g)</label>
+          <input type="number" id="tracker-meal-fat" min="0" step="0.1" placeholder="Example: 18" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-servings" class="text-sm text-gray-700">Servings / Portion</label>
+          <input type="text" id="tracker-meal-servings" placeholder="Example: 1.5 servings" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-meal-location" class="text-sm text-gray-700">Location</label>
+          <input type="text" id="tracker-meal-location" placeholder="Example: Home, Restaurant" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <label for="tracker-meal-tags" class="text-sm text-gray-700">Tags</label>
+          <input type="text" id="tracker-meal-tags" placeholder="Example: high-protein, post-workout" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
       </div>
     )}

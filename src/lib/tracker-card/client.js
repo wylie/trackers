@@ -35,6 +35,7 @@ export function initTrackerCard(config) {
     isVideoGameTracker,
     isWorkoutTracker,
     isTaskTracker,
+    isCustomTracker,
     isFinanceTracker,
     isMealTracker,
     isWaterTracker,
@@ -136,6 +137,12 @@ export function initTrackerCard(config) {
   const deleteCancelButton = document.getElementById("tracker-delete-cancel");
   const taskFilterInput = document.getElementById("tracker-task-filter");
   const taskSortInput = document.getElementById("tracker-task-sort");
+  const customTypeInput = document.getElementById("tracker-custom-type");
+  const customStatusInput = document.getElementById("tracker-custom-status");
+  const customValueInput = document.getElementById("tracker-custom-value");
+  const customUnitInput = document.getElementById("tracker-custom-unit");
+  const customDueDateInput = document.getElementById("tracker-custom-due-date");
+  const customTagsInput = document.getElementById("tracker-custom-tags");
   const readingListFilterRoot = document.getElementById("tracker-reading-list-filter");
   const itemSuggestions = document.getElementById("tracker-item-suggestions");
   const itemSuggestionsList = document.getElementById("tracker-item-suggestions-list");
@@ -443,6 +450,14 @@ export function initTrackerCard(config) {
       .slice(0, 20);
   }
 
+  function parseCustomTags(tagsValue) {
+    return String(tagsValue || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+
   function normalizeWaterVolumeUnit(value) {
     return String(value || "").trim().toLowerCase() === "ml" ? "ml" : "oz";
   }
@@ -644,6 +659,12 @@ export function initTrackerCard(config) {
     if (mealServingsInput) mealServingsInput.value = "";
     if (mealLocationInput) mealLocationInput.value = "";
     if (mealTagsInput) mealTagsInput.value = "";
+    if (customTypeInput) customTypeInput.value = "";
+    if (customStatusInput) customStatusInput.value = "";
+    if (customValueInput) customValueInput.value = "";
+    if (customUnitInput) customUnitInput.value = "";
+    if (customDueDateInput) customDueDateInput.value = "";
+    if (customTagsInput) customTagsInput.value = "";
     if (sleepHoursInput) sleepHoursInput.value = "0";
     if (sleepMinutesInput) sleepMinutesInput.value = "0";
     if (authorInput) authorInput.value = "";
@@ -738,6 +759,15 @@ export function initTrackerCard(config) {
     if (mealTagsInput) {
       const mealTags = Array.isArray(entry?.mealTags) ? entry.mealTags : [];
       mealTagsInput.value = mealTags.join(", ");
+    }
+    if (customTypeInput) customTypeInput.value = String(entry?.customType || "").trim();
+    if (customStatusInput) customStatusInput.value = String(entry?.customStatus || "").trim();
+    if (customValueInput) customValueInput.value = String(entry?.customValue || "").trim();
+    if (customUnitInput) customUnitInput.value = String(entry?.customUnit || "").trim();
+    if (customDueDateInput) customDueDateInput.value = String(entry?.customDueDate || "").trim();
+    if (customTagsInput) {
+      const customTags = Array.isArray(entry?.customTags) ? entry.customTags : [];
+      customTagsInput.value = customTags.join(", ");
     }
     if (isSleepTracker) {
       const { hours, minutes } = parseSleepDuration(entry);
@@ -1270,6 +1300,19 @@ export function initTrackerCard(config) {
         if (mealLocation) metadataChips.push(mealLocation);
         if (mealTags.length) metadataChips.push(`Tags ${mealTags.join(", ")}`);
       }
+      if (isCustomTracker) {
+        const customType = String(entry?.customType || "").trim();
+        const customStatus = String(entry?.customStatus || "").trim();
+        const customValue = String(entry?.customValue || "").trim();
+        const customUnit = String(entry?.customUnit || "").trim();
+        const customDueDate = formatSimpleDate(entry?.customDueDate);
+        const customTags = Array.isArray(entry?.customTags) ? entry.customTags : [];
+        if (customType) metadataChips.push(customType);
+        if (customStatus) metadataChips.push(customStatus);
+        if (customValue) metadataChips.push(`${customValue}${customUnit ? ` ${customUnit}` : ""}`);
+        if (customDueDate) metadataChips.push(`Due ${customDueDate}`);
+        if (customTags.length) metadataChips.push(`Tags ${customTags.join(", ")}`);
+      }
       if (isTaskTracker) {
         const dueDate = formatSimpleDate(entry?.dueDate);
         if (dueDate) metadataChips.push(`Due ${dueDate}`);
@@ -1545,6 +1588,12 @@ export function initTrackerCard(config) {
     const mealServings = String(mealServingsInput?.value || "").trim();
     const mealLocation = String(mealLocationInput?.value || "").trim();
     const mealTags = parseMealTags(mealTagsInput?.value || "");
+    const customType = String(customTypeInput?.value || "").trim();
+    const customStatus = String(customStatusInput?.value || "").trim();
+    const customValue = String(customValueInput?.value || "").trim();
+    const customUnit = String(customUnitInput?.value || "").trim();
+    const customDueDate = String(customDueDateInput?.value || "").trim();
+    const customTags = parseCustomTags(customTagsInput?.value || "");
     const workoutDurationHours = Math.max(0, getIntValue(workoutDurationHoursInput, 0));
     const workoutDurationMinutes = Math.max(0, Math.min(59, getIntValue(workoutDurationMinutesInput, 0)));
     const workoutDurationSeconds = Math.max(0, Math.min(59, getIntValue(workoutDurationSecondsInput, 0)));
@@ -1648,6 +1697,14 @@ export function initTrackerCard(config) {
         updatedEntry.mealServings = mealServings;
         updatedEntry.mealLocation = mealLocation;
         updatedEntry.mealTags = mealTags;
+      }
+      if (isCustomTracker) {
+        updatedEntry.customType = customType;
+        updatedEntry.customStatus = customStatus;
+        updatedEntry.customValue = customValue;
+        updatedEntry.customUnit = customUnit;
+        updatedEntry.customDueDate = customDueDate;
+        updatedEntry.customTags = customTags;
       }
       if (isTaskTracker) {
         updatedEntry.dueDate = dueDate;
@@ -1875,6 +1932,14 @@ export function initTrackerCard(config) {
         nextEntry.mealServings = mealServings;
         nextEntry.mealLocation = mealLocation;
         nextEntry.mealTags = mealTags;
+      }
+      if (isCustomTracker) {
+        nextEntry.customType = customType;
+        nextEntry.customStatus = customStatus;
+        nextEntry.customValue = customValue;
+        nextEntry.customUnit = customUnit;
+        nextEntry.customDueDate = customDueDate;
+        nextEntry.customTags = customTags;
       }
       if (isTaskTracker) {
         nextEntry.dueDate = dueDate;

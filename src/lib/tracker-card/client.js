@@ -1159,6 +1159,56 @@ export function initTrackerCard(config) {
       }
       entries[editingIdx] = updatedEntry;
     } else {
+      if (isWaterTracker) {
+        const targetDateIso = buildEntryDateIso(entryDateValue);
+        const targetDate = new Date(targetDateIso);
+        const existingIdx = entries.findIndex((entry) => {
+          const when = entry?.date ? new Date(entry.date) : null;
+          if (!when || Number.isNaN(when.getTime()) || Number.isNaN(targetDate.getTime())) return false;
+          return (
+            when.getFullYear() === targetDate.getFullYear() &&
+            when.getMonth() === targetDate.getMonth() &&
+            when.getDate() === targetDate.getDate()
+          );
+        });
+
+        if (existingIdx >= 0) {
+          const existingEntry = entries[existingIdx] || {};
+          const priorDrinkOz = Math.max(0, Number(existingEntry.waterOunces) || 0);
+          const priorHydrationOz = Math.max(
+            0,
+            Number(existingEntry.hydrationOunces) ||
+              (priorDrinkOz * (Number(existingEntry.waterHydrationImpact) || 1))
+          );
+          const mergedDrinkOz = priorDrinkOz + waterOunces;
+          const mergedHydrationOz = priorHydrationOz + hydrationOunces;
+          const mergedImpact = mergedDrinkOz > 0 ? (mergedHydrationOz / mergedDrinkOz) : 1;
+          const mergedLabel = "Mixed Drinks";
+          const mergedDate = buildEntryDateIso(entryDateValue, existingEntry.date || "");
+          const mergedEntry = {
+            ...ensureEntryIdentity(existingEntry),
+            item: `${mergedDrinkOz.toFixed(1).replace(/\.0$/, "")} oz ${mergedLabel}`,
+            rating: 0,
+            date: mergedDate,
+            waterOunces: mergedDrinkOz,
+            hydrationOunces: mergedHydrationOz,
+            waterDrinkType: "mixed",
+            waterDrinkLabel: mergedLabel,
+            waterHydrationImpact: Math.max(0, Math.min(1.2, mergedImpact)),
+            updatedAt: Date.now()
+          };
+          Object.assign(mergedEntry, withUpdatedNotes(existingEntry, notes, {
+            preserveWhenBlank: true,
+            noteTimestamp: mergedDate
+          }));
+          entries[existingIdx] = mergedEntry;
+          saveEntries(entries);
+          clearForm();
+          renderEntries();
+          return;
+        }
+      }
+
       if (isVideoGameTracker) {
         const gameKey = normalizeGameKey(item);
         const existingIdx = entries.findIndex((entry) => normalizeGameKey(entry?.item) === gameKey);

@@ -5,8 +5,10 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
 {syncApiBase && (
   <script define:vars={{ syncApiBase }} is:inline>
     const STORAGE_KEY = "simpletrackers.io";
+    const LAST_SYNC_AT_KEY = "simpletrackers:last-sync-at";
     const SYNC_API_BASE = syncApiBase;
     const SYNC_EVENT = "simpletrackers:sync-data-updated";
+    const SYNC_STATUS_EVENT = "simpletrackers:sync-status";
     const AUTO_PUSH_DEBOUNCE_MS = 2500;
     let isApplyingRemote = false;
     let pushTimer = null;
@@ -23,6 +25,20 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
     function setLocalData(payload) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload || {}));
       document.dispatchEvent(new CustomEvent(SYNC_EVENT));
+    }
+
+    function emitSyncStatus(detail = {}) {
+      document.dispatchEvent(new CustomEvent(SYNC_STATUS_EVENT, { detail }));
+    }
+
+    function recordSyncSuccess(direction) {
+      const at = Date.now();
+      try {
+        localStorage.setItem(LAST_SYNC_AT_KEY, String(at));
+      } catch {
+        // Ignore storage write failures.
+      }
+      emitSyncStatus({ state: "ok", at, direction });
     }
 
     function stableStringify(value) {
@@ -140,16 +156,19 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
     async function autoPull() {
       const signedIn = await ensureSession();
       if (!signedIn) return;
+      emitSyncStatus({ state: "syncing", direction: "pull" });
       const result = await syncApi("/sync/export");
       const remotePayload = (result?.payload && typeof result.payload === "object" && !Array.isArray(result.payload))
         ? result.payload
         : {};
       const localPayload = getLocalData();
       const merged = mergeStores(remotePayload, localPayload);
-      if (stableStringify(merged) === stableStringify(localPayload)) return;
-      isApplyingRemote = true;
-      setLocalData(merged);
-      isApplyingRemote = false;
+      if (stableStringify(merged) !== stableStringify(localPayload)) {
+        isApplyingRemote = true;
+        setLocalData(merged);
+        isApplyingRemote = false;
+      }
+      recordSyncSuccess("pull");
     }
 
     async function pushNow() {
@@ -157,24 +176,31 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, 
       if (isApplyingRemote) return;
       const signedIn = await ensureSession();
       if (!signedIn) return;
+      emitSyncStatus({ state: "syncing", direction: "push" });
       const payload = getLocalData();
       await syncApi("/sync/import", {
         method: "POST",
         body: JSON.stringify({ payload, mode: "overwrite" })
       });
+      recordSyncSuccess("push");
     }
 
     function schedulePush() {
       if (isApplyingRemote) return;
       if (pushTimer) clearTimeout(pushTimer);
+      emitSyncStatus({ state: "queued" });
       pushTimer = setTimeout(() => {
-        void pushNow();
+        void pushNow().catch((error) => {
+          emitSyncStatus({ state: "error", message: error instanceof Error ? error.message : "Sync failed" });
+        });
       }, AUTO_PUSH_DEBOUNCE_MS);
     }
 
     function initAutoSync() {
       if (!SYNC_API_BASE) return;
-      void autoPull();
+      void autoPull().catch((error) => {
+        emitSyncStatus({ state: "error", message: error instanceof Error ? error.message : "Sync failed" });
+      });
       document.addEventListener("simpletrackers:entries-updated", () => {
         schedulePush();
       });

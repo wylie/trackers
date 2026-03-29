@@ -66,24 +66,30 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
 
   <div id="auth-status-bar" class="hidden border-t border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50">
     <div class="max-w-5xl mx-auto px-4 py-2.5">
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div class="inline-flex items-center gap-2 text-[13px] sm:text-sm text-slate-700">
-          <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified_user</span>
-          </span>
-          <span class="font-medium">Signed in as</span>
-          <span id="auth-status-email" class="font-semibold text-slate-900 break-all"></span>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div class="min-w-0 inline-flex items-center gap-2 text-[12px] sm:text-sm text-slate-700">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified_user</span>
+            </span>
+            <span class="font-medium whitespace-nowrap">Signed in as</span>
+            <span id="auth-status-email" class="font-semibold text-slate-900 truncate max-w-[58vw] sm:max-w-none"></span>
         </div>
-        <button
-          id="auth-logout-btn"
-          type="button"
-          class="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:self-auto"
-          aria-label="Log out"
-          title="Log out"
-        >
-          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">logout</span>
-          <span>Log out</span>
-        </button>
+        <div class="w-full flex items-center justify-end gap-2 sm:w-auto sm:gap-3">
+          <div id="auth-sync-status" class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] sm:text-[11px] font-medium text-slate-600">
+            <span class="material-symbols-outlined text-[13px]" aria-hidden="true">cloud_done</span>
+            <span>Sync status unknown</span>
+          </div>
+          <button
+            id="auth-logout-btn"
+            type="button"
+            class="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            aria-label="Log out"
+            title="Log out"
+          >
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">logout</span>
+            <span>Log out</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -132,7 +138,9 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     const mobileTrackersList = document.getElementById("mobile-trackers-list");
     const authStatusBar = document.getElementById("auth-status-bar");
     const authStatusEmail = document.getElementById("auth-status-email");
+    const authSyncStatus = document.getElementById("auth-sync-status");
     const logoutButton = document.getElementById("auth-logout-btn");
+    const LAST_SYNC_AT_KEY = "simpletrackers:last-sync-at";
 
     if (!mobileToggle || !mobilePanel) return;
 
@@ -209,13 +217,91 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
       if (authStatusEmail) authStatusEmail.textContent = "";
     }
 
+    function getPreviewAuthFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const enabledRaw = String(params.get("previewAuth") || params.get("previewauth") || "").toLowerCase();
+      const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes";
+      if (!enabled) return null;
+      const email = String(params.get("previewEmail") || params.get("previewemail") || "preview@simpletrackers.io").trim();
+      const syncMinutesRaw = String(params.get("previewSyncMinutes") || params.get("previewsyncminutes") || params.get("previewSync") || "").trim();
+      const syncAtRaw = String(params.get("previewSyncAt") || params.get("previewsyncat") || "").trim();
+      let previewSyncAt = 0;
+      if (syncAtRaw) {
+        const parsedTs = Number(syncAtRaw);
+        if (Number.isFinite(parsedTs) && parsedTs > 0) {
+          previewSyncAt = parsedTs;
+        } else {
+          const parsedDate = new Date(syncAtRaw).getTime();
+          if (Number.isFinite(parsedDate) && parsedDate > 0) previewSyncAt = parsedDate;
+        }
+      } else if (syncMinutesRaw) {
+        if (syncMinutesRaw.toLowerCase() === "now") {
+          previewSyncAt = Date.now();
+        } else {
+          const minutes = Number(syncMinutesRaw.replace(/m$/i, ""));
+          if (Number.isFinite(minutes) && minutes >= 0) {
+            previewSyncAt = Date.now() - (minutes * 60000);
+          }
+        }
+      }
+      return {
+        authenticated: true,
+        user: { email: email || "preview@simpletrackers.io" },
+        preview: true,
+        previewSyncAt
+      };
+    }
+
     function showAuthStatus(email) {
       if (!authStatusBar || !authStatusEmail) return;
       authStatusEmail.textContent = String(email || "");
       authStatusBar.classList.remove("hidden");
+      updateLastActiveLink();
+      refreshSyncStatusFromStorage();
+    }
+
+    function formatRelativeTime(timestamp) {
+      const ts = Number(timestamp);
+      if (!Number.isFinite(ts) || ts <= 0) return "";
+      const diffMs = Date.now() - ts;
+      const diffMins = Math.max(0, Math.round(diffMs / 60000));
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.round(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.round(diffHours / 24);
+      return `${diffDays}d ago`;
+    }
+
+    function setSyncStatus(text, icon = "cloud_done", tone = "text-slate-600") {
+      if (!authSyncStatus) return;
+      const iconEl = authSyncStatus.querySelector(".material-symbols-outlined");
+      const textEl = authSyncStatus.querySelector("span:last-child");
+      if (iconEl) iconEl.textContent = icon;
+      if (textEl) textEl.textContent = text;
+      authSyncStatus.className = `inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium ${tone}`;
+    }
+
+    function refreshSyncStatusFromStorage() {
+      const lastSyncAt = Number(localStorage.getItem(LAST_SYNC_AT_KEY) || 0);
+      if (!lastSyncAt) {
+        setSyncStatus("Sync not run yet", "cloud_off", "text-slate-500");
+        return;
+      }
+      setSyncStatus(`Synced ${formatRelativeTime(lastSyncAt)}`, "cloud_done", "text-emerald-700");
     }
 
     async function refreshAuthStatus() {
+      const preview = getPreviewAuthFromUrl();
+      if (preview?.authenticated && preview?.user?.email) {
+        showAuthStatus(String(preview.user.email));
+        if (preview.previewSyncAt > 0) {
+          setSyncStatus(`Synced ${formatRelativeTime(preview.previewSyncAt)}`, "cloud_done", "text-emerald-700");
+        } else {
+          setSyncStatus("Preview mode", "preview", "text-indigo-700");
+        }
+        return;
+      }
       if (!syncApiBase) {
         hideAuthStatus();
         return;
@@ -233,6 +319,20 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     }
 
     logoutButton?.addEventListener("click", async () => {
+      if (getPreviewAuthFromUrl()) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("previewAuth");
+        url.searchParams.delete("previewauth");
+        url.searchParams.delete("previewEmail");
+        url.searchParams.delete("previewemail");
+        url.searchParams.delete("previewSyncMinutes");
+        url.searchParams.delete("previewsyncminutes");
+        url.searchParams.delete("previewSync");
+        url.searchParams.delete("previewSyncAt");
+        url.searchParams.delete("previewsyncat");
+        window.location.href = `${url.pathname}${url.search}${url.hash}`;
+        return;
+      }
       if (!syncApiBase) return;
       logoutButton.setAttribute("disabled", "true");
       try {
@@ -243,6 +343,30 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
         window.location.reload();
       }
     });
+
+    document.addEventListener("simpletrackers:sync-status", (event) => {
+      const detail = event?.detail || {};
+      if (detail.state === "syncing") {
+        setSyncStatus("Syncing…", "sync", "text-blue-700");
+        return;
+      }
+      if (detail.state === "queued") {
+        setSyncStatus("Sync queued…", "schedule", "text-amber-700");
+        return;
+      }
+      if (detail.state === "error") {
+        setSyncStatus("Sync issue", "cloud_off", "text-red-700");
+        return;
+      }
+      if (detail.state === "ok") {
+        refreshSyncStatusFromStorage();
+      }
+    });
+
+    window.setInterval(() => {
+      if (!authStatusBar || authStatusBar.classList.contains("hidden")) return;
+      refreshSyncStatusFromStorage();
+    }, 60000);
 
     void refreshAuthStatus();
   });

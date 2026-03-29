@@ -1,6 +1,7 @@
 ---
 import Layout from "../components/Layout.astro";
 import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
+const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "").replace(/\/$/, "");
 ---
 
 <Layout seoTitle="Dashboard Lab" seoDescription="A visual prototype for viewing all tracker data in one place.">
@@ -11,6 +12,13 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
           <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">Dashboard</h1>
           <p class="mt-2 text-slate-600 text-lg">All your tracker activity in one place.</p>
         </header>
+        <section id="account-personalization-section" class="hidden mb-6">
+          <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div id="account-welcome-line" class="text-sm font-semibold text-blue-900 mb-2"></div>
+            <div id="account-achievements-label" class="text-[11px] font-extrabold uppercase tracking-[0.08em] text-blue-800/80 mb-1">Your Badges</div>
+            <div id="account-achievements" class="flex flex-wrap gap-2"></div>
+          </div>
+        </section>
 
 
         <!-- Removed Focus Boards, Live Stream, and Tracker Mosaic for a cleaner dashboard -->
@@ -93,8 +101,9 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
   </TrackerPageWrapper>
 </Layout>
 
-<script>
+<script define:vars={{ syncApiBase }}>
   const STORAGE_KEY = "simpletrackers.io";
+  const SYNC_API_BASE = syncApiBase;
   const trackerMeta = {
     "habit-tracker-entries": { label: "Habit Tracker", icon: "check_circle", route: "/trackers/habit-tracker", tone: "tone-green" },
     "reading-tracker-entries": { label: "Reading Tracker", icon: "menu_book", route: "/trackers/reading-tracker", tone: "tone-blue" },
@@ -329,6 +338,267 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
     `;
   }
 
+  async function syncApi(path, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    const hasBody = Object.prototype.hasOwnProperty.call(options, "body");
+    const headers = { ...(options.headers || {}) };
+    if (hasBody && !headers["content-type"]) {
+      headers["content-type"] = "application/json";
+    }
+    const response = await fetch(`${SYNC_API_BASE}${path}`, {
+      credentials: "include",
+      ...options,
+      method,
+      headers
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) {
+      throw new Error(String(data?.error || `Request failed (${response.status})`));
+    }
+    return data;
+  }
+
+  function getAllEntriesFlat(data) {
+    return Object.keys(data)
+      .filter((key) => Array.isArray(data[key]))
+      .flatMap((key) => data[key].map((entry) => ({ key, entry })));
+  }
+
+  function computeStreakDays(entries) {
+    const daySet = new Set();
+    entries.forEach(({ entry }) => {
+      const ts = getEntryTs(entry);
+      if (!ts) return;
+      const d = new Date(ts);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      daySet.add(key);
+    });
+    if (!daySet.size) return 0;
+    const today = new Date();
+    let streak = 0;
+    for (let i = 0; i < 365; i += 1) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (daySet.has(key)) {
+        streak += 1;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  function collectAchievements(data) {
+    const entries = getAllEntriesFlat(data);
+    const totalEntries = entries.length;
+    const activeTrackers = Object.keys(data).filter((key) => Array.isArray(data[key]) && data[key].length > 0).length;
+    const streak = computeStreakDays(entries);
+    const trackerCounts = {
+      habit: Array.isArray(data["habit-tracker-entries"]) ? data["habit-tracker-entries"].length : 0,
+      reading: Array.isArray(data["reading-tracker-entries"]) ? data["reading-tracker-entries"].length : 0,
+      movie: Array.isArray(data["movie-watch-tracker-entries"]) ? data["movie-watch-tracker-entries"].length : 0,
+      finance: Array.isArray(data["finance-tracker-entries"]) ? data["finance-tracker-entries"].length : 0,
+      health: Array.isArray(data["health-tracker-entries"]) ? data["health-tracker-entries"].length : 0,
+      game: Array.isArray(data["video-game-tracker-entries"]) ? data["video-game-tracker-entries"].length : 0,
+      workout: Array.isArray(data["workout-tracker-entries"]) ? data["workout-tracker-entries"].length : 0,
+      meal: Array.isArray(data["meal-tracker-entries"]) ? data["meal-tracker-entries"].length : 0,
+      water: Array.isArray(data["water-tracker-entries"]) ? data["water-tracker-entries"].length : 0,
+      sleep: Array.isArray(data["sleep-tracker-entries"]) ? data["sleep-tracker-entries"].length : 0,
+      task: Array.isArray(data["task-tracker-entries"]) ? data["task-tracker-entries"].length : 0,
+      custom: Array.isArray(data["custom-tracker-entries"]) ? data["custom-tracker-entries"].length : 0
+    };
+    const waterEntries = Array.isArray(data["water-tracker-entries"]) ? data["water-tracker-entries"] : [];
+    const hydrationTotal = waterEntries.reduce((sum, entry) => {
+      const drinkOz = Math.max(0, Number(entry?.waterOunces) || 0);
+      const hydrationOz = Math.max(0, Number(entry?.hydrationOunces) || (drinkOz * (Number(entry?.waterHydrationImpact) || 1)));
+      return sum + hydrationOz;
+    }, 0);
+    const badges = [];
+    if (totalEntries >= 1) badges.push("First Entry");
+    if (totalEntries >= 25) badges.push("Momentum: 25+ Entries");
+    if (totalEntries >= 100) badges.push("Century Club: 100+ Entries");
+    if (totalEntries >= 250) badges.push("Power Logger: 250+ Entries");
+    if (activeTrackers >= 3) badges.push("Explorer: 3+ Active Trackers");
+    if (activeTrackers >= 6) badges.push("Tracker Master: 6+ Active Trackers");
+    if (streak >= 3) badges.push(`Streak: ${streak} Days`);
+    if (streak >= 30) badges.push("1-Month Streak");
+    if (streak >= 60) badges.push("2-Month Streak");
+    if (streak >= 90) badges.push("3-Month Streak");
+    if (streak >= 180) badges.push("6-Month Streak");
+    if (streak >= 365) badges.push("12-Month Streak");
+    if (streak >= 7) badges.push("Consistency: 7-Day Streak");
+    if (streak >= 30) badges.push("Unstoppable: 30-Day Streak");
+    if (hydrationTotal >= 500) badges.push("Hydration Hero: 500 oz");
+    if (hydrationTotal >= 2000) badges.push("Hydration Legend: 2000 oz");
+
+    const trackerBadgeMap = [
+      ["habit", "Habit Tracker"],
+      ["reading", "Reading Tracker"],
+      ["movie", "Movie Tracker"],
+      ["finance", "Finance Tracker"],
+      ["health", "Health Tracker"],
+      ["game", "Video Game Tracker"],
+      ["workout", "Workout Tracker"],
+      ["meal", "Meal Tracker"],
+      ["water", "Water Tracker"],
+      ["sleep", "Sleep Tracker"],
+      ["task", "Task Tracker"],
+      ["custom", "Custom Tracker"]
+    ];
+    trackerBadgeMap.forEach(([key, label]) => {
+      const count = trackerCounts[key] || 0;
+      if (count >= 10) badges.push(`${label}: 10 Logs`);
+      if (count >= 50) badges.push(`${label}: 50 Logs`);
+    });
+    return badges;
+  }
+
+  function getAchievementMeta(label) {
+    const normalized = String(label || "").toLowerCase();
+    if (normalized.includes("first entry") || normalized.includes("momentum") || normalized.includes("century") || normalized.includes("power logger")) {
+      return { icon: normalized.includes("power logger") ? "trophy" : (normalized.includes("momentum") ? "bolt" : (normalized.includes("century") ? "workspace_premium" : "military_tech")), tone: "ach-badge--entries" };
+    }
+    if (normalized.includes("habit")) {
+      return { icon: "check_circle", tone: "ach-badge--habit" };
+    }
+    if (normalized.includes("reading")) {
+      return { icon: "menu_book", tone: "ach-badge--reading" };
+    }
+    if (normalized.includes("movie")) {
+      return { icon: "movie", tone: "ach-badge--movie" };
+    }
+    if (normalized.includes("finance")) {
+      return { icon: "attach_money", tone: "ach-badge--finance" };
+    }
+    if (normalized.includes("health")) {
+      return { icon: "favorite", tone: "ach-badge--health" };
+    }
+    if (normalized.includes("video game") || normalized.includes(" game ")) {
+      return { icon: "sports_esports", tone: "ach-badge--game" };
+    }
+    if (normalized.includes("workout")) {
+      return { icon: "fitness_center", tone: "ach-badge--workout" };
+    }
+    if (normalized.includes("meal")) {
+      return { icon: "restaurant", tone: "ach-badge--meal" };
+    }
+    if (normalized.includes("water") || normalized.includes("hydration")) {
+      return { icon: "water_drop", tone: "ach-badge--hydration" };
+    }
+    if (normalized.includes("sleep")) {
+      return { icon: "bed", tone: "ach-badge--sleep" };
+    }
+    if (normalized.includes("task")) {
+      return { icon: "assignment", tone: "ach-badge--task" };
+    }
+    if (normalized.includes("custom")) {
+      return { icon: "tune", tone: "ach-badge--custom" };
+    }
+    if (normalized.includes("streak")) {
+      return { icon: "local_fire_department", tone: "ach-badge--streak" };
+    }
+    if (normalized.includes("consistency") || normalized.includes("unstoppable")) {
+      return { icon: "military_tech", tone: "ach-badge--consistency" };
+    }
+    if (normalized.includes("explorer")) {
+      return { icon: "explore", tone: "ach-badge--breadth" };
+    }
+    if (normalized.includes("tracker master")) {
+      return { icon: "category", tone: "ach-badge--breadth" };
+    }
+    if (normalized.includes("hydration")) {
+      return { icon: "water_drop", tone: "ach-badge--hydration" };
+    }
+    return { icon: "military_tech", tone: "ach-badge--progress" };
+  }
+
+  function getPreviewAuthFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const enabledRaw = String(params.get("previewAuth") || params.get("previewauth") || "").toLowerCase();
+    const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes";
+    if (!enabled) return null;
+    const email = String(params.get("previewEmail") || params.get("previewemail") || "preview@simpletrackers.io").trim();
+    return {
+      authenticated: true,
+      user: { email: email || "preview@simpletrackers.io" }
+    };
+  }
+
+  function shouldPreviewAllBadges() {
+    const params = new URLSearchParams(window.location.search);
+    const raw = String(params.get("previewAllBadges") || params.get("previewallbadges") || "").toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+  }
+
+  async function renderAccountPersonalization(data) {
+    const section = document.getElementById("account-personalization-section");
+    const welcomeLine = document.getElementById("account-welcome-line");
+    const achievementsEl = document.getElementById("account-achievements");
+    if (!section || !welcomeLine || !achievementsEl) return;
+    try {
+      const preview = getPreviewAuthFromUrl();
+      if (!preview && !SYNC_API_BASE) {
+        section.classList.add("hidden");
+        return;
+      }
+      const session = preview || await syncApi("/auth/session", { method: "GET" });
+      if (!session?.authenticated || !session?.user?.email) {
+        section.classList.add("hidden");
+        return;
+      }
+      const lastActiveKey = String(localStorage.getItem("simpletrackers:last-active-storage-key") || "");
+      const lastActiveMeta = trackerMeta[lastActiveKey];
+      const continueHtml = lastActiveMeta
+        ? `<a href="${lastActiveMeta.route}" class="font-semibold text-blue-800 hover:text-blue-900">Continue with ${escapeHtml(lastActiveMeta.label)}</a>`
+        : `<a href="/trackers/reading-tracker" class="font-semibold text-blue-800 hover:text-blue-900">Continue tracking</a>`;
+      welcomeLine.innerHTML = `Welcome back! ${continueHtml}.`;
+      const badges = shouldPreviewAllBadges()
+        ? [
+            "First Entry",
+            "Momentum: 25+ Entries",
+            "Century Club: 100+ Entries",
+            "Power Logger: 250+ Entries",
+            "Explorer: 3+ Active Trackers",
+            "Tracker Master: 6+ Active Trackers",
+            "Streak: 14 Days",
+            "1-Month Streak",
+            "2-Month Streak",
+            "3-Month Streak",
+            "Consistency: 7-Day Streak",
+            "Unstoppable: 30-Day Streak",
+            "Hydration Hero: 500 oz",
+            "Hydration Legend: 2000 oz",
+            "Habit Tracker: 10 Logs",
+            "Reading Tracker: 10 Logs",
+            "Movie Tracker: 10 Logs",
+            "Finance Tracker: 10 Logs",
+            "Health Tracker: 10 Logs",
+            "Video Game Tracker: 10 Logs",
+            "Workout Tracker: 10 Logs",
+            "Meal Tracker: 10 Logs",
+            "Water Tracker: 10 Logs",
+            "Sleep Tracker: 10 Logs",
+            "Task Tracker: 10 Logs",
+            "Custom Tracker: 10 Logs"
+          ]
+        : collectAchievements(data);
+      achievementsEl.innerHTML = badges.length
+        ? badges.map((badge) => {
+          const meta = getAchievementMeta(badge);
+          return `
+            <span class="ach-badge ${meta.tone}">
+              <span class="material-symbols-outlined ach-badge-icon" aria-hidden="true">${meta.icon}</span>
+              <span>${escapeHtml(badge)}</span>
+            </span>
+          `;
+        }).join("")
+        : `<span class="text-xs text-slate-600">No badges yet. Log your first entries to unlock achievements.</span>`;
+      section.classList.remove("hidden");
+    } catch {
+      section.classList.add("hidden");
+    }
+  }
+
   function focusCard(key, entries) {
     const meta = trackerMeta[key] || { label: key, icon: "track_changes", route: "#", tone: "tone-slate" };
     let body = renderGenericMini(entries);
@@ -420,6 +690,7 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
         `;
       }).join("");
     }
+    void renderAccountPersonalization(data);
   }
 
   initDashboard();
@@ -474,6 +745,126 @@ import TrackerPageWrapper from "../components/TrackerPageWrapper.astro";
     font-size: 1.6rem;
     line-height: 1.2;
     font-weight: 800;
+  }
+
+  .ach-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  .ach-badge-icon {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .ach-badge--entries {
+    color: #1f2937;
+    background: #ffe119;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--progress {
+    color: #ffffff;
+    background: #4363d8;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--breadth {
+    color: #ffffff;
+    background: #42d4f4;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--streak {
+    color: #ffffff;
+    background: #e6194b;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--consistency {
+    color: #ffffff;
+    background: #800000;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--hydration {
+    color: #1f2937;
+    background: #aaffc3;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--habit {
+    color: #ffffff;
+    background: #3cb44b;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--reading {
+    color: #1f2937;
+    background: #dcbeff;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--movie {
+    color: #ffffff;
+    background: #911eb4;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--finance {
+    color: #ffffff;
+    background: #808000;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--health {
+    color: #ffffff;
+    background: #f032e6;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--game {
+    color: #ffffff;
+    background: #000075;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--workout {
+    color: #1f2937;
+    background: #46f0f0;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--meal {
+    color: #ffffff;
+    background: #f58231;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--sleep {
+    color: #1f2937;
+    background: #fffac8;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--task {
+    color: #ffffff;
+    background: #469990;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--custom {
+    color: #1f2937;
+    background: #ffd8b1;
+    border-color: rgba(15, 23, 42, 0.18);
   }
 
   .section-title {

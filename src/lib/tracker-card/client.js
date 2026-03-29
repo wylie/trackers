@@ -395,6 +395,44 @@ export function initTrackerCard(config) {
     return String(value || "").trim().toLowerCase();
   }
 
+  function getReadingProgressPercentForEntry(entry) {
+    if (!entry || typeof entry !== "object") return 0;
+    if (entry?.isAudiobook) {
+      const totalAudioMinutes = totalMinutesFromParts(entry?.totalHours, entry?.totalMinutes);
+      if (totalAudioMinutes <= 0) return 0;
+      let listenedAudioMinutes = totalMinutesFromParts(entry?.currentHours, entry?.currentMinutes);
+      if (listenedAudioMinutes <= 0) {
+        const leftAudioMinutes = totalMinutesFromParts(entry?.leftHours, entry?.leftMinutes);
+        listenedAudioMinutes = Math.max(0, totalAudioMinutes - Math.min(totalAudioMinutes, leftAudioMinutes));
+      }
+      return Math.min(100, Math.max(0, (listenedAudioMinutes / totalAudioMinutes) * 100));
+    }
+    const currentPage = Math.max(0, Number(entry?.currentPage) || 0);
+    const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
+    if (totalPages <= 0) return 0;
+    return Math.min(100, Math.max(0, (currentPage / totalPages) * 100));
+  }
+
+  function appendReadingActivity(entry, deltaPercent, atValue) {
+    const delta = Math.max(0, Number(deltaPercent) || 0);
+    if (delta <= 0) return entry;
+    const raw = Array.isArray(entry?.readingActivityHistory) ? entry.readingActivityHistory : [];
+    const history = raw
+      .map((item) => ({
+        createdAt: normalizeNoteTimestamp(item?.createdAt, entry?.date || ""),
+        deltaPercent: Math.max(0, Number(item?.deltaPercent) || 0)
+      }))
+      .filter((item) => item.deltaPercent > 0);
+    history.push({
+      createdAt: normalizeNoteTimestamp(atValue, entry?.date || ""),
+      deltaPercent: Math.round(delta * 100) / 100
+    });
+    return {
+      ...entry,
+      readingActivityHistory: history.slice(-400)
+    };
+  }
+
   function buildWaterDrinkHistoryItem({ type, label, ounces, hydrationOunces: hydration, impact, createdAt }) {
     const safeLabel = String(label || "").trim() || "Water";
     const safeType = String(type || "").trim() || "water";
@@ -1301,6 +1339,9 @@ export function initTrackerCard(config) {
     const entries = getEntries();
     if (editingIdx >= 0 && entries[editingIdx]) {
       const date = buildEntryDateIso(entryDateValue, entries[editingIdx]?.date || "");
+      const previousReadingPercent = enableReadingProgress
+        ? getReadingProgressPercentForEntry(entries[editingIdx])
+        : 0;
       const updatedEntry = {
         ...ensureEntryIdentity(entries[editingIdx]),
         item,
@@ -1376,6 +1417,9 @@ export function initTrackerCard(config) {
         updatedEntry.leftMinutes = isAudiobook ? leftAudioMinutes % 60 : 0;
         updatedEntry.totalHours = isAudiobook ? totalHours : 0;
         updatedEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
+        const nextReadingPercent = getReadingProgressPercentForEntry(updatedEntry);
+        const readingDeltaPercent = Math.max(0, nextReadingPercent - previousReadingPercent);
+        Object.assign(updatedEntry, appendReadingActivity(updatedEntry, readingDeltaPercent, date));
       }
       if (isMovieTracker) {
         updatedEntry.imdbID = selectedImdbId;
@@ -1577,6 +1621,8 @@ export function initTrackerCard(config) {
         nextEntry.leftMinutes = isAudiobook ? leftAudioMinutes % 60 : 0;
         nextEntry.totalHours = isAudiobook ? totalHours : 0;
         nextEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
+        const initialReadingPercent = getReadingProgressPercentForEntry(nextEntry);
+        Object.assign(nextEntry, appendReadingActivity(nextEntry, initialReadingPercent, date));
       }
       if (isMovieTracker) {
         nextEntry.imdbID = selectedImdbId;

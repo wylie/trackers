@@ -70,7 +70,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
             <div class="rd-card">
               <h3 class="rd-title">Last 14 Days</h3>
               <div id="rd-14d" class="rd-14d"></div>
-              <p class="rd-note">Entries logged per day.</p>
+              <p class="rd-note">Reading progress logged per day.</p>
             </div>
             <TrackerBadgesCard storageKey="reading-tracker-entries" />
             <SupportButton />
@@ -136,7 +136,9 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     for (const entry of entries) {
       const name = String(entry?.item || "").trim();
       if (!name) continue;
-      const ts = entry?.date ? new Date(entry.date).getTime() : 0;
+      const updatedAt = Number(entry?.updatedAt) || 0;
+      const dateTs = entry?.date ? new Date(entry.date).getTime() : 0;
+      const ts = Math.max(updatedAt, Number.isFinite(dateTs) ? dateTs : 0);
       const existing = map.get(name);
       if (!existing || ts > existing.ts) {
         map.set(name, { ts, entry });
@@ -154,13 +156,34 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     start.setDate(start.getDate() - 13);
     const msPerDay = 86400000;
-    const series = Array.from({ length: 14 }, (_, idx) => ({ day: new Date(start.getTime() + idx * msPerDay), count: 0 }));
+    const series = Array.from({ length: 14 }, (_, idx) => ({ day: new Date(start.getTime() + idx * msPerDay), value: 0 }));
     for (const entry of entries) {
-      const when = entry?.date ? new Date(entry.date) : null;
+      const history = Array.isArray(entry?.readingActivityHistory) ? entry.readingActivityHistory : [];
+      if (history.length) {
+        history.forEach((item) => {
+          const ts = Number(item?.createdAt) || 0;
+          const value = Math.max(0, Number(item?.deltaPercent) || 0);
+          if (ts <= 0 || value <= 0) return;
+          const when = new Date(ts);
+          if (Number.isNaN(when.getTime())) return;
+          const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+          const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+          if (idx >= 0 && idx < series.length) series[idx].value += value;
+        });
+        continue;
+      }
+
+      const updatedAt = Number(entry?.updatedAt) || 0;
+      const when = Number.isFinite(updatedAt) && updatedAt > 0
+        ? new Date(updatedAt)
+        : (entry?.date ? new Date(entry.date) : null);
       if (!when || Number.isNaN(when.getTime())) continue;
       const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
       const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
-      if (idx >= 0 && idx < series.length) series[idx].count += 1;
+      if (idx >= 0 && idx < series.length) {
+        const fallbackValue = Math.max(1, getBookProgressPercent(entry));
+        series[idx].value += fallbackValue;
+      }
     }
     return series;
   }
@@ -205,11 +228,11 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     `;
 
     const last14 = aggregateLast14Days(entries);
-    const maxDay = Math.max(...last14.map((day) => day.count), 1);
+    const maxDay = Math.max(...last14.map((day) => day.value), 1);
     trend.innerHTML = last14.map((day) => {
-      const h = Math.max(8, Math.round((day.count / maxDay) * 68));
+      const h = Math.max(8, Math.round((day.value / maxDay) * 68));
       const d = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
-      return `<div class="rd-day-col"><span class="rd-day-bar" style="height:${h}px" title="${d}: ${day.count}"></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
+      return `<div class="rd-day-col"><span class="rd-day-bar" style="height:${h}px" title="${d}: ${day.value.toFixed(1)} progress pts"></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
     }).join("");
   }
 

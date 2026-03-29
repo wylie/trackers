@@ -8,6 +8,7 @@ import Benefits from '../../components/sections/Benefits.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
 import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
 import SupportButton from '../../components/SupportButton.astro';
+import TrackerBadgesCard from '../../components/TrackerBadgesCard.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
@@ -71,6 +72,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
               <div id="rd-14d" class="rd-14d"></div>
               <p class="rd-note">Entries logged per day.</p>
             </div>
+            <TrackerBadgesCard storageKey="reading-tracker-entries" />
             <SupportButton />
           </aside>
         </section>

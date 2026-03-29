@@ -1,0 +1,166 @@
+---
+const { storageKey } = Astro.props;
+---
+
+<div class="ti-card" data-tracker-badges-card data-storage-key={storageKey}>
+  <h3 class="ti-title">Your Badges</h3>
+  <div class="ti-badges-list" data-tracker-badges-list></div>
+</div>
+
+<script>
+  import { initTrackerBadgesCards } from "../lib/tracker-insights/tracker-badges.js";
+
+  initTrackerBadgesCards();
+  document.addEventListener("astro:page-load", initTrackerBadgesCards);
+</script>
+
+<style is:global>
+  .ti-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0.75rem;
+    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+  }
+
+  .ti-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    font-weight: 700;
+    margin: 0 0 0.6rem 0;
+  }
+
+  .ti-empty {
+    margin: 0;
+    font-size: 0.76rem;
+    color: #64748b;
+  }
+
+  .ti-badges-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .ach-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  .ach-badge-icon {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .ach-badge--entries {
+    color: #1f2937;
+    background: #ffe119;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--progress {
+    color: #ffffff;
+    background: #4363d8;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--breadth {
+    color: #ffffff;
+    background: #42d4f4;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--streak {
+    color: #ffffff;
+    background: #e6194b;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--consistency {
+    color: #ffffff;
+    background: #800000;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--hydration {
+    color: #1f2937;
+    background: #aaffc3;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--habit {
+    color: #ffffff;
+    background: #3cb44b;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--reading {
+    color: #1f2937;
+    background: #dcbeff;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--movie {
+    color: #ffffff;
+    background: #911eb4;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--finance {
+    color: #ffffff;
+    background: #808000;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--health {
+    color: #ffffff;
+    background: #f032e6;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--game {
+    color: #ffffff;
+    background: #000075;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--workout {
+    color: #1f2937;
+    background: #46f0f0;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--meal {
+    color: #ffffff;
+    background: #f58231;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--sleep {
+    color: #1f2937;
+    background: #fffac8;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .ach-badge--task {
+    color: #ffffff;
+    background: #469990;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .ach-badge--custom {
+    color: #1f2937;
+    background: #ffd8b1;
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+</style>

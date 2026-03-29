@@ -1,6 +1,7 @@
 ---
 import { getTrackerFlags } from '../lib/tracker-flags';
 import SupportButton from './SupportButton.astro';
+import TrackerBadgesCard from './TrackerBadgesCard.astro';
 
 const { storageKey, heading = "Insights" } = Astro.props;
 const idPrefix = `ti-${String(storageKey || "tracker").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
@@ -41,6 +42,7 @@ const trackerInsightsConfig = { storageKey, idPrefix, isWorkoutTracker };
     <p class="ti-note">Entries logged per day.</p>
   </div>
 
+  <TrackerBadgesCard storageKey={storageKey} />
   <SupportButton />
 </aside>
 

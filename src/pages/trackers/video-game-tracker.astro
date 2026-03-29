@@ -8,6 +8,7 @@ import Benefits from '../../components/sections/Benefits.astro';
 import RelatedTrackers from '../../components/sections/RelatedTrackers.astro';
 import RelatedCalculators from '../../components/sections/RelatedCalculators.astro';
 import SupportButton from '../../components/SupportButton.astro';
+import TrackerBadgesCard from '../../components/TrackerBadgesCard.astro';
 import { getRelatedCalculators } from '../../data/related-calculators';
 
 const steps = [
@@ -70,6 +71,7 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
               <div id="vg-14d-chart" class="vg-14d"></div>
               <p class="vg-side-note">Session hours per day.</p>
             </div>
+            <TrackerBadgesCard storageKey="video-game-tracker-entries" />
             <SupportButton />
           </aside>
         </section>

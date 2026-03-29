@@ -256,7 +256,6 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
       if (!authStatusBar || !authStatusEmail) return;
       authStatusEmail.textContent = String(email || "");
       authStatusBar.classList.remove("hidden");
-      updateLastActiveLink();
       refreshSyncStatusFromStorage();
     }
 

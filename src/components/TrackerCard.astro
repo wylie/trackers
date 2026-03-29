@@ -350,6 +350,76 @@ const trackerCardConfig = {
         </div>
       </div>
     )}
+    {isHealthTracker && (
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-metric-type" class="text-sm text-gray-700">Metric Type</label>
+          <div class="relative">
+            <select id="tracker-health-metric-type" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+              <option value="">Select metric type</option>
+              <option value="Weight">Weight</option>
+              <option value="Blood Pressure">Blood Pressure</option>
+              <option value="Blood Glucose">Blood Glucose</option>
+              <option value="Heart Rate">Heart Rate</option>
+              <option value="Temperature">Temperature</option>
+              <option value="Symptom">Symptom</option>
+              <option value="Medication">Medication</option>
+              <option value="Mood">Mood</option>
+              <option value="Other">Other</option>
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-metric-value" class="text-sm text-gray-700">Value</label>
+          <input type="text" id="tracker-health-metric-value" placeholder="Example: 120/80 or 178" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-unit" class="text-sm text-gray-700">Unit</label>
+          <input type="text" id="tracker-health-unit" placeholder="Example: mmHg, lbs, mg/dL" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-time" class="text-sm text-gray-700">Time of Day</label>
+          <input type="time" id="tracker-health-time" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-severity" class="text-sm text-gray-700">Severity (1-10)</label>
+          <div class="relative">
+            <select id="tracker-health-severity" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+              <option value="">Not set</option>
+              {Array.from({ length: 10 }, (_, idx) => idx + 1).map((value) => (
+                <option value={value}>{value}</option>
+              ))}
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-status" class="text-sm text-gray-700">Status</label>
+          <div class="relative">
+            <select id="tracker-health-status" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
+              <option value="">Not set</option>
+              <option value="Improving">Improving</option>
+              <option value="Stable">Stable</option>
+              <option value="Worsening">Worsening</option>
+            </select>
+            <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-medication" class="text-sm text-gray-700">Medication / Dose</label>
+          <input type="text" id="tracker-health-medication" placeholder="Example: Ibuprofen 200mg" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="tracker-health-provider" class="text-sm text-gray-700">Provider / Appointment</label>
+          <input type="text" id="tracker-health-provider" placeholder="Example: Dr. Smith (follow-up)" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <label for="tracker-health-tags" class="text-sm text-gray-700">Tags / Triggers</label>
+          <input type="text" id="tracker-health-tags" placeholder="Example: stress, poor sleep, caffeine" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+      </div>
+    )}
     {enableAuthorField && (
       <input
         type="text"

@@ -62,6 +62,15 @@ export function initTrackerCard(config) {
   const categoryInput = document.getElementById("tracker-category");
   const entryDateInput = document.getElementById("tracker-entry-date");
   const financeAmountInput = document.getElementById("tracker-finance-amount");
+  const healthMetricTypeInput = document.getElementById("tracker-health-metric-type");
+  const healthMetricValueInput = document.getElementById("tracker-health-metric-value");
+  const healthUnitInput = document.getElementById("tracker-health-unit");
+  const healthTimeInput = document.getElementById("tracker-health-time");
+  const healthSeverityInput = document.getElementById("tracker-health-severity");
+  const healthStatusInput = document.getElementById("tracker-health-status");
+  const healthMedicationInput = document.getElementById("tracker-health-medication");
+  const healthProviderInput = document.getElementById("tracker-health-provider");
+  const healthTagsInput = document.getElementById("tracker-health-tags");
   const workoutMetricsContainer = document.getElementById("tracker-workout-metrics");
   const workoutDurationWrap = document.getElementById("tracker-workout-duration-wrap");
   const workoutDistanceWrap = document.getElementById("tracker-workout-distance-wrap");
@@ -408,6 +417,14 @@ export function initTrackerCard(config) {
     return String(value || "").trim().toLowerCase();
   }
 
+  function parseHealthTags(tagsValue) {
+    return String(tagsValue || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 24);
+  }
+
   function normalizeWaterVolumeUnit(value) {
     return String(value || "").trim().toLowerCase() === "ml" ? "ml" : "oz";
   }
@@ -591,6 +608,15 @@ export function initTrackerCard(config) {
     if (entryDateInput) entryDateInput.value = getTodayDateInputValue();
     if (itemInput) itemInput.value = "";
     if (financeAmountInput) financeAmountInput.value = "";
+    if (healthMetricTypeInput) healthMetricTypeInput.value = "";
+    if (healthMetricValueInput) healthMetricValueInput.value = "";
+    if (healthUnitInput) healthUnitInput.value = "";
+    if (healthTimeInput) healthTimeInput.value = "";
+    if (healthSeverityInput) healthSeverityInput.value = "";
+    if (healthStatusInput) healthStatusInput.value = "";
+    if (healthMedicationInput) healthMedicationInput.value = "";
+    if (healthProviderInput) healthProviderInput.value = "";
+    if (healthTagsInput) healthTagsInput.value = "";
     if (sleepHoursInput) sleepHoursInput.value = "0";
     if (sleepMinutesInput) sleepMinutesInput.value = "0";
     if (authorInput) authorInput.value = "";
@@ -649,6 +675,18 @@ export function initTrackerCard(config) {
     if (financeAmountInput) {
       const financeAmount = Math.max(0, Number(entry?.financeAmount) || 0);
       financeAmountInput.value = financeAmount > 0 ? financeAmount.toFixed(2).replace(/\.00$/, "") : "";
+    }
+    if (healthMetricTypeInput) healthMetricTypeInput.value = String(entry?.healthMetricType || "").trim();
+    if (healthMetricValueInput) healthMetricValueInput.value = String(entry?.healthMetricValue || "").trim();
+    if (healthUnitInput) healthUnitInput.value = String(entry?.healthUnit || "").trim();
+    if (healthTimeInput) healthTimeInput.value = String(entry?.healthTime || "").trim();
+    if (healthSeverityInput) healthSeverityInput.value = entry?.healthSeverity != null && entry?.healthSeverity !== "" ? String(entry.healthSeverity) : "";
+    if (healthStatusInput) healthStatusInput.value = String(entry?.healthStatus || "").trim();
+    if (healthMedicationInput) healthMedicationInput.value = String(entry?.healthMedication || "").trim();
+    if (healthProviderInput) healthProviderInput.value = String(entry?.healthProvider || "").trim();
+    if (healthTagsInput) {
+      const tags = Array.isArray(entry?.healthTags) ? entry.healthTags : [];
+      healthTagsInput.value = tags.join(", ");
     }
     if (isSleepTracker) {
       const { hours, minutes } = parseSleepDuration(entry);
@@ -1142,6 +1180,25 @@ export function initTrackerCard(config) {
       if (entry.director) metadataChips.push(`Director ${entry.director}`);
       if (entry.publisher) metadataChips.push(`Publisher ${entry.publisher}`);
       if (entry.category) metadataChips.push(`Category ${entry.category}`);
+      if (isHealthTracker) {
+        const metricType = String(entry?.healthMetricType || "").trim();
+        const metricValue = String(entry?.healthMetricValue || "").trim();
+        const metricUnit = String(entry?.healthUnit || "").trim();
+        const healthTime = String(entry?.healthTime || "").trim();
+        const severity = Math.max(0, Number(entry?.healthSeverity) || 0);
+        const status = String(entry?.healthStatus || "").trim();
+        const medication = String(entry?.healthMedication || "").trim();
+        const provider = String(entry?.healthProvider || "").trim();
+        const tags = Array.isArray(entry?.healthTags) ? entry.healthTags : [];
+        if (metricType) metadataChips.push(metricType);
+        if (metricValue) metadataChips.push(`${metricValue}${metricUnit ? ` ${metricUnit}` : ""}`);
+        if (healthTime) metadataChips.push(`Time ${healthTime}`);
+        if (severity > 0) metadataChips.push(`Severity ${severity}/10`);
+        if (status) metadataChips.push(status);
+        if (medication) metadataChips.push(`Medication ${medication}`);
+        if (provider) metadataChips.push(`Provider ${provider}`);
+        if (tags.length) metadataChips.push(`Tags ${tags.join(", ")}`);
+      }
       if (isTaskTracker) {
         const dueDate = formatSimpleDate(entry?.dueDate);
         if (dueDate) metadataChips.push(`Due ${dueDate}`);
@@ -1399,6 +1456,15 @@ export function initTrackerCard(config) {
     const category = categoryInput?.value || "";
     const entryDateValue = entryDateInput?.value || "";
     const financeAmount = Math.max(0, getFloatValue(financeAmountInput, 0));
+    const healthMetricType = String(healthMetricTypeInput?.value || "").trim();
+    const healthMetricValue = String(healthMetricValueInput?.value || "").trim();
+    const healthUnit = String(healthUnitInput?.value || "").trim();
+    const healthTime = String(healthTimeInput?.value || "").trim();
+    const healthSeverity = Math.max(0, Math.min(10, getIntValue(healthSeverityInput, 0)));
+    const healthStatus = String(healthStatusInput?.value || "").trim();
+    const healthMedication = String(healthMedicationInput?.value || "").trim();
+    const healthProvider = String(healthProviderInput?.value || "").trim();
+    const healthTags = parseHealthTags(healthTagsInput?.value || "");
     const workoutDurationHours = Math.max(0, getIntValue(workoutDurationHoursInput, 0));
     const workoutDurationMinutes = Math.max(0, Math.min(59, getIntValue(workoutDurationMinutesInput, 0)));
     const workoutDurationSeconds = Math.max(0, Math.min(59, getIntValue(workoutDurationSecondsInput, 0)));
@@ -1425,9 +1491,12 @@ export function initTrackerCard(config) {
       : Number(selectedDefaultWaterDrink?.impact ?? 1);
     const waterHydrationImpact = Math.max(0, Math.min(1.2, waterHydrationImpactRaw || 1));
     const hydrationOunces = waterOunces * waterHydrationImpact;
+    const fallbackHealthTitle = `${healthMetricType || "Health Metric"}${healthMetricValue ? `: ${healthMetricValue}${healthUnit ? ` ${healthUnit}` : ""}` : ""}`;
     const item = isSleepTracker
       ? formatSleepDuration(sleepHours, sleepMinutes)
-      : (isWaterTracker ? `${formatWaterVolumeFromOunces(waterOunces, waterUnit)} ${waterDrinkLabel}` : (itemInput?.value.trim() || ""));
+      : (isWaterTracker
+        ? `${formatWaterVolumeFromOunces(waterOunces, waterUnit)} ${waterDrinkLabel}`
+        : ((isHealthTracker ? (itemInput?.value.trim() || fallbackHealthTitle) : (itemInput?.value.trim() || ""))));
     const startedDate = startedDateInput?.value || "";
     const currentlyReading = enableReadingProgress && Boolean(currentlyReadingInput?.checked);
     const isAudiobook = isReadingTracker && Boolean(audiobookInput?.checked);
@@ -1449,6 +1518,7 @@ export function initTrackerCard(config) {
       !item ||
       (enableCategoryField && !category) ||
       (isFinanceTracker && financeAmount <= 0) ||
+      (isHealthTracker && (!healthMetricType || !healthMetricValue)) ||
       (isSleepTracker && sleepHours === 0 && sleepMinutes === 0) ||
       (isVideoGameTracker && sessionHours <= 0) ||
       (isWaterTracker && (waterOunces <= 0 || !waterDrinkLabel))
@@ -1477,6 +1547,17 @@ export function initTrackerCard(config) {
       if (enablePublisherField) updatedEntry.publisher = publisher;
       if (enableCategoryField) updatedEntry.category = category;
       if (isFinanceTracker) updatedEntry.financeAmount = financeAmount;
+      if (isHealthTracker) {
+        updatedEntry.healthMetricType = healthMetricType;
+        updatedEntry.healthMetricValue = healthMetricValue;
+        updatedEntry.healthUnit = healthUnit;
+        updatedEntry.healthTime = healthTime;
+        updatedEntry.healthSeverity = healthSeverity > 0 ? healthSeverity : 0;
+        updatedEntry.healthStatus = healthStatus;
+        updatedEntry.healthMedication = healthMedication;
+        updatedEntry.healthProvider = healthProvider;
+        updatedEntry.healthTags = healthTags;
+      }
       if (isTaskTracker) {
         updatedEntry.dueDate = dueDate;
       }
@@ -1682,6 +1763,17 @@ export function initTrackerCard(config) {
       if (enablePublisherField) nextEntry.publisher = publisher;
       if (enableCategoryField) nextEntry.category = category;
       if (isFinanceTracker) nextEntry.financeAmount = financeAmount;
+      if (isHealthTracker) {
+        nextEntry.healthMetricType = healthMetricType;
+        nextEntry.healthMetricValue = healthMetricValue;
+        nextEntry.healthUnit = healthUnit;
+        nextEntry.healthTime = healthTime;
+        nextEntry.healthSeverity = healthSeverity > 0 ? healthSeverity : 0;
+        nextEntry.healthStatus = healthStatus;
+        nextEntry.healthMedication = healthMedication;
+        nextEntry.healthProvider = healthProvider;
+        nextEntry.healthTags = healthTags;
+      }
       if (isTaskTracker) {
         nextEntry.dueDate = dueDate;
         nextEntry.completed = false;

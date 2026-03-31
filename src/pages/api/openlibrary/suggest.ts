@@ -7,6 +7,7 @@ function formatSuggestion(book: {
   number_of_pages_median?: number;
   cover_i?: number;
   cover_edition_key?: string;
+  isbn?: string[];
 }) {
   if (!book?.title) return null;
   const label = book.first_publish_year ? `${book.title} (${book.first_publish_year})` : book.title;
@@ -15,6 +16,9 @@ function formatSuggestion(book: {
   const coverId = Number(book.cover_i) || 0;
   const coverEditionKey = typeof book.cover_edition_key === "string" ? book.cover_edition_key : "";
   const coverUrl = coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "";
+  const isbnList = Array.isArray(book.isbn) ? book.isbn.map((code) => String(code || "").replace(/[^0-9Xx]/g, "").toUpperCase()).filter(Boolean) : [];
+  const isbn13 = isbnList.find((code) => code.length === 13) || "";
+  const isbn = isbn13 || isbnList.find((code) => code.length === 10) || isbnList[0] || "";
   const pageText = totalPages > 0 ? `${totalPages} pages` : "";
   const subtitle = [author, pageText].filter(Boolean).join(" • ");
   return {
@@ -25,6 +29,8 @@ function formatSuggestion(book: {
     coverId,
     coverEditionKey,
     coverUrl,
+    isbn13,
+    isbn,
     subtitle
   };
 }
@@ -88,7 +94,7 @@ export const GET: APIRoute = async ({ url }) => {
 
   async function searchBooks(term: string) {
     const base = "https://openlibrary.org/search.json";
-    const fields = "title,first_publish_year,author_name,number_of_pages_median,cover_i,cover_edition_key";
+    const fields = "title,first_publish_year,author_name,number_of_pages_median,cover_i,cover_edition_key,isbn";
     const [titleDocs, keywordDocs] = await Promise.all([
       fetchBooksFrom(`${base}?limit=30&fields=${fields}&title=${encodeURIComponent(term)}`),
       fetchBooksFrom(`${base}?limit=30&fields=${fields}&q=${encodeURIComponent(term)}`)

@@ -51,7 +51,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
               autoPopulateAuthor={true}
               enableReadingProgress={true}
               autoPopulateTotalPages={true}
-              autocompleteEndpoint="/api/openlibrary/suggest"
+              autocompleteEndpoint="/api/books/suggest"
             />
           </div>
           <aside class="rd-side" aria-label="Reading insights">
@@ -427,8 +427,10 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     bars.innerHTML = booksForBars.length ? booksForBars.map((book) => `
       <div class="rd-row">
         <span class="rd-name" title="${book.name}">${book.name}</span>
-        <span class="rd-track"><span class="rd-fill" style="width:${Math.max(2, book.percent)}%"></span></span>
-        <span class="rd-metric">${book.percent}%</span>
+        <div class="rd-row-progress">
+          <span class="rd-track"><span class="rd-fill" style="width:${Math.max(2, book.percent)}%"></span></span>
+          <span class="rd-metric">${book.percent}%</span>
+        </div>
       </div>
     `).join("") : "<p class='rd-empty'>No currently reading books yet.</p>";
 
@@ -569,8 +571,9 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   .rd-challenge-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); }
   .rd-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; font-weight: 700; margin: 0 0 0.6rem 0; }
   .rd-bars { display: grid; gap: 0.45rem; }
-  .rd-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) auto; gap: 0.4rem; align-items: center; }
+  .rd-row { display: grid; gap: 0.22rem; }
   .rd-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; color: #334155; font-weight: 700; }
+  .rd-row-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; }
   .rd-track { display: block; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
   .rd-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); }
   .rd-metric { font-size: 0.72rem; color: #334155; font-weight: 700; min-width: 2.2rem; text-align: right; }

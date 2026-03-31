@@ -42,12 +42,19 @@ export function formatProgressValue(entry) {
 
 export function getReadingCoverUrl(entry, isReadingTracker) {
   if (!isReadingTracker || !entry) return "";
+  const explicitCoverUrl = String(entry.coverUrl || "").trim();
+  if (explicitCoverUrl && !isPlaceholderCoverUrl(explicitCoverUrl)) {
+    return explicitCoverUrl;
+  }
   const coverEditionKey = String(entry.coverEditionKey || "").trim();
   if (coverEditionKey) {
     return `https://covers.openlibrary.org/b/olid/${coverEditionKey}-M.jpg?default=false`;
   }
   const coverId = Number(entry.coverId) || 0;
-  return coverId > 0 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false` : "";
+  if (coverId > 0) {
+    return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`;
+  }
+  return "";
 }
 
 export function getFallbackMediaUrl(isReadingTracker) {
@@ -59,21 +66,33 @@ export function isPlaceholderCoverUrl(url) {
   const explicitCoverUrl = String(url || "").trim();
   const normalizedCoverUrl = explicitCoverUrl.toLowerCase();
   let coverHost = "";
+  let coverPath = "";
   try {
-    coverHost = explicitCoverUrl ? new URL(explicitCoverUrl).hostname.toLowerCase() : "";
+    if (explicitCoverUrl) {
+      const parsed = new URL(explicitCoverUrl);
+      coverHost = String(parsed.hostname || "").toLowerCase();
+      coverPath = String(parsed.pathname || "").toLowerCase();
+    }
   } catch {
     coverHost = "";
+    coverPath = "";
   }
+  const isGoodreadsNoPhoto = (
+    (coverHost.includes("gr-assets.com") || coverHost.includes("goodreads.com"))
+    && (coverPath.includes("nophoto") || normalizedCoverUrl.includes("nophoto"))
+  );
   return (
     normalizedCoverUrl.includes("no+image") ||
     normalizedCoverUrl.includes("no%20image") ||
     normalizedCoverUrl.includes("no-image") ||
     normalizedCoverUrl.includes("no_image") ||
     normalizedCoverUrl.includes("noimage") ||
+    normalizedCoverUrl.includes("nophoto") ||
     normalizedCoverUrl.includes("no-img") ||
     normalizedCoverUrl.includes("image_not_available") ||
     normalizedCoverUrl.includes("notavailable") ||
     normalizedCoverUrl.includes("placeholder") ||
+    isGoodreadsNoPhoto ||
     (normalizedCoverUrl.includes("amazon") && normalizedCoverUrl.includes("no")) ||
     coverHost.includes("amazonaws.com") ||
     coverHost.includes("ssl-images-amazon.com") ||

@@ -87,6 +87,25 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
           <p class="text-sm text-slate-500 mt-4">Clear is permanent for this browser unless you restore from a backup file.</p>
           <p id="settings-message" class="mt-3 text-sm hidden"></p>
         </section>
+
+        <section id="data-import-settings" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mt-6">
+          <h2 class="text-[18px] font-bold text-slate-900 mb-2">Data Imports</h2>
+          <p class="text-[15px] leading-7 text-slate-600 mb-4">Import data from other apps and sites into SimpleTrackers.</p>
+          <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p class="text-sm font-semibold text-slate-800">Goodreads</p>
+                <p class="text-xs text-slate-500">CSV export to Reading Tracker</p>
+              </div>
+              <button id="settings-import-goodreads" type="button" class="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium hover:bg-emerald-700 transition">
+                Import Goodreads CSV
+              </button>
+              <input id="settings-import-goodreads-input" type="file" accept=".csv,text/csv" class="hidden" />
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">Imported entries merge into your existing tracker data. More import sources can be added here over time.</p>
+          <p id="settings-import-message" class="mt-3 text-sm hidden"></p>
+        </section>
       </div>
     </main>
   </TrackerPageWrapper>
@@ -124,15 +143,50 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     localStorage.setItem(HISTORY_KEY, JSON.stringify(Array.isArray(entries) ? entries : []));
   }
 
+  function isQuotaExceededError(error) {
+    if (!error || typeof error !== "object") return false;
+    const message = String(error.message || "").toLowerCase();
+    return (
+      error.name === "QuotaExceededError"
+      || error.code === 22
+      || message.includes("quota")
+      || message.includes("exceeded")
+    );
+  }
+
   function pushHistorySnapshot(beforeData, storageKey = "manual") {
-    const history = getHistory();
-    history.unshift({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      at: Date.now(),
-      storageKey,
-      payload: beforeData && typeof beforeData === "object" ? beforeData : {}
-    });
-    setHistory(history.slice(0, 30));
+    try {
+      const history = getHistory();
+      history.unshift({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        at: Date.now(),
+        storageKey,
+        payload: beforeData && typeof beforeData === "object" ? beforeData : {}
+      });
+      const bounded = history.slice(0, 30);
+      try {
+        setHistory(bounded);
+        return true;
+      } catch (error) {
+        if (!isQuotaExceededError(error)) throw error;
+        // Trim aggressively and retry.
+        const trimmed = bounded.slice(0, 8);
+        try {
+          setHistory(trimmed);
+          return true;
+        } catch {
+          // Last fallback: disable history rather than blocking user actions.
+          try {
+            localStorage.removeItem(HISTORY_KEY);
+          } catch {
+            // Ignore cleanup failures.
+          }
+          return false;
+        }
+      }
+    } catch {
+      return false;
+    }
   }
 
   function formatHistoryTime(ts) {
@@ -170,6 +224,218 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
       }
     }
     return merged;
+  }
+
+  function parseCsv(text) {
+    const raw = String(text || "").replace(/^\uFEFF/, "");
+    if (!raw.trim()) return [];
+    const records = [];
+    let record = [];
+    let value = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < raw.length; i += 1) {
+      const char = raw[i];
+      const next = raw[i + 1];
+      if (char === "\"") {
+        if (inQuotes && next === "\"") {
+          value += "\"";
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+      if (char === "," && !inQuotes) {
+        record.push(value.trim());
+        value = "";
+        continue;
+      }
+      if ((char === "\n" || char === "\r") && !inQuotes) {
+        if (char === "\r" && next === "\n") i += 1;
+        record.push(value.trim());
+        value = "";
+        if (record.some((cell) => cell !== "")) {
+          records.push(record);
+        }
+        record = [];
+        continue;
+      }
+      value += char;
+    }
+
+    record.push(value.trim());
+    if (record.some((cell) => cell !== "")) {
+      records.push(record);
+    }
+    if (!records.length) return [];
+
+    const headers = records[0].map((header) => String(header || "").trim().toLowerCase());
+    const rows = [];
+    for (let i = 1; i < records.length; i += 1) {
+      const cols = records[i];
+      const row = {};
+      headers.forEach((header, idx) => {
+        row[header] = cols[idx] ?? "";
+      });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function parseGoodreadsDate(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const isoYmd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoYmd) {
+      const year = Number(isoYmd[1]);
+      const month = Number(isoYmd[2]);
+      const day = Number(isoYmd[3]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+    const mdY = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdY) {
+      const month = Number(mdY[1]);
+      const day = Number(mdY[2]);
+      const year = Number(mdY[3]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+    const mdYY = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (mdYY) {
+      const month = Number(mdYY[1]);
+      const day = Number(mdYY[2]);
+      const shortYear = Number(mdYY[3]);
+      const year = shortYear >= 70 ? 1900 + shortYear : 2000 + shortYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const yyyy = parsed.getFullYear();
+    const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function parseIntSafe(value, fallback = 0) {
+    const parsed = Number.parseInt(String(value || "").trim(), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function parseFloatSafe(value, fallback = 0) {
+    const parsed = Number.parseFloat(String(value || "").trim());
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function normalizeShelf(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function normalizeIsbn(value) {
+    return String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+  }
+
+  function normalizeBookTitleForDedup(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) return "";
+    const noParens = raw
+      .replace(/\s*\([^)]*\)\s*/g, " ")
+      .replace(/\s*\[[^\]]*\]\s*/g, " ");
+    const noSubtitle = noParens.replace(/\s*[:\-–—]\s.*$/g, " ");
+    return noSubtitle.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeAuthorForDedup(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getReadingDedupKeys(entry) {
+    const keys = [];
+    const isbn13 = normalizeIsbn(entry?.isbn13);
+    const isbn = normalizeIsbn(entry?.isbn);
+    if (isbn13) keys.push(`isbn13:${isbn13}`);
+    if (isbn) keys.push(`isbn:${isbn}`);
+    const titleNorm = normalizeBookTitleForDedup(entry?.item);
+    const authorNorm = normalizeAuthorForDedup(entry?.author);
+    if (titleNorm && authorNorm) keys.push(`ta:${titleNorm}|${authorNorm}`);
+    if (titleNorm && !authorNorm) keys.push(`t:${titleNorm}`);
+    return keys;
+  }
+
+  function extractGoodreadsRowsToReadingEntries(rows) {
+    const now = Date.now();
+    const entries = [];
+    let skipped = 0;
+    rows.forEach((row, idx) => {
+      const title = String(row["title"] || "").trim();
+      if (!title) return;
+      const author = String(row["author"] || "").trim();
+      const publisher = String(row["publisher"] || "").trim();
+      const pages = Math.max(0, parseIntSafe(row["number of pages"], 0));
+      const rating = Math.max(0, Math.min(5, Math.round(parseFloatSafe(row["my rating"], 0))));
+      const myReview = String(row["my review"] || "").trim();
+      const privateNotes = String(row["private notes"] || "").trim();
+      const notes = [myReview, privateNotes].filter(Boolean).join("\n\n").trim();
+      const shelf = normalizeShelf(row["exclusive shelf"] || row["bookshelves"]);
+      const imageUrl = String(row["image url"] || row["cover image"] || "").trim();
+      const isbn13 = String(row["isbn13"] || row["isbn 13"] || "").trim();
+      const isbn = String(row["isbn"] || "").trim();
+      const dateRead = parseGoodreadsDate(row["date read"]);
+      const dateStarted = parseGoodreadsDate(row["date started"]);
+      const dateAdded = parseGoodreadsDate(row["date added"]);
+      const isReadShelf = shelf === "read";
+      const currentlyReading = shelf === "currently-reading";
+      const hasGoodreadsDate = Boolean(dateRead || dateStarted || dateAdded);
+      const shouldImport = (isReadShelf || currentlyReading || Boolean(dateRead)) && hasGoodreadsDate;
+      if (!shouldImport) {
+        skipped += 1;
+        return;
+      }
+      const startedDate = dateStarted || (currentlyReading ? dateAdded : "");
+      const finishedDate = isReadShelf ? (dateRead || "") : "";
+      const entryDate = finishedDate || startedDate || dateAdded;
+      if (!entryDate) {
+        skipped += 1;
+        return;
+      }
+      const isoDate = new Date(`${entryDate}T12:00:00`).toISOString();
+      const updatedAt = Number.isFinite(new Date(isoDate).getTime()) ? new Date(isoDate).getTime() : now;
+
+      entries.push({
+        id: `goodreads_${updatedAt}_${idx}_${Math.random().toString(16).slice(2, 8)}`,
+        date: isoDate,
+        updatedAt,
+        item: title,
+        author,
+        publisher,
+        coverUrl: imageUrl,
+        isbn13,
+        isbn,
+        notes,
+        notesHistory: notes ? [{ note: notes, createdAt: updatedAt }] : [],
+        rating,
+        currentlyReading,
+        isAudiobook: false,
+        startedDate: startedDate || "",
+        finishedDate,
+        currentPage: currentlyReading ? 0 : (pages > 0 ? pages : 0),
+        totalPages: pages > 0 ? pages : 0,
+        readingSessionMinutes: 0,
+        readingSessionHistory: [],
+        readingActivityHistory: []
+      });
+    });
+    return { entries, skipped };
   }
 
   function refreshSummary(summaryEl) {
@@ -378,6 +644,9 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     const clearBtn = root.querySelector("#settings-clear-all-data-btn");
     const historyList = root.querySelector("#settings-history-list");
     const clearHistoryBtn = root.querySelector("#settings-clear-history-btn");
+    const importGoodreadsBtn = document.getElementById("settings-import-goodreads");
+    const importGoodreadsInput = document.getElementById("settings-import-goodreads-input");
+    const importMessage = document.getElementById("settings-import-message");
 
     if (!summary || !message || !downloadBtn || !uploadBtn || !uploadInput || !clearBtn || !historyList || !clearHistoryBtn) return;
     root.dataset.bound = "true";
@@ -428,6 +697,82 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     uploadBtn.addEventListener("click", () => {
       uploadInput.click();
     });
+
+    const setImportMessage = (text, isError = false) => {
+      if (!importMessage) {
+        setMessage(text, isError);
+        return;
+      }
+      importMessage.textContent = text;
+      importMessage.classList.remove("hidden");
+      importMessage.className = `mt-3 text-sm ${isError ? "text-red-600" : "text-green-700"}`;
+    };
+
+    if (importGoodreadsBtn && importGoodreadsInput && !importGoodreadsBtn.dataset.bound) {
+      importGoodreadsBtn.dataset.bound = "1";
+      importGoodreadsBtn.addEventListener("click", () => {
+        importGoodreadsInput.click();
+      });
+
+      importGoodreadsInput.addEventListener("change", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        const file = target.files?.[0];
+        if (!file) return;
+        try {
+          const csvText = await file.text();
+          const rows = parseCsv(csvText);
+          if (!rows.length) {
+            setImportMessage("Import failed: CSV appears empty.", true);
+            return;
+          }
+          const importResult = extractGoodreadsRowsToReadingEntries(rows);
+          const importedEntries = Array.isArray(importResult?.entries) ? importResult.entries : [];
+          const skippedEntries = Math.max(0, Number(importResult?.skipped) || 0);
+          if (!importedEntries.length) {
+            setImportMessage("Import failed: no valid Goodreads rows with book titles were found.", true);
+            return;
+          }
+          const ok = window.confirm(`Import ${importedEntries.length} Goodreads books into Reading Tracker?`);
+          if (!ok) return;
+          pushHistorySnapshot(getData(), "settings-import-goodreads");
+          const next = getData();
+          const existing = Array.isArray(next["reading-tracker-entries"]) ? next["reading-tracker-entries"] : [];
+          const dedupKeySet = new Set();
+          existing.forEach((entry) => {
+            getReadingDedupKeys(entry).forEach((key) => dedupKeySet.add(key));
+          });
+          const uniqueImported = [];
+          let skippedDuplicates = 0;
+          importedEntries.forEach((entry) => {
+            const keys = getReadingDedupKeys(entry);
+            const isDuplicate = keys.length > 0 && keys.some((key) => dedupKeySet.has(key));
+            if (isDuplicate) {
+              skippedDuplicates += 1;
+              return;
+            }
+            uniqueImported.push(entry);
+            keys.forEach((key) => dedupKeySet.add(key));
+          });
+          next["reading-tracker-entries"] = [...uniqueImported, ...existing];
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", { detail: { storageKey: "reading-tracker-entries" } }));
+          document.dispatchEvent(new CustomEvent("simpletrackers:sync-data-updated"));
+          document.dispatchEvent(new CustomEvent("simpletrackers:history-updated"));
+          refreshSummary(summary);
+          renderHistory();
+          const skippedParts = [];
+          if (skippedEntries > 0) skippedParts.push(`${skippedEntries} skipped: want-to-read/unshelved`);
+          if (skippedDuplicates > 0) skippedParts.push(`${skippedDuplicates} skipped: duplicates`);
+          const skippedSuffix = skippedParts.length ? ` (${skippedParts.join("; ")})` : "";
+          setImportMessage(`Imported ${uniqueImported.length} Goodreads books into Reading Tracker.${skippedSuffix}`);
+        } catch {
+          setImportMessage("Import failed: invalid CSV file.", true);
+        } finally {
+          importGoodreadsInput.value = "";
+        }
+      });
+    }
 
     uploadInput.addEventListener("change", async (event) => {
       const target = event.target;
@@ -490,13 +835,31 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
       if (!record) return;
       const ok = window.confirm(`Restore local data from ${formatHistoryTime(record.at)}?`);
       if (!ok) return;
-      pushHistorySnapshot(getData(), "settings-before-restore");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(record.payload || {}));
-      document.dispatchEvent(new CustomEvent("simpletrackers:sync-data-updated"));
-      document.dispatchEvent(new CustomEvent("simpletrackers:history-updated"));
-      refreshSummary(summary);
-      renderHistory();
-      setMessage("Restore complete.");
+      try {
+        pushHistorySnapshot(getData(), "settings-before-restore");
+        const restorePayload = (record.payload && typeof record.payload === "object" && !Array.isArray(record.payload))
+          ? record.payload
+          : {};
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(restorePayload));
+        } catch (error) {
+          if (!isQuotaExceededError(error)) throw error;
+          // Free restore history space and retry restore once.
+          localStorage.removeItem(HISTORY_KEY);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(restorePayload));
+        }
+        const changedKeys = Object.keys(restorePayload).filter((key) => Array.isArray(restorePayload[key]));
+        changedKeys.forEach((key) => {
+          document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", { detail: { storageKey: key } }));
+        });
+        document.dispatchEvent(new CustomEvent("simpletrackers:sync-data-updated"));
+        document.dispatchEvent(new CustomEvent("simpletrackers:history-updated"));
+        refreshSummary(summary);
+        renderHistory();
+        setMessage("Restore complete.");
+      } catch (error) {
+        setMessage(error instanceof Error ? `Restore failed: ${error.message}` : "Restore failed.", true);
+      }
     });
 
     clearHistoryBtn.addEventListener("click", () => {

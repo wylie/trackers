@@ -2,6 +2,7 @@ export function initItemAutocomplete(options) {
   const {
     enableOmdbAutocomplete,
     omdbApiKey,
+    googleBooksApiKey,
     autocompleteEndpoint,
     itemInput,
     itemSuggestions,
@@ -33,6 +34,77 @@ export function initItemAutocomplete(options) {
   let currentSuggestions = [];
   let activeSuggestionIdx = -1;
 
+  function normalizeIsbn(value) {
+    return String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+  }
+
+  function toHttps(value) {
+    const input = String(value || "").trim();
+    if (!input) return "";
+    if (input.startsWith("http://")) return `https://${input.slice(7)}`;
+    return input;
+  }
+
+  function mapGoogleSuggestion(item) {
+    const info = item && typeof item.volumeInfo === "object" ? item.volumeInfo : {};
+    const title = String(info?.title || "").trim();
+    if (!title) return null;
+    const authors = Array.isArray(info?.authors) ? info.authors : [];
+    const author = String(authors[0] || "").trim();
+    const yearMatch = String(info?.publishedDate || "").match(/\d{4}/);
+    const year = yearMatch ? yearMatch[0] : "";
+    const label = year ? `${title} (${year})` : title;
+    const industryIdentifiers = Array.isArray(info?.industryIdentifiers) ? info.industryIdentifiers : [];
+    const isbn13 = normalizeIsbn(
+      industryIdentifiers.find((row) => String(row?.type || "").toUpperCase() === "ISBN_13")?.identifier || ""
+    );
+    const isbn10 = normalizeIsbn(
+      industryIdentifiers.find((row) => String(row?.type || "").toUpperCase() === "ISBN_10")?.identifier || ""
+    );
+    const imageLinks = info && typeof info.imageLinks === "object" ? info.imageLinks : {};
+    const coverUrl = toHttps(
+      imageLinks?.extraLarge
+      || imageLinks?.large
+      || imageLinks?.medium
+      || imageLinks?.small
+      || imageLinks?.thumbnail
+      || imageLinks?.smallThumbnail
+      || ""
+    );
+    const totalPages = Math.max(0, Number(info?.pageCount) || 0);
+    const subtitle = [author, totalPages > 0 ? `${totalPages} pages` : ""].filter(Boolean).join(" • ");
+    return normalizeSuggestion({
+      label,
+      value: title,
+      subtitle,
+      author,
+      publisher: String(info?.publisher || "").trim(),
+      totalPages,
+      coverUrl,
+      isbn13,
+      isbn: isbn13 || isbn10
+    });
+  }
+
+  async function fetchGoogleBooksSuggestions(query) {
+    if (!googleBooksApiKey) return [];
+    try {
+      const endpoint = new URL("https://www.googleapis.com/books/v1/volumes");
+      endpoint.searchParams.set("q", query);
+      endpoint.searchParams.set("maxResults", "8");
+      endpoint.searchParams.set("printType", "books");
+      endpoint.searchParams.set("langRestrict", "en");
+      endpoint.searchParams.set("key", googleBooksApiKey);
+      const res = await fetch(endpoint.toString());
+      if (!res.ok) return [];
+      const data = await res.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      return items.map(mapGoogleSuggestion).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
   function normalizeSuggestion(item) {
     if (typeof item === "string") {
       return {
@@ -48,6 +120,8 @@ export function initItemAutocomplete(options) {
         coverId: 0,
         coverEditionKey: "",
         coverUrl: "",
+        isbn13: "",
+        isbn: "",
         posterUrl: ""
       };
     }
@@ -68,6 +142,8 @@ export function initItemAutocomplete(options) {
         coverId: Number(item.coverId) || 0,
         coverEditionKey: item.coverEditionKey || "",
         coverUrl: item.coverUrl || "",
+        isbn13: item.isbn13 || "",
+        isbn: item.isbn || "",
         posterUrl: item.posterUrl || ""
       };
     }
@@ -93,11 +169,22 @@ export function initItemAutocomplete(options) {
   async function fetchSuggestions(query) {
     if (autocompleteEndpoint) {
       const url = `${autocompleteEndpoint}?q=${encodeURIComponent(query)}`;
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const data = await res.json();
-      const raw = Array.isArray(data) ? data : (Array.isArray(data?.suggestions) ? data.suggestions : []);
-      return raw.map(normalizeSuggestion).filter(Boolean);
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const raw = Array.isArray(data) ? data : (Array.isArray(data?.suggestions) ? data.suggestions : []);
+          const normalized = raw.map(normalizeSuggestion).filter(Boolean);
+          if (normalized.length) return normalized;
+        }
+      } catch {
+        // Fallback below.
+      }
+      if (autocompleteEndpoint.includes("/api/books/suggest")) {
+        const fallbackSuggestions = await fetchGoogleBooksSuggestions(query);
+        if (fallbackSuggestions.length) return fallbackSuggestions;
+      }
+      return [];
     }
 
     if (!enableOmdbAutocomplete || !omdbApiKey) return [];
@@ -190,6 +277,8 @@ export function initItemAutocomplete(options) {
       coverId: Number(suggestion.coverId) || 0,
       coverEditionKey: suggestion.coverEditionKey || "",
       coverUrl: suggestion.coverUrl || "",
+      isbn13: suggestion.isbn13 || "",
+      isbn: suggestion.isbn || "",
       posterUrl: suggestion.posterUrl || "",
       imdbID: suggestion.imdbID || ""
     });
@@ -224,6 +313,8 @@ export function initItemAutocomplete(options) {
       coverId: 0,
       coverEditionKey: "",
       coverUrl: "",
+      isbn13: "",
+      isbn: "",
       posterUrl: "",
       imdbID: ""
     });

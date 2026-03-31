@@ -3,7 +3,7 @@ import { createEntryId, ensureEntryIdentity } from './ids.js';
 import { parseSleepDuration, formatSleepDuration, getSleepGrade } from './sleep.js';
 import { formatGameHours, normalizeGameKey } from './game.js';
 import { getWorkoutDurationParts, formatWorkoutMetricBadges, syncWorkoutMetricsUI as syncWorkoutMetricsUIHelper } from './workout.js';
-import { getAudiobookLeftMinutes, formatProgressValue, getReadingCoverUrl, getFallbackMediaUrl } from './reading.js';
+import { getAudiobookLeftMinutes, formatProgressValue, getReadingCoverUrl, getFallbackMediaUrl, isPlaceholderCoverUrl } from './reading.js';
 import { getMoviePosterUrl, getVideoGameCoverUrl } from './media.js';
 import { getTodayDateInputValue, toDateInputValue, buildEntryDateIso, formatSimpleDate } from './dates.js';
 import { getAllEntries, getEntries as getEntriesFromStore, saveEntries as saveEntriesToStore } from './storage.js';
@@ -19,6 +19,7 @@ export function initTrackerCard(config) {
     addLabel,
     enableOmdbAutocomplete,
     omdbApiKey,
+    googleBooksApiKey,
     autocompleteEndpoint,
     enableAuthorField,
     autoPopulateAuthor,
@@ -149,6 +150,7 @@ export function initTrackerCard(config) {
   const currentMinutesInput = document.getElementById("tracker-current-minutes");
   const totalHoursInput = document.getElementById("tracker-total-hours");
   const totalMinutesInput = document.getElementById("tracker-total-minutes");
+  const readingIsbnInput = document.getElementById("tracker-isbn");
   const dueDateInput = document.getElementById("tracker-due-date");
   const notesInput = document.getElementById("tracker-notes");
   const submitButton = document.getElementById("tracker-submit");
@@ -179,7 +181,11 @@ export function initTrackerCard(config) {
   let selectedCoverId = 0;
   let selectedCoverEditionKey = "";
   let selectedCoverUrl = "";
+  let selectedReadingIsbn13 = "";
+  let selectedReadingIsbn = "";
   let isEnrichingReadingCovers = false;
+  const readingCoverLookupAttemptedAt = new Map();
+  const READING_COVER_RETRY_MS = 10 * 60 * 1000;
   let selectedPosterUrl = "";
   let selectedImdbId = "";
   let isEnrichingMoviePosters = false;
@@ -672,6 +678,33 @@ export function initTrackerCard(config) {
       .slice(0, 20);
   }
 
+  function normalizeReadingIsbn(value) {
+    return String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+  }
+
+  function normalizeReadingText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[\W_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function toHttps(value) {
+    const input = String(value || "").trim();
+    if (!input) return "";
+    if (input.startsWith("http://")) return `https://${input.slice(7)}`;
+    return input;
+  }
+
+  function resolveReadingIsbnPair(rawValue = "") {
+    const normalized = normalizeReadingIsbn(rawValue);
+    if (!normalized) return { isbn13: "", isbn: "" };
+    if (normalized.length === 13) return { isbn13: normalized, isbn: normalized };
+    if (normalized.length === 10) return { isbn13: "", isbn: normalized };
+    return { isbn13: "", isbn: normalized };
+  }
+
   function normalizeWaterVolumeUnit(value) {
     return String(value || "").trim().toLowerCase() === "ml" ? "ml" : "oz";
   }
@@ -833,6 +866,184 @@ export function initTrackerCard(config) {
     return (match?.[1] || "").trim();
   }
 
+  function parseGoogleBookMatch(item) {
+    const info = item && typeof item.volumeInfo === "object" ? item.volumeInfo : {};
+    const identifiers = Array.isArray(info?.industryIdentifiers) ? info.industryIdentifiers : [];
+    const isbn13 = normalizeReadingIsbn(
+      identifiers.find((row) => String(row?.type || "").toUpperCase() === "ISBN_13")?.identifier || ""
+    );
+    const isbn10 = normalizeReadingIsbn(
+      identifiers.find((row) => String(row?.type || "").toUpperCase() === "ISBN_10")?.identifier || ""
+    );
+    const imageLinks = info && typeof info?.imageLinks === "object" ? info.imageLinks : {};
+    const coverUrl = toHttps(
+      imageLinks?.extraLarge
+      || imageLinks?.large
+      || imageLinks?.medium
+      || imageLinks?.small
+      || imageLinks?.thumbnail
+      || imageLinks?.smallThumbnail
+      || ""
+    );
+    return {
+      title: String(info?.title || "").trim(),
+      author: Array.isArray(info?.authors) ? String(info.authors[0] || "").trim() : "",
+      coverUrl,
+      isbn13,
+      isbn: isbn13 || isbn10
+    };
+  }
+
+  function scoreGoogleBookMatch(item, target) {
+    const itemTitle = normalizeReadingText(item?.title || "");
+    const itemAuthor = normalizeReadingText(item?.author || "");
+    let score = 0;
+    if (target?.isbn) {
+      if (item?.isbn13 === target.isbn || item?.isbn === target.isbn) score += 4000;
+    }
+    if (target?.title && itemTitle) {
+      if (itemTitle === target.title) score += 1000;
+      else if (itemTitle.startsWith(target.title) || target.title.startsWith(itemTitle)) score += 650;
+      else if (itemTitle.includes(target.title) || target.title.includes(itemTitle)) score += 300;
+    }
+    if (target?.author && itemAuthor) {
+      if (itemAuthor === target.author) score += 650;
+      else if (itemAuthor.includes(target.author) || target.author.includes(itemAuthor)) score += 250;
+    }
+    if (item?.coverUrl) score += 150;
+    return score;
+  }
+
+  async function fetchGoogleSuggestionsDirect(query) {
+    const apiKey = String(googleBooksApiKey || "").trim();
+    if (!apiKey) return [];
+    const q = String(query || "").trim();
+    if (q.length < 2) return [];
+    try {
+      const endpoint = new URL("https://www.googleapis.com/books/v1/volumes");
+      endpoint.searchParams.set("q", q);
+      endpoint.searchParams.set("maxResults", "8");
+      endpoint.searchParams.set("printType", "books");
+      endpoint.searchParams.set("langRestrict", "en");
+      endpoint.searchParams.set("key", apiKey);
+      const res = await fetch(endpoint.toString());
+      if (!res.ok) return [];
+      const data = await res.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      return items
+        .map((item) => {
+          const parsed = parseGoogleBookMatch(item);
+          if (!parsed?.title) return null;
+          return {
+            value: parsed.title,
+            author: parsed.author || "",
+            coverId: 0,
+            coverEditionKey: "",
+            coverUrl: parsed.coverUrl || "",
+            isbn13: parsed.isbn13 || "",
+            isbn: parsed.isbn || parsed.isbn13 || ""
+          };
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchGoogleCoverMatchDirect({ rawIsbn = "", title = "", author = "" } = {}) {
+    const apiKey = String(googleBooksApiKey || "").trim();
+    if (!apiKey) return null;
+    const isbn = normalizeReadingIsbn(rawIsbn);
+    const titleText = String(title || "").trim();
+    const authorText = String(author || "").trim();
+    if (!isbn && !titleText) return null;
+
+    const target = {
+      isbn,
+      title: normalizeReadingText(titleText),
+      author: normalizeReadingText(authorText)
+    };
+
+    async function runQuery(query) {
+      const endpoint = new URL("https://www.googleapis.com/books/v1/volumes");
+      endpoint.searchParams.set("q", query);
+      endpoint.searchParams.set("maxResults", "8");
+      endpoint.searchParams.set("printType", "books");
+      endpoint.searchParams.set("langRestrict", "en");
+      endpoint.searchParams.set("key", apiKey);
+      const res = await fetch(endpoint.toString());
+      if (!res.ok) return [];
+      const data = await res.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      return items.map(parseGoogleBookMatch);
+    }
+
+    try {
+      let candidates = [];
+      if (isbn) candidates = await runQuery(`isbn:${isbn}`);
+      if (!candidates.length && titleText) {
+        candidates = await runQuery(authorText ? `intitle:${titleText} inauthor:${authorText}` : `intitle:${titleText}`);
+      }
+      if (!candidates.length) return null;
+      const best = candidates
+        .map((item) => ({ item, score: scoreGoogleBookMatch(item, target) }))
+        .sort((a, b) => b.score - a.score)[0];
+      if (!best?.item?.coverUrl) return null;
+      return {
+        coverUrl: String(best.item.coverUrl || "").trim(),
+        isbn13: normalizeReadingIsbn(best.item.isbn13 || ""),
+        isbn: normalizeReadingIsbn(best.item.isbn || "") || normalizeReadingIsbn(best.item.isbn13 || "") || isbn
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchReadingCoverMatch({ rawIsbn = "", title = "", author = "" } = {}) {
+    const isbn = normalizeReadingIsbn(rawIsbn);
+    const titleText = String(title || "").trim();
+    const authorText = String(author || "").trim();
+    if (!isbn && !titleText) return null;
+    const params = new URLSearchParams();
+    if (isbn) params.set("isbn", isbn);
+    if (titleText) params.set("title", titleText);
+    if (authorText) params.set("author", authorText);
+    try {
+      const res = await fetch(`/api/books/cover?${params.toString()}`);
+      if (!res.ok) {
+        const directFallback = await fetchGoogleCoverMatchDirect({ rawIsbn: isbn, title: titleText, author: authorText });
+        return directFallback || null;
+      }
+      const data = await res.json();
+      const match = data?.match;
+      if (!match || typeof match !== "object") {
+        const directFallback = await fetchGoogleCoverMatchDirect({ rawIsbn: isbn, title: titleText, author: authorText });
+        return directFallback || null;
+      }
+      const coverUrl = String(match?.coverUrl || "").trim();
+      const isbn13 = normalizeReadingIsbn(match?.isbn13 || "");
+      const isbnFallback = normalizeReadingIsbn(match?.isbn || "");
+      const normalizedIsbn = isbn13 || isbnFallback || isbn;
+      return {
+        coverUrl: coverUrl || "",
+        isbn13,
+        isbn: normalizedIsbn || ""
+      };
+    } catch {
+      const directFallback = await fetchGoogleCoverMatchDirect({ rawIsbn: isbn, title: titleText, author: authorText });
+      return directFallback || null;
+    }
+  }
+
+  function getReadingCoverLookupKey(entry, idx) {
+    const explicitId = String(entry?.id || entry?.entryId || "").trim();
+    if (explicitId) return explicitId;
+    const title = String(entry?.item || "").trim().toLowerCase();
+    const author = String(entry?.author || "").trim().toLowerCase();
+    const isbn = normalizeReadingIsbn(entry?.isbn13 || entry?.isbn || "");
+    return `${idx}:${title}:${author}:${isbn}`;
+  }
+
   function syncWaterDrinkUI() {
     if (!isWaterTracker) return;
     const isCustom = String(waterDrinkTypeInput?.value || "") === "custom";
@@ -915,8 +1126,11 @@ export function initTrackerCard(config) {
     selectedCoverId = 0;
     selectedCoverEditionKey = "";
     selectedCoverUrl = "";
+    selectedReadingIsbn13 = "";
+    selectedReadingIsbn = "";
     selectedPosterUrl = "";
     selectedImdbId = "";
+    if (readingIsbnInput) readingIsbnInput.value = "";
     notesInput.value = "";
     ratingController.reset();
     editingIdx = -1;
@@ -1040,6 +1254,9 @@ export function initTrackerCard(config) {
     selectedCoverId = Number(entry.coverId) || 0;
     selectedCoverEditionKey = entry.coverEditionKey || "";
     selectedCoverUrl = entry.coverUrl || "";
+    selectedReadingIsbn13 = normalizeReadingIsbn(entry?.isbn13 || "");
+    selectedReadingIsbn = normalizeReadingIsbn(entry?.isbn || "") || selectedReadingIsbn13;
+    if (readingIsbnInput) readingIsbnInput.value = selectedReadingIsbn13 || selectedReadingIsbn || "";
     selectedPosterUrl = entry.posterUrl || "";
     selectedImdbId = entry.imdbID || "";
     const notesHistory = getEntryNotesHistory(entry);
@@ -1125,7 +1342,14 @@ export function initTrackerCard(config) {
     let changed = false;
     const normalizedEntries = entries.map((entry) => {
       if (!entry || typeof entry !== "object") return entry;
-      if ("coverUrl" in entry) {
+      if ("coverUrl" in entry && entry.coverUrl && typeof entry.coverUrl !== "string") {
+        changed = true;
+        return {
+          ...entry,
+          coverUrl: ""
+        };
+      }
+      if (typeof entry.coverUrl === "string" && entry.coverUrl && isPlaceholderCoverUrl(entry.coverUrl)) {
         changed = true;
         return {
           ...entry,
@@ -1209,12 +1433,20 @@ export function initTrackerCard(config) {
     hasNormalizedWaterEntries = true;
   }
 
-  async function enrichReadingCovers() {
+  async function enrichReadingCovers(visibleIndices = null) {
     if (!isReadingTracker || isEnrichingReadingCovers) return;
+    const now = Date.now();
+    const visibleSet = visibleIndices instanceof Set ? visibleIndices : null;
     const entries = getEntries();
     const targets = entries
       .map((entry, idx) => ({ entry, idx }))
-      .filter(({ entry }) => entry?.item && !getReadingCoverUrl(entry, isReadingTracker));
+      .filter(({ entry, idx }) => {
+        if (!entry?.item || getReadingCoverUrl(entry, isReadingTracker)) return false;
+        if (visibleSet && !visibleSet.has(idx)) return false;
+        const key = getReadingCoverLookupKey(entry, idx);
+        const lastTriedAt = Number(readingCoverLookupAttemptedAt.get(key)) || 0;
+        return !lastTriedAt || (now - lastTriedAt) >= READING_COVER_RETRY_MS;
+      });
 
     if (!targets.length) return;
     isEnrichingReadingCovers = true;
@@ -1222,31 +1454,118 @@ export function initTrackerCard(config) {
     try {
       let changed = false;
       for (const { entry, idx } of targets) {
-        const query = [entry.item, entry.author].filter(Boolean).join(" ");
-        if (!query) continue;
+        const lookupKey = getReadingCoverLookupKey(entry, idx);
+        readingCoverLookupAttemptedAt.set(lookupKey, Date.now());
+        const title = String(entry?.item || "").trim();
+        const author = String(entry?.author || "").trim();
+        const entryIsbn = normalizeReadingIsbn(entry?.isbn13 || entry?.isbn || "");
+
+        if (entryIsbn) {
+          const isbnLookup = await fetchReadingCoverMatch({ rawIsbn: entryIsbn, title, author });
+          if (isbnLookup) {
+            const prevEntry = entries[idx] || {};
+            const nextEntry = {
+              ...prevEntry,
+              coverUrl: String(isbnLookup.coverUrl || prevEntry?.coverUrl || "").trim(),
+              isbn13: normalizeReadingIsbn(isbnLookup.isbn13 || prevEntry?.isbn13 || ""),
+              isbn: normalizeReadingIsbn(isbnLookup.isbn || prevEntry?.isbn || isbnLookup.isbn13 || prevEntry?.isbn13 || "")
+            };
+            const changedByIsbnLookup = String(nextEntry.coverUrl || "") !== String(prevEntry?.coverUrl || "")
+              || String(nextEntry.isbn13 || "") !== String(prevEntry?.isbn13 || "")
+              || String(nextEntry.isbn || "") !== String(prevEntry?.isbn || "");
+            if (changedByIsbnLookup) {
+              entries[idx] = nextEntry;
+              readingCoverLookupAttemptedAt.delete(lookupKey);
+              changed = true;
+              continue;
+            }
+          }
+        }
+
+        if (!title && !author) continue;
+        const compactTitle = title
+          .replace(/\s*\([^)]*\)\s*/g, " ")
+          .replace(/\s*\[[^\]]*\]\s*/g, " ")
+          .replace(/\s*[:\-].*$/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        const queryCandidates = [
+          [title, author].filter(Boolean).join(" "),
+          title,
+          [compactTitle, author].filter(Boolean).join(" "),
+          compactTitle,
+          author ? `${title.split(":")[0] || title} ${author}` : ""
+        ].map((value) => String(value || "").trim()).filter(Boolean);
 
         try {
-          const res = await fetch(`/api/openlibrary/suggest?q=${encodeURIComponent(query)}`);
-          if (!res.ok) continue;
-          const data = await res.json();
-          const suggestions = Array.isArray(data?.suggestions) ? data.suggestions : [];
-          const normalizedTitle = String(entry.item || "").trim().toLowerCase();
-          const normalizedAuthor = String(entry.author || "").trim().toLowerCase();
-          const match = suggestions.find((suggestion) => {
-            const sameTitle = String(suggestion?.value || "").trim().toLowerCase() === normalizedTitle;
-            const sameAuthor = !normalizedAuthor || String(suggestion?.author || "").trim().toLowerCase() === normalizedAuthor;
-            return sameTitle && sameAuthor;
-          }) || suggestions[0];
+          let match = null;
+          const normalizedTitle = String(title || "").trim().toLowerCase();
+          const normalizedCompactTitle = String(compactTitle || "").trim().toLowerCase();
+          const normalizedAuthor = String(author || "").trim().toLowerCase();
+          for (const query of queryCandidates) {
+            const res = await fetch(`/api/books/suggest?q=${encodeURIComponent(query)}`);
+            if (!res.ok) continue;
+            const data = await res.json();
+            let suggestions = Array.isArray(data?.suggestions) ? data.suggestions : [];
+            if (!suggestions.length) {
+              suggestions = await fetchGoogleSuggestionsDirect(query);
+            }
+            if (!suggestions.length) continue;
+            const strictMatch = suggestions.find((suggestion) => {
+              const suggestionTitle = String(suggestion?.value || "").trim().toLowerCase();
+              const suggestionAuthor = String(suggestion?.author || "").trim().toLowerCase();
+              const titleLooksClose = suggestionTitle === normalizedTitle
+                || (normalizedCompactTitle && suggestionTitle === normalizedCompactTitle)
+                || suggestionTitle.startsWith(normalizedCompactTitle || normalizedTitle)
+                || (normalizedCompactTitle && normalizedCompactTitle.startsWith(suggestionTitle));
+              const authorLooksClose = !normalizedAuthor
+                || (!suggestionAuthor && normalizedAuthor.length <= 2)
+                || suggestionAuthor === normalizedAuthor
+                || suggestionAuthor.includes(normalizedAuthor)
+                || normalizedAuthor.includes(suggestionAuthor);
+              return titleLooksClose && authorLooksClose;
+            });
+            if (strictMatch) {
+              match = strictMatch;
+            } else if (!normalizedAuthor) {
+              // Only use a loose fallback when the entry has no author signal.
+              match = suggestions[0];
+            } else {
+              match = null;
+            }
+            const coverId = Number(match?.coverId) || 0;
+            const coverEditionKey = String(match?.coverEditionKey || "").trim();
+            const coverUrl = String(match?.coverUrl || "").trim();
+            const matchIsbn13 = normalizeReadingIsbn(match?.isbn13 || "");
+            const matchIsbn = normalizeReadingIsbn(match?.isbn || "");
+            if (coverId || coverEditionKey || coverUrl || matchIsbn13 || matchIsbn) break;
+            match = null;
+          }
 
           const coverId = Number(match?.coverId) || 0;
           const coverEditionKey = String(match?.coverEditionKey || "").trim();
-          if (!coverId && !coverEditionKey) continue;
+          const coverUrl = String(match?.coverUrl || "").trim();
+          const matchedIsbn13 = normalizeReadingIsbn(match?.isbn13 || "");
+          const matchedIsbn = normalizeReadingIsbn(match?.isbn || "") || matchedIsbn13;
+          if (!coverId && !coverEditionKey && !coverUrl && !matchedIsbn) continue;
 
-          entries[idx] = {
-            ...entries[idx],
-            coverId,
-            coverEditionKey
+          const prevEntry = entries[idx] || {};
+          const nextEntry = {
+            ...prevEntry,
+            coverId: coverId || Number(prevEntry?.coverId) || 0,
+            coverEditionKey: coverEditionKey || String(prevEntry?.coverEditionKey || "").trim(),
+            coverUrl: coverUrl || String(prevEntry?.coverUrl || "").trim(),
+            isbn13: matchedIsbn13 || normalizeReadingIsbn(prevEntry?.isbn13 || ""),
+            isbn: matchedIsbn || normalizeReadingIsbn(prevEntry?.isbn || "") || matchedIsbn13 || normalizeReadingIsbn(prevEntry?.isbn13 || "")
           };
+          const hasCoverChanged = nextEntry.coverId !== Number(prevEntry?.coverId || 0)
+            || String(nextEntry.coverEditionKey || "") !== String(prevEntry?.coverEditionKey || "")
+            || String(nextEntry.coverUrl || "") !== String(prevEntry?.coverUrl || "");
+          const hasIsbnChanged = String(nextEntry.isbn13 || "") !== String(prevEntry?.isbn13 || "")
+            || String(nextEntry.isbn || "") !== String(prevEntry?.isbn || "");
+          if (!hasCoverChanged && !hasIsbnChanged) continue;
+          entries[idx] = nextEntry;
+          readingCoverLookupAttemptedAt.delete(lookupKey);
           changed = true;
         } catch {
           // Ignore individual lookup failures and continue backfilling others.
@@ -1255,7 +1574,7 @@ export function initTrackerCard(config) {
 
       if (changed) {
         saveEntries(entries);
-        renderEntries();
+        renderEntries(false, true);
       }
     } finally {
       isEnrichingReadingCovers = false;
@@ -1395,6 +1714,7 @@ export function initTrackerCard(config) {
   initItemAutocomplete({
     enableOmdbAutocomplete,
     omdbApiKey,
+    googleBooksApiKey,
     autocompleteEndpoint,
     itemInput,
     itemSuggestions,
@@ -1418,6 +1738,11 @@ export function initTrackerCard(config) {
       selectedCoverId = Number(selection?.coverId) || 0;
       selectedCoverEditionKey = selection?.coverEditionKey || "";
       selectedCoverUrl = selection?.coverUrl || "";
+      selectedReadingIsbn13 = normalizeReadingIsbn(selection?.isbn13 || "");
+      selectedReadingIsbn = normalizeReadingIsbn(selection?.isbn || "") || selectedReadingIsbn13;
+      if (readingIsbnInput) {
+        readingIsbnInput.value = selectedReadingIsbn13 || selectedReadingIsbn || "";
+      }
       selectedPosterUrl = selection?.posterUrl || "";
       selectedImdbId = selection?.imdbID || "";
     },
@@ -1426,9 +1751,11 @@ export function initTrackerCard(config) {
     }
   });
 
-  function renderEntries(resetVisibleCount = true) {
+  function renderEntries(resetVisibleCount = true, preserveScrollPosition = false) {
     normalizeReadingEntries();
     normalizeWaterEntries();
+    const shouldRestoreScroll = Boolean(preserveScrollPosition && listScrollContainer);
+    const previousScrollTop = shouldRestoreScroll ? listScrollContainer.scrollTop : 0;
     list.innerHTML = "";
     const entries = getEntries();
     const totalGameHours = {};
@@ -1682,7 +2009,7 @@ export function initTrackerCard(config) {
         ? `this.onerror=null;this.src='${fallbackMediaUrl}';`
         : "";
       const coverHtml = hasMediaImage
-        ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} /></div>`
+        ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
         : "";
       const notesHtml = renderNotesHtml(entry);
       if (isWaterTracker) {
@@ -1721,6 +2048,21 @@ export function initTrackerCard(config) {
         </div>
       `;
       const deleteButton = li.querySelector("[data-action=\"delete\"]");
+      const coverImageEl = li.querySelector(".reading-cover-image");
+      if (coverImageEl instanceof HTMLImageElement) {
+        const fallbackSrc = String(coverImageEl.getAttribute("data-fallback-src") || "").trim();
+        if (fallbackSrc) {
+          const applyFallback = () => {
+            if (coverImageEl.dataset.usedFallback === "1") return;
+            coverImageEl.dataset.usedFallback = "1";
+            coverImageEl.src = fallbackSrc;
+          };
+          coverImageEl.addEventListener("error", applyFallback, { once: true });
+          if (coverImageEl.complete && coverImageEl.naturalWidth === 0) {
+            applyFallback();
+          }
+        }
+      }
       if (deleteButton) {
         deleteButton.onclick = async () => {
           const confirmed = await requestDeleteConfirmation();
@@ -1781,10 +2123,17 @@ export function initTrackerCard(config) {
       list.appendChild(li);
     });
 
-    void enrichReadingCovers();
+    const LOOKAHEAD_BUFFER = 5;
+    const readingVisibleIndices = isReadingTracker
+      ? new Set(renderedEntries.slice(0, Math.min(renderedEntries.length, visibleLimit + LOOKAHEAD_BUFFER)).map(({ idx }) => idx))
+      : null;
+    void enrichReadingCovers(readingVisibleIndices);
     void enrichMoviePosters();
     if (isWaterTracker) {
       updateWaterGoalSummary();
+    }
+    if (shouldRestoreScroll) {
+      listScrollContainer.scrollTop = previousScrollTop;
     }
   }
 
@@ -1829,7 +2178,7 @@ export function initTrackerCard(config) {
 
       if (changed) {
         saveEntries(entries);
-        renderEntries();
+        renderEntries(false, true);
       }
     } finally {
       isEnrichingMoviePosters = false;
@@ -1918,6 +2267,8 @@ export function initTrackerCard(config) {
     const totalHours = getIntValue(totalHoursInput, 0);
     const totalMinutes = getIntValue(totalMinutesInput, 0);
     const readingSessionMinutes = Math.max(0, getIntValue(readingSessionMinutesInput, 0));
+    const readingIsbnRaw = String(readingIsbnInput?.value || "").trim();
+    const { isbn13: readingIsbn13, isbn: readingIsbn } = resolveReadingIsbnPair(readingIsbnRaw);
     const dueDate = dueDateInput?.value || "";
     const notes = notesInput.value.trim();
     const { goalHours, goalMinutes } = isSleepTracker ? getSleepGoalSettings() : { goalHours: 0, goalMinutes: 0 };
@@ -2039,6 +2390,8 @@ export function initTrackerCard(config) {
         updatedEntry.isAudiobook = isAudiobook;
         updatedEntry.coverId = selectedCoverId;
         updatedEntry.coverEditionKey = selectedCoverEditionKey;
+        updatedEntry.isbn13 = readingIsbn13 || selectedReadingIsbn13 || "";
+        updatedEntry.isbn = readingIsbn || selectedReadingIsbn || updatedEntry.isbn13 || "";
         updatedEntry.currentPage = isAudiobook ? 0 : currentPage;
         updatedEntry.totalPages = isAudiobook ? 0 : totalPages;
         updatedEntry.currentHours = isAudiobook ? Math.floor(listenedAudioMinutes / 60) : 0;
@@ -2277,6 +2630,8 @@ export function initTrackerCard(config) {
         nextEntry.isAudiobook = isAudiobook;
         nextEntry.coverId = selectedCoverId;
         nextEntry.coverEditionKey = selectedCoverEditionKey;
+        nextEntry.isbn13 = readingIsbn13 || selectedReadingIsbn13 || "";
+        nextEntry.isbn = readingIsbn || selectedReadingIsbn || nextEntry.isbn13 || "";
         nextEntry.currentPage = isAudiobook ? 0 : currentPage;
         nextEntry.totalPages = isAudiobook ? 0 : totalPages;
         nextEntry.currentHours = isAudiobook ? Math.floor(listenedAudioMinutes / 60) : 0;

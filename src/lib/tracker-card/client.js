@@ -126,6 +126,7 @@ export function initTrackerCard(config) {
   const waterOuncesInput = document.getElementById("tracker-water-ounces");
   const waterOuncesLabel = document.getElementById("tracker-water-ounces-label");
   const waterDrinkTypeInput = document.getElementById("tracker-water-drink-type");
+  const waterQuickAddContainer = document.getElementById("tracker-water-quick-add");
   const waterCustomNameWrap = document.getElementById("tracker-water-custom-name-wrap");
   const waterCustomNameInput = document.getElementById("tracker-water-custom-name");
   const waterCustomImpactWrap = document.getElementById("tracker-water-custom-impact-wrap");
@@ -1653,6 +1654,26 @@ export function initTrackerCard(config) {
       waterGoalOuncesInput?.focus();
     });
     waterDrinkTypeInput?.addEventListener("change", syncWaterDrinkUI);
+    waterQuickAddContainer?.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest("[data-quick-water-oz][data-quick-water-type]");
+      if (!(button instanceof HTMLElement)) return;
+      const quickOz = Math.max(0, Number(button.getAttribute("data-quick-water-oz") || 0));
+      const quickType = String(button.getAttribute("data-quick-water-type") || "water").trim() || "water";
+      if (quickOz <= 0) return;
+      if (editingIdx >= 0) {
+        clearForm();
+      }
+      const quickUnit = normalizeWaterVolumeUnit(selectedWaterVolumeUnit || "oz");
+      if (waterDrinkTypeInput) waterDrinkTypeInput.value = quickType;
+      syncWaterDrinkUI();
+      if (waterOuncesInput) {
+        const valueInSelectedUnit = fromWaterOunces(quickOz, quickUnit);
+        waterOuncesInput.value = formatWaterInputValue(valueInSelectedUnit, quickUnit);
+      }
+      form.requestSubmit();
+    });
     waterGoalSaveButton?.addEventListener("click", function() {
       const unit = normalizeWaterVolumeUnit(selectedWaterVolumeUnit);
       const nextGoalValue = Math.max(0, Number(waterGoalOuncesInput?.value || 0));

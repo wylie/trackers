@@ -74,6 +74,12 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
             </button>
           </div>
 
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-slate-700 mb-2">Manage Individual Tracker Data</h3>
+            <p class="text-sm text-slate-500 mb-3">Download or clear one tracker at a time while keeping everything else intact.</p>
+            <div id="settings-clear-tracker-list" class="space-y-2"></div>
+          </div>
+
           <div class="rounded-md border border-red-200 bg-red-50 p-4">
             <h3 class="text-sm font-semibold text-red-800 mb-2">Danger Zone</h3>
             <p class="text-sm text-red-700 mb-3">Permanently delete all locally saved tracker data from this browser.</p>
@@ -91,16 +97,30 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
         <section id="data-import-settings" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mt-6">
           <h2 class="text-[18px] font-bold text-slate-900 mb-2">Data Imports</h2>
           <p class="text-[15px] leading-7 text-slate-600 mb-4">Import data from other apps and sites into SimpleTrackers.</p>
-          <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div class="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p class="text-sm font-semibold text-slate-800">Goodreads</p>
-                <p class="text-xs text-slate-500">CSV export to Reading Tracker</p>
+          <div class="space-y-3">
+            <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p class="text-sm font-semibold text-slate-800">Goodreads</p>
+                  <p class="text-xs text-slate-500">CSV export to Reading Tracker</p>
+                </div>
+                <button id="settings-import-goodreads" type="button" class="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium hover:bg-emerald-700 transition">
+                  Import Goodreads CSV
+                </button>
+                <input id="settings-import-goodreads-input" type="file" accept=".csv,text/csv" class="hidden" />
               </div>
-              <button id="settings-import-goodreads" type="button" class="px-4 py-2 bg-emerald-600 text-white rounded-md font-medium hover:bg-emerald-700 transition">
-                Import Goodreads CSV
-              </button>
-              <input id="settings-import-goodreads-input" type="file" accept=".csv,text/csv" class="hidden" />
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p class="text-sm font-semibold text-slate-800">WaterMinder</p>
+                  <p class="text-xs text-slate-500">CSV export to Water Intake Tracker</p>
+                </div>
+                <button id="settings-import-waterminder" type="button" class="px-4 py-2 bg-cyan-600 text-white rounded-md font-medium hover:bg-cyan-700 transition">
+                  Import WaterMinder CSV
+                </button>
+                <input id="settings-import-waterminder-input" type="file" accept=".csv,text/csv" class="hidden" />
+              </div>
             </div>
           </div>
           <p class="mt-2 text-xs text-slate-500">Imported entries merge into your existing tracker data. More import sources can be added here over time.</p>
@@ -226,9 +246,25 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     return merged;
   }
 
+  function detectCsvDelimiter(raw) {
+    const sample = String(raw || "").split(/\r?\n/).slice(0, 5).join("\n");
+    const candidates = [",", ";", "\t", "|"];
+    let best = ",";
+    let bestScore = -1;
+    candidates.forEach((delimiter) => {
+      const score = sample.split(delimiter).length - 1;
+      if (score > bestScore) {
+        bestScore = score;
+        best = delimiter;
+      }
+    });
+    return best;
+  }
+
   function parseCsv(text) {
     const raw = String(text || "").replace(/^\uFEFF/, "");
     if (!raw.trim()) return [];
+    const delimiter = detectCsvDelimiter(raw);
     const records = [];
     let record = [];
     let value = "";
@@ -246,7 +282,7 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
         }
         continue;
       }
-      if (char === "," && !inQuotes) {
+      if (char === delimiter && !inQuotes) {
         record.push(value.trim());
         value = "";
         continue;
@@ -438,11 +474,464 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     return { entries, skipped };
   }
 
+  function getCsvValue(row, keys) {
+    if (!row || typeof row !== "object") return "";
+    const normalized = new Map(
+      Object.entries(row).map(([key, value]) => [
+        String(key || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+        value
+      ])
+    );
+    for (const key of keys) {
+      const directKey = String(key || "").toLowerCase();
+      const value = row[directKey];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+      const normalizedKey = directKey.replace(/[^a-z0-9]+/g, " ").trim();
+      if (normalizedKey && normalized.has(normalizedKey)) {
+        const normalizedValue = normalized.get(normalizedKey);
+        if (normalizedValue !== undefined && normalizedValue !== null && String(normalizedValue).trim() !== "") {
+          return String(normalizedValue).trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  function normalizeHeaderKey(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function getCsvValueByHeaderHint(row, headerHints, excludeHints = []) {
+    if (!row || typeof row !== "object") return "";
+    const include = Array.isArray(headerHints) ? headerHints.map(normalizeHeaderKey).filter(Boolean) : [];
+    const exclude = Array.isArray(excludeHints) ? excludeHints.map(normalizeHeaderKey).filter(Boolean) : [];
+    if (!include.length) return "";
+    const entries = Object.entries(row);
+    for (const [key, value] of entries) {
+      const normalizedHeader = normalizeHeaderKey(key);
+      if (!normalizedHeader) continue;
+      const blocked = exclude.some((hint) => normalizedHeader.includes(hint));
+      if (blocked) continue;
+      const matches = include.some((hint) => normalizedHeader.includes(hint));
+      if (!matches) continue;
+      const trimmed = String(value || "").trim();
+      if (trimmed) return trimmed;
+    }
+    return "";
+  }
+
+  function parseImportDateTime(dateRaw, timeRaw = "") {
+    const directRaw = String(dateRaw || "").trim();
+    const timeText = String(timeRaw || "").trim();
+    if (!directRaw) return null;
+
+    const directParsed = new Date(directRaw);
+    if (!Number.isNaN(directParsed.getTime())) return directParsed;
+
+    const mergedRaw = timeText ? `${directRaw} ${timeText}` : directRaw;
+    const mergedParsed = new Date(mergedRaw);
+    if (!Number.isNaN(mergedParsed.getTime())) return mergedParsed;
+
+    const mdY = directRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (mdY) {
+      const month = Number(mdY[1]);
+      const day = Number(mdY[2]);
+      const yearRaw = Number(mdY[3]);
+      const year = yearRaw < 100 ? (yearRaw >= 70 ? 1900 + yearRaw : 2000 + yearRaw) : yearRaw;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const normalizedTime = timeText || "12:00";
+        const fallback = new Date(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${normalizedTime}`);
+        if (!Number.isNaN(fallback.getTime())) return fallback;
+      }
+    }
+    return null;
+  }
+
+  function parseVolumeAmount(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return 0;
+    const cleaned = raw.replace(/,/g, "");
+    const direct = Number.parseFloat(cleaned);
+    if (Number.isFinite(direct)) return Math.max(0, direct);
+    const match = cleaned.match(/-?\d+(\.\d+)?/);
+    if (!match) return 0;
+    const parsed = Number.parseFloat(match[0]);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+
+  function detectVolumeUnit(rawUnit, amountText = "") {
+    const unit = String(rawUnit || "").trim().toLowerCase();
+    const amount = String(amountText || "").trim().toLowerCase();
+    if (unit.includes("ml") || amount.includes("ml")) return "ml";
+    if (unit.includes("liter") || unit.includes("litre") || amount.includes("liter") || amount.includes("litre")) return "ml";
+    if (unit.includes("l ") || unit === "l") return "ml";
+    if (amount.includes("fl oz") || amount.includes("floz")) return "oz";
+    if (unit.includes("oz") || amount.includes("oz")) return "oz";
+    const amountValue = parseVolumeAmount(amount);
+    if (amountValue >= 200) return "ml";
+    return "oz";
+  }
+
+  function toOunces(value, unit) {
+    const amount = Math.max(0, Number(value) || 0);
+    return unit === "ml" ? amount / 29.5735 : amount;
+  }
+
+  function parseHydrationImpact(rawImpact, rawPercent) {
+    const impactDirect = parseVolumeAmount(rawImpact);
+    if (impactDirect > 0) {
+      if (impactDirect > 1.2 && impactDirect <= 120) return Math.max(0, Math.min(1.2, impactDirect / 100));
+      return Math.max(0, Math.min(1.2, impactDirect));
+    }
+    const percent = parseVolumeAmount(rawPercent);
+    if (percent > 0) {
+      if (percent > 1.2 && percent <= 120) return Math.max(0, Math.min(1.2, percent / 100));
+      return Math.max(0, Math.min(1.2, percent));
+    }
+    return 1;
+  }
+
+  function normalizeDrinkTypeLabel(rawType) {
+    const label = String(rawType || "").trim();
+    if (!label) return { type: "water", label: "Water" };
+    const normalized = label.toLowerCase();
+    const knownMap = new Map([
+      ["water", "water"],
+      ["sparkling water", "sparkling-water"],
+      ["tea", "tea"],
+      ["coffee", "coffee"],
+      ["milk", "milk"],
+      ["juice", "juice"],
+      ["sports drink", "sports-drink"],
+      ["hot chocolate", "hot-chocolate"],
+      ["soda", "soda"],
+      ["beer", "beer"],
+      ["wine", "wine"]
+    ]);
+    return {
+      type: knownMap.get(normalized) || "custom",
+      label
+    };
+  }
+
+  function formatOuncesCompact(value) {
+    const amount = Math.max(0, Number(value) || 0);
+    const text = amount % 1 === 0 ? String(Math.round(amount)) : amount.toFixed(1).replace(/\.0$/, "");
+    return `${text}oz`;
+  }
+
+  function buildWaterDrinkHistoryItem(item) {
+    const ounces = Math.max(0, Number(item?.ounces) || 0);
+    const impact = Math.max(0, Math.min(1.2, Number(item?.impact) || 1));
+    const hydrationOunces = Math.max(0, Number(item?.hydrationOunces) || (ounces * impact));
+    return {
+      type: String(item?.type || "water").trim() || "water",
+      label: String(item?.label || "Water").trim() || "Water",
+      ounces,
+      hydrationOunces,
+      impact,
+      createdAt: Number(item?.createdAt) || Date.now()
+    };
+  }
+
+  function getDayKey(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function extractWaterMinderRowsToEntries(rows) {
+    const byDay = new Map();
+    let skipped = 0;
+
+    rows.forEach((row, idx) => {
+      const dateValue = getCsvValue(row, ["date/time", "datetime", "logged at", "created at", "date", "day"])
+        || getCsvValueByHeaderHint(row, ["date", "logged", "created", "time"], ["goal", "target"]);
+      const timeValue = getCsvValue(row, ["time", "logged time"]);
+      const parsedDate = parseImportDateTime(dateValue, timeValue);
+      if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) {
+        skipped += 1;
+        return;
+      }
+      const amountRaw = getCsvValue(
+        row,
+        [
+          "water value(oz)",
+          "water value",
+          "water amount",
+          "drink value(oz)",
+          "drink value",
+          "amount",
+          "volume",
+          "quantity",
+          "qty",
+          "size",
+          "drink amount",
+          "amount consumed",
+          "drink size"
+        ]
+      )
+        || getCsvValueByHeaderHint(
+          row,
+          ["water value", "drink value", "amount", "volume", "quantity", "qty", "drink size", "amount consumed", "serving size", "intake"],
+          ["goal", "target", "daily", "total", "remaining", "left", "progress", "percent", "percentage", "hydration", "impact"]
+        );
+      const hydrationRaw = getCsvValue(
+        row,
+        ["hydration value(oz)", "hydration value", "hydration amount", "hydration"]
+      ) || getCsvValueByHeaderHint(
+        row,
+        ["hydration value", "hydration amount"],
+        ["goal", "target", "daily", "percent", "percentage", "progress"]
+      );
+      const amount = parseVolumeAmount(amountRaw);
+      if (amount <= 0) {
+        skipped += 1;
+        return;
+      }
+      const unitRaw = getCsvValue(row, ["unit", "units", "volume unit", "measurement unit"])
+        || getCsvValueByHeaderHint(row, ["unit", "measurement", "oz", "ml"], ["goal", "target", "daily", "total"]);
+      const unit = detectVolumeUnit(unitRaw, amountRaw);
+      const ounces = toOunces(amount, unit);
+      if (ounces <= 0) {
+        skipped += 1;
+        return;
+      }
+      const drinkRaw = getCsvValue(row, ["drink type", "beverage", "drink", "type", "title", "name", "cup name"])
+        || getCsvValueByHeaderHint(row, ["drink", "beverage", "type", "name"], ["goal", "target"]);
+      const drink = normalizeDrinkTypeLabel(drinkRaw);
+      const hydrationImpact = parseHydrationImpact(
+        getCsvValue(row, ["hydration impact", "impact", "hydration factor"])
+          || getCsvValueByHeaderHint(row, ["hydration impact", "hydration factor", "impact factor"], ["goal", "target", "daily", "progress"]),
+        getCsvValue(row, ["hydration", "hydration %", "hydration percent"])
+          || getCsvValueByHeaderHint(row, ["hydration percent", "hydration %", "hydration"], ["goal", "target", "daily", "progress", "completion"])
+      );
+      const hydrationValueOunces = parseVolumeAmount(hydrationRaw);
+      const hydrationOunces = hydrationValueOunces > 0
+        ? Math.max(0, hydrationValueOunces)
+        : Math.max(0, ounces * hydrationImpact);
+      const note = getCsvValue(row, ["notes", "note", "comment", "memo"]);
+      const dayKey = getDayKey(parsedDate);
+      if (!dayKey) {
+        skipped += 1;
+        return;
+      }
+
+      const current = byDay.get(dayKey) || {
+        date: new Date(`${dayKey}T12:00:00`),
+        latestAt: 0,
+        notesHistory: [],
+        drinks: []
+      };
+      const createdAt = parsedDate.getTime();
+      current.latestAt = Math.max(current.latestAt, createdAt);
+      current.drinks.push(buildWaterDrinkHistoryItem({
+        type: drink.type,
+        label: drink.label,
+        ounces,
+        hydrationOunces,
+        impact: hydrationImpact,
+        createdAt
+      }));
+      if (note) {
+        current.notesHistory.push({ note, createdAt });
+      }
+      byDay.set(dayKey, current);
+    });
+
+    const entries = Array.from(byDay.entries()).map(([dayKey, dayData], idx) => {
+      const history = Array.isArray(dayData.drinks) ? dayData.drinks : [];
+      const totalOunces = history.reduce((sum, item) => sum + Math.max(0, Number(item?.ounces) || 0), 0);
+      const totalHydration = history.reduce((sum, item) => sum + Math.max(0, Number(item?.hydrationOunces) || 0), 0);
+      const impact = totalOunces > 0 ? Math.max(0, Math.min(1.2, totalHydration / totalOunces)) : 1;
+      const distinctLabels = Array.from(new Set(history.map((item) => String(item?.label || "").trim()).filter(Boolean)));
+      const singleLabel = distinctLabels.length === 1 ? distinctLabels[0] : "Mixed Drinks";
+      const singleType = distinctLabels.length === 1 ? String(history[0]?.type || "water").trim() || "water" : "mixed";
+      const notesHistory = Array.isArray(dayData.notesHistory) ? dayData.notesHistory : [];
+      notesHistory.sort((a, b) => Number(a?.createdAt || 0) - Number(b?.createdAt || 0));
+      const latestNote = notesHistory.length ? String(notesHistory[notesHistory.length - 1]?.note || "").trim() : "";
+      const isoDate = new Date(`${dayKey}T12:00:00`).toISOString();
+      const updatedAt = Number(dayData.latestAt) || Date.now();
+      return {
+        id: `waterminder_${updatedAt}_${idx}_${Math.random().toString(16).slice(2, 8)}`,
+        date: isoDate,
+        updatedAt,
+        item: `${formatOuncesCompact(totalOunces)} ${singleLabel}`,
+        notes: latestNote,
+        notesHistory: notesHistory.map((noteRow) => ({
+          note: String(noteRow?.note || "").trim(),
+          createdAt: Number(noteRow?.createdAt) || updatedAt
+        })).filter((noteRow) => noteRow.note),
+        rating: 0,
+        waterOunces: totalOunces,
+        hydrationOunces: totalHydration,
+        waterHydrationImpact: impact,
+        waterDrinkType: singleType,
+        waterDrinkLabel: singleLabel,
+        waterVolumeUnit: "oz",
+        waterDrinkHistory: history
+      };
+    });
+
+    entries.sort((a, b) => Number(b?.updatedAt || 0) - Number(a?.updatedAt || 0));
+    return { entries, skipped };
+  }
+
+  function mergeWaterEntriesByDay(existingEntries, importedEntries) {
+    const dayMap = new Map();
+    const toArray = (value) => (Array.isArray(value) ? value : []);
+    const allExisting = toArray(existingEntries).map((entry) => ({ ...entry }));
+    allExisting.forEach((entry) => {
+      const key = getDayKey(entry?.date || "");
+      if (key) dayMap.set(key, entry);
+    });
+
+    let mergedDays = 0;
+    importedEntries.forEach((incomingRaw) => {
+      const incoming = { ...incomingRaw };
+      const key = getDayKey(incoming?.date || "");
+      if (!key) return;
+      const existing = dayMap.get(key);
+      if (!existing) {
+        dayMap.set(key, incoming);
+        return;
+      }
+      mergedDays += 1;
+      const existingHistory = Array.isArray(existing?.waterDrinkHistory) ? existing.waterDrinkHistory : [];
+      const incomingHistory = Array.isArray(incoming?.waterDrinkHistory) ? incoming.waterDrinkHistory : [];
+      const historySeen = new Set();
+      const mergedHistory = [...existingHistory, ...incomingHistory].map((item) => buildWaterDrinkHistoryItem(item)).filter((item) => {
+        const signature = `${String(item?.label || "").trim().toLowerCase()}|${Number(item?.ounces || 0)}|${Number(item?.createdAt || 0)}`;
+        if (historySeen.has(signature)) return false;
+        historySeen.add(signature);
+        return true;
+      });
+      const totalOunces = mergedHistory.reduce((sum, item) => sum + Math.max(0, Number(item?.ounces) || 0), 0);
+      const totalHydration = mergedHistory.reduce((sum, item) => sum + Math.max(0, Number(item?.hydrationOunces) || 0), 0);
+      const impact = totalOunces > 0 ? Math.max(0, Math.min(1.2, totalHydration / totalOunces)) : 1;
+      const labels = Array.from(new Set(mergedHistory.map((item) => String(item?.label || "").trim()).filter(Boolean)));
+      const label = labels.length === 1 ? labels[0] : "Mixed Drinks";
+      const type = labels.length === 1 ? String(mergedHistory[0]?.type || "water").trim() || "water" : "mixed";
+      const existingNotes = Array.isArray(existing?.notesHistory) ? existing.notesHistory : [];
+      const incomingNotes = Array.isArray(incoming?.notesHistory) ? incoming.notesHistory : [];
+      const noteSeen = new Set();
+      const notesHistory = [...existingNotes, ...incomingNotes]
+        .map((row) => ({
+          note: String(row?.note || "").trim(),
+          createdAt: Number(row?.createdAt) || Date.now()
+        }))
+        .filter((row) => row.note)
+        .filter((row) => {
+          const signature = `${row.note}|${row.createdAt}`;
+          if (noteSeen.has(signature)) return false;
+          noteSeen.add(signature);
+          return true;
+        })
+        .sort((a, b) => a.createdAt - b.createdAt);
+      const latestNote = notesHistory.length ? notesHistory[notesHistory.length - 1].note : "";
+
+      dayMap.set(key, {
+        ...existing,
+        ...incoming,
+        date: existing?.date || incoming?.date || new Date(`${key}T12:00:00`).toISOString(),
+        updatedAt: Math.max(Number(existing?.updatedAt) || 0, Number(incoming?.updatedAt) || 0),
+        item: `${formatOuncesCompact(totalOunces)} ${label}`,
+        notes: latestNote,
+        notesHistory,
+        rating: 0,
+        waterOunces: totalOunces,
+        hydrationOunces: totalHydration,
+        waterHydrationImpact: impact,
+        waterDrinkType: type,
+        waterDrinkLabel: label,
+        waterVolumeUnit: "oz",
+        waterDrinkHistory: mergedHistory
+      });
+    });
+
+    const mergedEntries = Array.from(dayMap.values());
+    mergedEntries.sort((a, b) => {
+      const aUpdated = Number(a?.updatedAt) || 0;
+      const bUpdated = Number(b?.updatedAt) || 0;
+      if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+      const aDate = Number(new Date(a?.date || 0).getTime()) || 0;
+      const bDate = Number(new Date(b?.date || 0).getTime()) || 0;
+      return bDate - aDate;
+    });
+    return { entries: mergedEntries, mergedDays };
+  }
+
   function refreshSummary(summaryEl) {
     const data = getData();
     const trackerCount = Object.values(data).filter((value) => Array.isArray(value) && value.length > 0).length;
     const entryCount = countEntries(data);
     summaryEl.textContent = `Saved trackers: ${trackerCount} • Total entries: ${entryCount}`;
+  }
+
+  function humanizeTrackerKey(storageKey) {
+    const raw = String(storageKey || "").trim();
+    if (!raw) return "Unknown Tracker";
+    const explicit = {
+      "water-tracker-entries": "Water Intake Tracker",
+      "movie-tracker-entries": "Movie Watch Tracker",
+      "video-game-tracker-entries": "Video Game Tracker",
+      "custom-tracker-entries": "Custom Tracker",
+      "task-tracker-entries": "Task Tracker",
+      "sleep-tracker-entries": "Sleep Tracker",
+      "meal-tracker-entries": "Meal Tracker",
+      "health-tracker-entries": "Health Tracker",
+      "finance-tracker-entries": "Finance Tracker",
+      "reading-tracker-entries": "Reading Tracker",
+      "habit-tracker-entries": "Habit Tracker",
+      "workout-tracker-entries": "Workout Tracker"
+    };
+    if (explicit[raw]) return explicit[raw];
+    const base = raw.endsWith("-entries") ? raw.slice(0, -8) : raw;
+    return base
+      .split("-")
+      .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : "")
+      .join(" ");
+  }
+
+  function csvEscape(value) {
+    const text = String(value ?? "");
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  }
+
+  function valueToCsvCell(value) {
+    if (value === null || value === undefined) return "";
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (item && typeof item === "object") return JSON.stringify(item);
+        return String(item ?? "");
+      }).join(" | ");
+    }
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  }
+
+  function entriesToCsv(entries) {
+    const rows = Array.isArray(entries) ? entries : [];
+    if (!rows.length) return "";
+    const headers = Array.from(new Set(rows.flatMap((entry) => Object.keys(entry || {}))));
+    const lines = [
+      headers.map(csvEscape).join(",")
+    ];
+    rows.forEach((entry) => {
+      const line = headers
+        .map((header) => csvEscape(valueToCsvCell(entry?.[header])))
+        .join(",");
+      lines.push(line);
+    });
+    return lines.join("\n");
   }
 
   async function syncApi(path, options = {}) {
@@ -644,11 +1133,14 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     const clearBtn = root.querySelector("#settings-clear-all-data-btn");
     const historyList = root.querySelector("#settings-history-list");
     const clearHistoryBtn = root.querySelector("#settings-clear-history-btn");
+    const clearTrackerList = root.querySelector("#settings-clear-tracker-list");
     const importGoodreadsBtn = document.getElementById("settings-import-goodreads");
     const importGoodreadsInput = document.getElementById("settings-import-goodreads-input");
+    const importWaterminderBtn = document.getElementById("settings-import-waterminder");
+    const importWaterminderInput = document.getElementById("settings-import-waterminder-input");
     const importMessage = document.getElementById("settings-import-message");
 
-    if (!summary || !message || !downloadBtn || !uploadBtn || !uploadInput || !clearBtn || !historyList || !clearHistoryBtn) return;
+    if (!summary || !message || !downloadBtn || !uploadBtn || !uploadInput || !clearBtn || !historyList || !clearHistoryBtn || !clearTrackerList) return;
     root.dataset.bound = "true";
 
     const setMessage = (text, isError = false) => {
@@ -677,6 +1169,50 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
           </div>
         `;
       }).join("");
+    };
+
+    const renderClearTrackerList = () => {
+      const data = getData();
+      const trackerRows = Object.entries(data)
+        .filter(([key, value]) => key.endsWith("-entries") && Array.isArray(value))
+        .map(([key, value]) => ({
+          key,
+          label: humanizeTrackerKey(key),
+          count: Array.isArray(value) ? value.length : 0
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      if (!trackerRows.length) {
+        clearTrackerList.innerHTML = `<p class="text-sm text-slate-500">No tracker data found yet.</p>`;
+        return;
+      }
+
+      clearTrackerList.innerHTML = trackerRows.map((row) => `
+        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800">${row.label}</p>
+            <p class="text-xs text-slate-500">${row.count} ${row.count === 1 ? "entry" : "entries"}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-download-tracker="${row.key}"
+              class="px-3 py-1.5 text-xs font-semibold rounded-md border border-blue-300 text-blue-700 bg-white hover:bg-blue-50 transition"
+              ${row.count <= 0 ? "disabled" : ""}
+            >
+              Download CSV
+            </button>
+            <button
+              type="button"
+              data-clear-tracker="${row.key}"
+              class="px-3 py-1.5 text-xs font-semibold rounded-md border border-red-300 text-red-700 bg-white hover:bg-red-50 transition"
+              ${row.count <= 0 ? "disabled" : ""}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      `).join("");
     };
 
     downloadBtn.addEventListener("click", () => {
@@ -711,7 +1247,11 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
     if (importGoodreadsBtn && importGoodreadsInput && !importGoodreadsBtn.dataset.bound) {
       importGoodreadsBtn.dataset.bound = "1";
       importGoodreadsBtn.addEventListener("click", () => {
-        importGoodreadsInput.click();
+        if (typeof importGoodreadsInput.showPicker === "function") {
+          importGoodreadsInput.showPicker();
+        } else {
+          importGoodreadsInput.click();
+        }
       });
 
       importGoodreadsInput.addEventListener("change", async (event) => {
@@ -770,6 +1310,64 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
           setImportMessage("Import failed: invalid CSV file.", true);
         } finally {
           importGoodreadsInput.value = "";
+        }
+      });
+    }
+
+    if (importWaterminderBtn && importWaterminderInput && !importWaterminderBtn.dataset.bound) {
+      importWaterminderBtn.dataset.bound = "1";
+      importWaterminderBtn.addEventListener("click", () => {
+        if (typeof importWaterminderInput.showPicker === "function") {
+          importWaterminderInput.showPicker();
+        } else {
+          importWaterminderInput.click();
+        }
+      });
+
+      importWaterminderInput.addEventListener("change", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        const file = target.files?.[0];
+        if (!file) return;
+        try {
+          const csvText = await file.text();
+          const rows = parseCsv(csvText);
+          if (!rows.length) {
+            setImportMessage("Import failed: CSV appears empty.", true);
+            return;
+          }
+          const importResult = extractWaterMinderRowsToEntries(rows);
+          const importedEntries = Array.isArray(importResult?.entries) ? importResult.entries : [];
+          const skippedRows = Math.max(0, Number(importResult?.skipped) || 0);
+          if (!importedEntries.length) {
+            const sampleHeaders = rows[0] ? Object.keys(rows[0]).slice(0, 8).join(", ") : "none detected";
+            setImportMessage(`Import failed: no valid WaterMinder drink rows were found. Headers seen: ${sampleHeaders}`, true);
+            return;
+          }
+          const ok = window.confirm(`Import ${importedEntries.length} WaterMinder day entries into Water Intake Tracker?`);
+          if (!ok) return;
+
+          pushHistorySnapshot(getData(), "settings-import-waterminder");
+          const next = getData();
+          const existing = Array.isArray(next["water-tracker-entries"]) ? next["water-tracker-entries"] : [];
+          const merged = mergeWaterEntriesByDay(existing, importedEntries);
+          next["water-tracker-entries"] = merged.entries;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", { detail: { storageKey: "water-tracker-entries" } }));
+          document.dispatchEvent(new CustomEvent("simpletrackers:sync-data-updated"));
+          document.dispatchEvent(new CustomEvent("simpletrackers:history-updated"));
+          refreshSummary(summary);
+          renderHistory();
+
+          const suffixParts = [];
+          if (merged.mergedDays > 0) suffixParts.push(`${merged.mergedDays} merged into existing days`);
+          if (skippedRows > 0) suffixParts.push(`${skippedRows} skipped rows`);
+          const suffix = suffixParts.length ? ` (${suffixParts.join("; ")})` : "";
+          setImportMessage(`Imported ${importedEntries.length} WaterMinder day entries into Water Intake Tracker.${suffix}`);
+        } catch {
+          setImportMessage("Import failed: invalid CSV file.", true);
+        } finally {
+          importWaterminderInput.value = "";
         }
       });
     }
@@ -870,10 +1468,57 @@ const syncApiBase = (import.meta.env.PUBLIC_SYNC_API_BASE || "https://trackers.w
       setMessage("Restore history cleared.");
     });
 
+    clearTrackerList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const downloadTrackerKey = String(target.getAttribute("data-download-tracker") || "").trim();
+      if (downloadTrackerKey) {
+        const data = getData();
+        const entries = Array.isArray(data[downloadTrackerKey]) ? data[downloadTrackerKey] : [];
+        if (!entries.length) return;
+        const trackerLabel = humanizeTrackerKey(downloadTrackerKey);
+        const csv = entriesToCsv(entries);
+        if (!csv) return;
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const date = new Date().toISOString().slice(0, 10);
+        const fileKey = downloadTrackerKey.replace(/[^a-z0-9\-]+/gi, "-").toLowerCase();
+        a.href = url;
+        a.download = `simpletrackers-${fileKey}-${date}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setMessage(`Downloaded ${trackerLabel} data as CSV.`);
+        return;
+      }
+      const trackerKey = String(target.getAttribute("data-clear-tracker") || "").trim();
+      if (!trackerKey) return;
+      const data = getData();
+      const entries = Array.isArray(data[trackerKey]) ? data[trackerKey] : [];
+      if (!entries.length) return;
+      const trackerLabel = humanizeTrackerKey(trackerKey);
+      const ok = window.confirm(`Clear all ${entries.length} entries from ${trackerLabel}?`);
+      if (!ok) return;
+      pushHistorySnapshot(data, `settings-clear-${trackerKey}`);
+      const next = { ...data };
+      delete next[trackerKey];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      document.dispatchEvent(new CustomEvent("simpletrackers:entries-updated", { detail: { storageKey: trackerKey } }));
+      document.dispatchEvent(new CustomEvent("simpletrackers:sync-data-updated"));
+      document.dispatchEvent(new CustomEvent("simpletrackers:history-updated"));
+      refreshSummary(summary);
+      renderHistory();
+      renderClearTrackerList();
+      setMessage(`Cleared all entries from ${trackerLabel}.`);
+    });
+
     document.addEventListener("simpletrackers:history-updated", renderHistory);
 
     refreshSummary(summary);
     renderHistory();
+    renderClearTrackerList();
   }
 
   initSettingsPage();

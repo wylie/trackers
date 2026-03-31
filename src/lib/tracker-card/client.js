@@ -68,7 +68,11 @@ export function initTrackerCard(config) {
   const waterGoalCompactText = document.getElementById("tracker-water-goal-compact-text");
   const waterGoalEditButton = document.getElementById("tracker-water-goal-edit");
   const waterGoalEditor = document.getElementById("tracker-water-goal-editor");
+  const readingGoalModeInput = document.getElementById("tracker-reading-goal-mode");
   const readingGoalMinutesInput = document.getElementById("tracker-reading-goal-minutes");
+  const readingGoalPagesInput = document.getElementById("tracker-reading-goal-pages");
+  const readingGoalMinutesField = document.getElementById("tracker-reading-goal-minutes-field");
+  const readingGoalPagesField = document.getElementById("tracker-reading-goal-pages-field");
   const readingGoalSaveButton = document.getElementById("tracker-save-reading-goal");
   const readingGoalSummary = document.getElementById("tracker-reading-goal-summary");
   const readingGoalMessage = document.getElementById("tracker-reading-goal-message");
@@ -182,6 +186,7 @@ export function initTrackerCard(config) {
   let hasNormalizedReadingEntries = false;
   let hasNormalizedWaterEntries = false;
   let selectedWaterVolumeUnit = "oz";
+  let selectedReadingGoalMode = "minutes";
   let selectedReadingListFilter = "all";
   let visibleEntriesCount = 0;
   let resolveDeletePrompt = null;
@@ -379,8 +384,10 @@ export function initTrackerCard(config) {
     const allEntries = getAllEntries();
     const settings = allEntries?.[readingSettingsKey];
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+    const goalMode = String(settings.goalMode || "").trim().toLowerCase() === "pages" ? "pages" : "minutes";
     const dailyGoalMinutes = Math.max(0, Number(settings.dailyGoalMinutes) || 0);
-    return dailyGoalMinutes > 0;
+    const dailyGoalPages = Math.max(0, Number(settings.dailyGoalPages) || 0);
+    return goalMode === "pages" ? dailyGoalPages > 0 : dailyGoalMinutes > 0;
   }
 
   function setSleepGoalCollapsed(collapsed) {
@@ -464,9 +471,24 @@ export function initTrackerCard(config) {
     return resolveReadingGoalSettings({ allEntries, readingSettingsKey });
   }
 
-  function saveReadingGoalSettings(dailyGoalMinutes) {
+  function saveReadingGoalSettings({ goalMode, dailyGoalMinutes, dailyGoalPages }) {
     const allEntries = getAllEntries();
-    persistReadingGoalSettings({ allEntries, readingSettingsKey, dailyGoalMinutes });
+    persistReadingGoalSettings({
+      allEntries,
+      readingSettingsKey,
+      goalMode,
+      dailyGoalMinutes,
+      dailyGoalPages
+    });
+  }
+
+  function syncReadingGoalModeUI() {
+    if (!isReadingTracker) return;
+    selectedReadingGoalMode = String(readingGoalModeInput?.value || "minutes").trim().toLowerCase() === "pages"
+      ? "pages"
+      : "minutes";
+    if (readingGoalMinutesField) readingGoalMinutesField.classList.toggle("hidden", selectedReadingGoalMode !== "minutes");
+    if (readingGoalPagesField) readingGoalPagesField.classList.toggle("hidden", selectedReadingGoalMode !== "pages");
   }
 
   function updateSleepGoalSummary() {
@@ -544,6 +566,29 @@ export function initTrackerCard(config) {
     }, 0);
   }
 
+  function getReadingDayTotalPages(entries, dateValue) {
+    const targetDate = dateValue ? new Date(`${dateValue}T00:00:00`) : new Date();
+    const yyyy = targetDate.getFullYear();
+    const mm = targetDate.getMonth();
+    const dd = targetDate.getDate();
+    return entries.reduce((sum, entry) => {
+      if (entry?.isAudiobook) return sum;
+      const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
+      const rawHistory = Array.isArray(entry?.readingActivityHistory) ? entry.readingActivityHistory : [];
+      if (!rawHistory.length) return sum;
+      const entryPages = rawHistory.reduce((entrySum, item) => {
+        const when = new Date(normalizeNoteTimestamp(item?.createdAt, entry?.date || ""));
+        if (!Number.isFinite(when.getTime())) return entrySum;
+        if (when.getFullYear() !== yyyy || when.getMonth() !== mm || when.getDate() !== dd) return entrySum;
+        const deltaPercent = Math.max(0, Number(item?.deltaPercent) || 0);
+        if (deltaPercent <= 0) return entrySum;
+        const deltaPages = totalPages > 0 ? ((deltaPercent / 100) * totalPages) : deltaPercent;
+        return entrySum + Math.max(0, deltaPages);
+      }, 0);
+      return sum + entryPages;
+    }, 0);
+  }
+
   function updateWaterGoalSummary() {
     if (!isWaterTracker || !waterGoalSummary) return;
     const unit = normalizeWaterVolumeUnit(selectedWaterVolumeUnit);
@@ -566,15 +611,30 @@ export function initTrackerCard(config) {
 
   function updateReadingGoalSummary() {
     if (!isReadingTracker || !readingGoalSummary) return;
-    const goalMinutes = Math.max(0, Number(readingGoalMinutesInput?.value || 0));
     const currentDate = entryDateInput?.value || getTodayDateInputValue();
-    const todayTotalMinutes = getReadingDayTotalMinutes(getEntries(), currentDate);
+    const goalMode = String(readingGoalModeInput?.value || selectedReadingGoalMode || "minutes").trim().toLowerCase() === "pages"
+      ? "pages"
+      : "minutes";
     let summaryText = "";
-    if (goalMinutes > 0) {
-      const pct = Math.min(999, Math.round((todayTotalMinutes / goalMinutes) * 100));
-      summaryText = `Reading today: ${todayTotalMinutes} / ${goalMinutes} min (${pct}%)`;
+    if (goalMode === "pages") {
+      const goalPages = Math.max(0, Number(readingGoalPagesInput?.value || 0));
+      const todayPages = Math.round(getReadingDayTotalPages(getEntries(), currentDate) * 10) / 10;
+      const todayPagesLabel = todayPages.toFixed(1).replace(/\.0$/, "");
+      if (goalPages > 0) {
+        const pct = Math.min(999, Math.round((todayPages / goalPages) * 100));
+        summaryText = `Reading today: ${todayPagesLabel} / ${goalPages} pages (${pct}%)`;
+      } else {
+        summaryText = `Reading today: ${todayPagesLabel} pages`;
+      }
     } else {
-      summaryText = `Reading today: ${todayTotalMinutes} min`;
+      const goalMinutes = Math.max(0, Number(readingGoalMinutesInput?.value || 0));
+      const todayTotalMinutes = getReadingDayTotalMinutes(getEntries(), currentDate);
+      if (goalMinutes > 0) {
+        const pct = Math.min(999, Math.round((todayTotalMinutes / goalMinutes) * 100));
+        summaryText = `Reading today: ${todayTotalMinutes} / ${goalMinutes} min (${pct}%)`;
+      } else {
+        summaryText = `Reading today: ${todayTotalMinutes} min`;
+      }
     }
     readingGoalSummary.textContent = summaryText;
     if (readingGoalCompactText) readingGoalCompactText.textContent = summaryText;
@@ -1289,21 +1349,44 @@ export function initTrackerCard(config) {
   }
 
   if (isReadingTracker) {
-    const { dailyGoalMinutes } = getReadingGoalSettings();
+    const { goalMode, dailyGoalMinutes, dailyGoalPages } = getReadingGoalSettings();
+    selectedReadingGoalMode = goalMode === "pages" ? "pages" : "minutes";
+    if (readingGoalModeInput) readingGoalModeInput.value = selectedReadingGoalMode;
     if (readingGoalMinutesInput) readingGoalMinutesInput.value = String(dailyGoalMinutes);
+    if (readingGoalPagesInput) readingGoalPagesInput.value = String(dailyGoalPages);
+    syncReadingGoalModeUI();
     updateReadingGoalSummary();
     setReadingGoalCollapsed(hasPersistedReadingGoalSettings());
+    readingGoalModeInput?.addEventListener("change", function() {
+      syncReadingGoalModeUI();
+      updateReadingGoalSummary();
+    });
     readingGoalMinutesInput?.addEventListener("change", updateReadingGoalSummary);
+    readingGoalPagesInput?.addEventListener("change", updateReadingGoalSummary);
     readingGoalEditButton?.addEventListener("click", function() {
       setReadingGoalCollapsed(false);
-      readingGoalMinutesInput?.focus();
+      if (selectedReadingGoalMode === "pages") {
+        readingGoalPagesInput?.focus();
+      } else {
+        readingGoalMinutesInput?.focus();
+      }
     });
     readingGoalSaveButton?.addEventListener("click", function() {
       const nextGoalMinutes = Math.max(0, getIntValue(readingGoalMinutesInput, 0));
-      saveReadingGoalSettings(nextGoalMinutes);
+      const nextGoalPages = Math.max(0, getIntValue(readingGoalPagesInput, 0));
+      const nextGoalMode = String(readingGoalModeInput?.value || selectedReadingGoalMode || "minutes").trim().toLowerCase() === "pages"
+        ? "pages"
+        : "minutes";
+      saveReadingGoalSettings({
+        goalMode: nextGoalMode,
+        dailyGoalMinutes: nextGoalMinutes,
+        dailyGoalPages: nextGoalPages
+      });
+      selectedReadingGoalMode = nextGoalMode;
       updateReadingGoalSummary();
-      showReadingGoalMessage(`Saved goal: ${nextGoalMinutes} min/day`);
-      setReadingGoalCollapsed(nextGoalMinutes > 0);
+      const goalValue = nextGoalMode === "pages" ? nextGoalPages : nextGoalMinutes;
+      showReadingGoalMessage(`Saved goal: ${goalValue} ${nextGoalMode === "pages" ? "pages/day" : "min/day"}`);
+      setReadingGoalCollapsed(goalValue > 0);
       renderEntries(false);
     });
     entryDateInput?.addEventListener("change", updateReadingGoalSummary);

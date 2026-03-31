@@ -61,14 +61,6 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
               <div id="rd-progress-bars" class="rd-bars"></div>
             </div>
             <div class="rd-card">
-              <h3 class="rd-title">Reading Status</h3>
-              <div class="rd-pie-wrap">
-                <div id="rd-status-pie" class="rd-pie"></div>
-                <div id="rd-status-legend" class="rd-legend"></div>
-              </div>
-            </div>
-            <div id="rd-yearly-challenge" class="rd-card"></div>
-            <div class="rd-card">
               <h3 class="rd-title">Last 14 Days</h3>
               <div class="rd-legend-inline">
                 <span><i class="rd-legend-swatch rd-legend-swatch--pages"></i>Pages</span>
@@ -82,6 +74,18 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
               </div>
               <p class="rd-note">Blue = pages read, green = audiobook time listened.</p>
             </div>
+            <div class="rd-card">
+              <h3 class="rd-title">Goal Hits (30 Days)</h3>
+              <div id="rd-goal-hits"></div>
+            </div>
+            <div class="rd-card">
+              <h3 class="rd-title">Reading Status</h3>
+              <div class="rd-pie-wrap">
+                <div id="rd-status-pie" class="rd-pie"></div>
+                <div id="rd-status-legend" class="rd-legend"></div>
+              </div>
+            </div>
+            <div id="rd-yearly-challenge" class="rd-card"></div>
             <TrackerBadgesCard storageKey="reading-tracker-entries" />
             <SupportButton />
           </aside>
@@ -123,8 +127,10 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const store = parseStore();
     const settings = store?.[READING_SETTINGS_KEY];
     const yearlyGoalBooks = Math.max(0, Number(settings?.yearlyGoalBooks) || 0);
+    const goalMode = String(settings?.goalMode || "").trim().toLowerCase() === "pages" ? "pages" : "minutes";
     const dailyGoalMinutes = Math.max(0, Number(settings?.dailyGoalMinutes) || 0);
-    return { yearlyGoalBooks, dailyGoalMinutes };
+    const dailyGoalPages = Math.max(0, Number(settings?.dailyGoalPages) || 0);
+    return { yearlyGoalBooks, goalMode, dailyGoalMinutes, dailyGoalPages };
   }
 
   function saveReadingSettings(nextSettings) {
@@ -133,7 +139,10 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const existingObject = existing && typeof existing === "object" ? existing : {};
     all[READING_SETTINGS_KEY] = {
       ...existingObject,
-      yearlyGoalBooks: Math.max(0, Number(nextSettings?.yearlyGoalBooks) || 0)
+      yearlyGoalBooks: Math.max(0, Number(nextSettings?.yearlyGoalBooks) || 0),
+      goalMode: String(nextSettings?.goalMode || existingObject.goalMode || "minutes").trim().toLowerCase() === "pages" ? "pages" : "minutes",
+      dailyGoalMinutes: Math.max(0, Number(nextSettings?.dailyGoalMinutes ?? existingObject.dailyGoalMinutes) || 0),
+      dailyGoalPages: Math.max(0, Number(nextSettings?.dailyGoalPages ?? existingObject.dailyGoalPages) || 0)
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   }
@@ -292,6 +301,100 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     return series;
   }
 
+  function normalizeTimestamp(rawValue, fallbackValue = "") {
+    const direct = Number(rawValue);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    if (typeof rawValue === "string" && rawValue.trim()) {
+      const parsed = new Date(rawValue).getTime();
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    const fallback = fallbackValue ? new Date(fallbackValue).getTime() : 0;
+    if (Number.isFinite(fallback) && fallback > 0) return fallback;
+    return 0;
+  }
+
+  function aggregateLast30GoalSeries(entries) {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - 29);
+    const msPerDay = 86400000;
+    const series = Array.from({ length: 30 }, (_, idx) => ({
+      day: new Date(start.getTime() + idx * msPerDay),
+      pages: 0,
+      minutes: 0
+    }));
+
+    for (const entry of entries) {
+      const fallbackDate = entry?.date || "";
+      const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
+      const rawActivity = Array.isArray(entry?.readingActivityHistory) ? entry.readingActivityHistory : [];
+      rawActivity.forEach((item) => {
+        if (entry?.isAudiobook) return;
+        const ts = normalizeTimestamp(item?.createdAt, fallbackDate);
+        if (ts <= 0) return;
+        const when = new Date(ts);
+        if (Number.isNaN(when.getTime())) return;
+        const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+        const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+        if (idx < 0 || idx >= series.length) return;
+        const deltaPercent = Math.max(0, Number(item?.deltaPercent) || 0);
+        if (deltaPercent <= 0) return;
+        const pages = totalPages > 0 ? ((deltaPercent / 100) * totalPages) : deltaPercent;
+        series[idx].pages += Math.max(0, pages);
+      });
+
+      const rawSessions = Array.isArray(entry?.readingSessionHistory) ? entry.readingSessionHistory : [];
+      const sessions = rawSessions.length
+        ? rawSessions
+        : (Math.max(0, Number(entry?.readingSessionMinutes) || 0) > 0
+          ? [{ minutes: Number(entry?.readingSessionMinutes) || 0, createdAt: entry?.updatedAt || fallbackDate }]
+          : []);
+      sessions.forEach((item) => {
+        const minutes = Math.max(0, Number(item?.minutes) || 0);
+        if (minutes <= 0) return;
+        const ts = normalizeTimestamp(item?.createdAt, fallbackDate);
+        if (ts <= 0) return;
+        const when = new Date(ts);
+        if (Number.isNaN(when.getTime())) return;
+        const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+        const idx = Math.floor((day.getTime() - start.getTime()) / msPerDay);
+        if (idx < 0 || idx >= series.length) return;
+        series[idx].minutes += minutes;
+      });
+    }
+
+    return series;
+  }
+
+  function renderGoalHits(root, entries, settings) {
+    if (!root) return;
+    const goalMode = settings?.goalMode === "pages" ? "pages" : "minutes";
+    const goalValue = goalMode === "pages"
+      ? Math.max(0, Number(settings?.dailyGoalPages) || 0)
+      : Math.max(0, Number(settings?.dailyGoalMinutes) || 0);
+    if (goalValue <= 0) {
+      root.innerHTML = `<p class="rd-empty">Set a daily ${goalMode} goal to track goal-hit days.</p>`;
+      return;
+    }
+    const series = aggregateLast30GoalSeries(entries);
+    const hits = series.filter((day) => (goalMode === "pages" ? day.pages : day.minutes) >= goalValue).length;
+    const todayKey = new Date().toDateString();
+    const dots = series.map((day) => {
+      const value = goalMode === "pages" ? day.pages : day.minutes;
+      const hit = value >= goalValue;
+      const label = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+      const valueLabel = goalMode === "pages"
+        ? `${(Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, "")} pages`
+        : `${Math.round(value)} min`;
+      const todayClass = day.day.toDateString() === todayKey ? " rd-hit-dot--today" : "";
+      return `<span class="rd-hit-dot ${hit ? "rd-hit-dot--hit" : ""}${todayClass}" title="${label}: ${valueLabel}"></span>`;
+    }).join("");
+    root.innerHTML = `
+      <p class="rd-note rd-note-tight">${hits}/30 days hit your ${goalMode} goal.</p>
+      <div class="rd-hit-grid" role="img" aria-label="${hits} out of 30 days met goal">${dots}</div>
+    `;
+  }
+
   function renderReadingInsights() {
     const bars = document.getElementById("rd-progress-bars");
     const pie = document.getElementById("rd-status-pie");
@@ -300,9 +403,11 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const goalLine = document.getElementById("rd-14d-goal-line");
     const goalLabel = document.getElementById("rd-14d-goal-label");
     const challenge = document.getElementById("rd-yearly-challenge");
-    if (!bars || !pie || !legend || !trend) return;
+    const goalHits = document.getElementById("rd-goal-hits");
+    if (!bars || !pie || !legend || !trend || !goalHits) return;
 
     const entries = getReadingEntries();
+    const settings = getReadingSettings();
     if (challenge) {
       renderYearlyChallenge(challenge, entries);
     }
@@ -313,6 +418,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
       pie.style.background = "#e2e8f0";
       legend.innerHTML = "";
       trend.innerHTML = empty;
+      renderGoalHits(goalHits, entries, settings);
       return;
     }
 
@@ -339,9 +445,14 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
 
     const last14 = aggregateLast14Days(entries);
     const maxPages = Math.max(...last14.map((day) => day.pages), 1);
-    const settings = getReadingSettings();
+    const goalMode = settings?.goalMode === "pages" ? "pages" : "minutes";
     const dailyAudioGoalMinutes = Math.max(0, Number(settings?.dailyGoalMinutes) || 0);
-    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), dailyAudioGoalMinutes, 1);
+    const dailyPagesGoal = Math.max(0, Number(settings?.dailyGoalPages) || 0);
+    const goalValue = goalMode === "pages" ? dailyPagesGoal : dailyAudioGoalMinutes;
+    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), goalMode === "minutes" ? goalValue : 0, 1);
+    const maxGoalScale = goalMode === "pages"
+      ? Math.max(maxPages, goalValue, 1)
+      : Math.max(maxAudio, goalValue, 1);
     trend.innerHTML = last14.map((day) => {
       const pages = Math.round(day.pages * 10) / 10;
       const audioMinutes = Math.round(day.audioMinutes);
@@ -355,16 +466,17 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
       return `<div class="rd-day-col"><span class="rd-day-bars" title="${d}: ${pageLabel} pages, ${audioLabel} listened"><span class="rd-day-bar rd-day-bar--pages" style="height:${hPages}px"></span><span class="rd-day-bar rd-day-bar--audio" style="height:${hAudio}px"></span></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
     }).join("");
 
-    if (goalLine && dailyAudioGoalMinutes > 0) {
+    if (goalLine && goalValue > 0) {
       const barHeight = 68;
       const baselineOffset = 12;
-      const lineBottom = baselineOffset + Math.round((dailyAudioGoalMinutes / maxAudio) * barHeight);
+      const lineBottom = baselineOffset + Math.round((goalValue / maxGoalScale) * barHeight);
       goalLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
       goalLine.classList.remove("hidden");
-      if (goalLabel) goalLabel.textContent = `Goal ${dailyAudioGoalMinutes}m`;
+      if (goalLabel) goalLabel.textContent = goalMode === "pages" ? `Goal ${goalValue} pages` : `Goal ${goalValue}m`;
     } else if (goalLine) {
       goalLine.classList.add("hidden");
     }
+    renderGoalHits(goalHits, entries, settings);
   }
 
   function renderYearlyChallenge(root, entries) {
@@ -487,6 +599,16 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   .rd-day-bar--pages { background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%); }
   .rd-day-bar--audio { background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%); }
   .rd-day-label { font-size: 0.58rem; color: #64748b; }
+  .rd-hit-grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 0.45rem;
+    padding: 0.15rem 0.2rem 0.2rem;
+  }
+  .rd-hit-dot { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; border: 1px solid #cbd5e1; }
+  .rd-hit-dot--hit { background: #16a34a; border-color: #16a34a; }
+  .rd-hit-dot--today { box-shadow: 0 0 0 1px #0f172a; }
   .rd-empty { margin: 0; font-size: 0.76rem; color: #64748b; }
   .rd-note { margin-top: 0.45rem; font-size: 0.68rem; color: #64748b; }
 </style>

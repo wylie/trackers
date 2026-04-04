@@ -1,7 +1,7 @@
 import { formatDurationLabel, totalMinutesFromParts, getIntValue, getFloatValue, formatMetadataChips } from './common.js';
 import { createEntryId, ensureEntryIdentity } from './ids.js';
 import { parseSleepDuration, formatSleepDuration, getSleepGrade } from './sleep.js';
-import { formatGameHours, normalizeGameKey } from './game.js';
+import { formatGameHours, normalizeGameKey, createGameSession, getGameSessionHistory, getLatestGameSession, sumGameSessionHours } from './game.js';
 import { getWorkoutDurationParts, formatWorkoutMetricBadges, formatWorkoutWeatherSummary, getWorkoutWeatherLabel, syncWorkoutMetricsUI as syncWorkoutMetricsUIHelper } from './workout.js';
 import { getAudiobookLeftMinutes, formatProgressValue, getReadingCoverUrl, getFallbackMediaUrl, isPlaceholderCoverUrl } from './reading.js';
 import { getMoviePosterUrl, getVideoGameCoverUrl } from './media.js';
@@ -199,6 +199,7 @@ export function initTrackerCard(config) {
   let visibleEntriesCount = 0;
   let workoutWeatherRequestId = 0;
   let resolveDeletePrompt = null;
+  let resolveSessionEditPrompt = null;
   const notesViewStateByEntryId = new Map();
   const LIST_PAGE_SIZE = 20;
 
@@ -209,6 +210,162 @@ export function initTrackerCard(config) {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function getGameSessionTimestamp(rawValue) {
+    const parsed = new Date(String(rawValue || "")).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function sortGameSessionsNewest(history) {
+    return [...(Array.isArray(history) ? history : [])].sort((a, b) => {
+      return getGameSessionTimestamp(b?.playedAt) - getGameSessionTimestamp(a?.playedAt);
+    });
+  }
+
+  function updateLatestGameSession(history, nextSession) {
+    const sessions = [...(Array.isArray(history) ? history : [])];
+    if (!sessions.length) return [nextSession];
+    let latestIdx = 0;
+    let latestTs = getGameSessionTimestamp(sessions[0]?.playedAt);
+    for (let idx = 1; idx < sessions.length; idx += 1) {
+      const sessionTs = getGameSessionTimestamp(sessions[idx]?.playedAt);
+      if (sessionTs >= latestTs) {
+        latestIdx = idx;
+        latestTs = sessionTs;
+      }
+    }
+    sessions[latestIdx] = nextSession;
+    return sessions;
+  }
+
+  function hydrateVideoGameSessionNotes(entry, history) {
+    const sortedSessions = sortGameSessionsNewest(history).map((session) => ({
+      ...session,
+      note: String(session?.note || "").trim()
+    }));
+    if (!sortedSessions.length) return sortedSessions;
+    const legacyNotes = [...getEntryNotesHistory(entry)]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .filter((item) => String(item?.note || "").trim());
+    if (!legacyNotes.length) return sortedSessions;
+
+    const dayKeyForTimestamp = (timestamp) => {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return "";
+      return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    };
+    const sessionTimestamp = (session) => {
+      const parsed = new Date(String(session?.playedAt || "")).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const notesAlreadyPresent = new Set(
+      sortedSessions
+        .map((session) => String(session?.note || "").trim())
+        .filter(Boolean)
+    );
+    const nextSessions = [...sortedSessions];
+    const availableSessionIdx = nextSessions
+      .map((session, idx) => ({ session, idx }))
+      .filter(({ session }) => !String(session?.note || "").trim())
+      .map(({ idx }) => idx);
+
+    legacyNotes.forEach((legacy) => {
+      const legacyNote = String(legacy?.note || "").trim();
+      if (!legacyNote || notesAlreadyPresent.has(legacyNote) || !availableSessionIdx.length) return;
+      const targetDay = dayKeyForTimestamp(Number(legacy?.createdAt) || 0);
+      const sameDayCandidates = availableSessionIdx.filter((idx) => {
+        const ts = sessionTimestamp(nextSessions[idx]);
+        return targetDay && dayKeyForTimestamp(ts) === targetDay;
+      });
+      const candidatePool = sameDayCandidates.length ? sameDayCandidates : [...availableSessionIdx];
+      let bestIdx = candidatePool[0];
+      let bestDistance = Number.POSITIVE_INFINITY;
+      candidatePool.forEach((idx) => {
+        const ts = sessionTimestamp(nextSessions[idx]);
+        const distance = Math.abs(ts - (Number(legacy?.createdAt) || 0));
+        if (distance < bestDistance) {
+          bestIdx = idx;
+          bestDistance = distance;
+        }
+      });
+      nextSessions[bestIdx] = {
+        ...nextSessions[bestIdx],
+        note: legacyNote
+      };
+      notesAlreadyPresent.add(legacyNote);
+      const usedIdx = availableSessionIdx.indexOf(bestIdx);
+      if (usedIdx >= 0) availableSessionIdx.splice(usedIdx, 1);
+    });
+
+    return nextSessions;
+  }
+
+  function normalizeVideoGameEntryFromHistory(entry, history) {
+    const nextHistory = Array.isArray(history) ? history : [];
+    const latestSession = getLatestGameSession(nextHistory);
+    return {
+      ...entry,
+      gameSessionHistory: nextHistory,
+      sessionHours: Math.max(0, Number(latestSession?.hours) || 0),
+      lastSessionHours: Math.max(0, Number(latestSession?.hours) || 0),
+      totalHours: Math.max(0, sumGameSessionHours(nextHistory)),
+      date: latestSession?.playedAt || entry?.date || new Date().toISOString(),
+      notes: "",
+      notesHistory: [],
+      updatedAt: Date.now()
+    };
+  }
+
+  function formatGameSessionDateLabel(rawDate) {
+    const parsed = new Date(String(rawDate || ""));
+    if (Number.isNaN(parsed.getTime())) return "Unknown date";
+    return parsed.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
+  function getVideoGameSessionRows(entry) {
+    const hydratedSessions = hydrateVideoGameSessionNotes(entry, getGameSessionHistory(entry));
+    const withSourceIndex = hydratedSessions.map((session, sourceIdx) => ({ ...session, sourceIdx }));
+    const sorted = sortGameSessionsNewest(withSourceIndex);
+    const datedSessions = sorted.filter((session) => Boolean(String(session?.playedAt || "").trim()));
+    const visibleSessions = (datedSessions.length ? datedSessions : sorted).slice(0, 5);
+    return {
+      hydratedSessions,
+      visibleSessions
+    };
+  }
+
+  function renderVideoGameSessionHistoryHtml(entry, entryIdx) {
+    const { visibleSessions } = getVideoGameSessionRows(entry);
+    const sessions = visibleSessions;
+    if (!sessions.length) return "";
+    const rows = sessions.map((session) => {
+      const dateLabel = formatGameSessionDateLabel(session?.playedAt);
+      const hoursLabel = formatGameHours(session?.hours);
+      const noteText = String(session?.note || "").trim();
+      const sessionActions = `
+        <div class="flex items-center gap-1">
+          <button class="p-1 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center" aria-label="Edit session" data-action="edit-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">edit</span></button>
+          <button class="p-1 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center" aria-label="Delete session" data-action="delete-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">delete</span></button>
+        </div>
+      `;
+      const noteHtml = noteText
+        ? `<div class="mt-1.5"><div class="text-xs font-medium text-gray-500">Note</div><div class="text-sm text-gray-700 leading-relaxed">${escapeHtml(noteText).replace(/\n/g, "<br />")}</div></div>`
+        : "";
+      return `<div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5"><div class="flex items-start justify-between gap-2"><div class="text-sm text-gray-600">${escapeHtml(dateLabel)}</div>${sessionActions}</div><div class="text-sm text-gray-700">Hours played: ${escapeHtml(hoursLabel)}</div>${noteHtml}</div>`;
+    }).join("");
+    return `
+      <div class="mt-2">
+        <div class="text-sm text-gray-700 mb-1">Sessions (${sessions.length})</div>
+        <div class="space-y-2 max-h-56 overflow-y-auto pr-1">${rows}</div>
+      </div>
+    `;
   }
 
   function normalizeNoteTimestamp(rawTimestamp, fallbackDate = "") {
@@ -431,6 +588,114 @@ export function initTrackerCard(config) {
     deleteModal.classList.remove("hidden");
     return new Promise((resolve) => {
       resolveDeletePrompt = resolve;
+    });
+  }
+
+  function setSessionEditModalOpen(modal, open) {
+    if (!modal) return;
+    modal.classList.toggle("hidden", !open);
+    modal.classList.toggle("flex", open);
+  }
+
+  function ensureSessionEditModal() {
+    let modal = document.getElementById("tracker-session-edit-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "tracker-session-edit-modal";
+    modal.className = "fixed inset-0 z-[80] hidden items-center justify-center bg-black/35 px-4";
+    modal.innerHTML = `
+      <div class="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-4">
+        <h3 class="text-base font-semibold text-gray-800 mb-3">Edit Session</h3>
+        <label class="block text-sm text-gray-600 mb-1" for="tracker-session-edit-date">Date</label>
+        <input id="tracker-session-edit-date" type="date" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3" />
+        <label class="block text-sm text-gray-600 mb-1">Duration (h:m:s)</label>
+        <div class="grid grid-cols-3 gap-2 mb-3">
+          <input id="tracker-session-edit-hours" type="number" min="0" step="1" placeholder="h" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+          <input id="tracker-session-edit-minutes" type="number" min="0" max="59" step="1" placeholder="m" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+          <input id="tracker-session-edit-seconds" type="number" min="0" max="59" step="1" placeholder="s" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        </div>
+        <label class="block text-sm text-gray-600 mb-1" for="tracker-session-edit-note">Note (optional)</label>
+        <textarea id="tracker-session-edit-note" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-4"></textarea>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" id="tracker-session-edit-cancel" class="px-3 py-1.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">Cancel</button>
+          <button type="button" id="tracker-session-edit-save" class="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const cancelButton = modal.querySelector("#tracker-session-edit-cancel");
+    const saveButton = modal.querySelector("#tracker-session-edit-save");
+    cancelButton?.addEventListener("click", () => {
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveSessionEditPrompt === "function") {
+        resolveSessionEditPrompt(null);
+        resolveSessionEditPrompt = null;
+      }
+    });
+    saveButton?.addEventListener("click", () => {
+      const dateInput = modal?.querySelector("#tracker-session-edit-date");
+      const hoursInput = modal?.querySelector("#tracker-session-edit-hours");
+      const minutesInput = modal?.querySelector("#tracker-session-edit-minutes");
+      const secondsInput = modal?.querySelector("#tracker-session-edit-seconds");
+      const noteInput = modal?.querySelector("#tracker-session-edit-note");
+      const dateValue = String(dateInput?.value || "").trim();
+      const hoursPart = Math.max(0, Number(hoursInput?.value) || 0);
+      const minutesPart = Math.max(0, Math.min(59, Number(minutesInput?.value) || 0));
+      const secondsPart = Math.max(0, Math.min(59, Number(secondsInput?.value) || 0));
+      const totalSeconds = Math.round(hoursPart * 3600) + Math.round(minutesPart * 60) + Math.round(secondsPart);
+      const hoursValue = totalSeconds / 3600;
+      const noteValue = String(noteInput?.value || "").trim();
+      if (!dateValue) {
+        window.alert("Please enter a valid date.");
+        return;
+      }
+      if (!(hoursValue > 0)) {
+        window.alert("Hours played must be greater than 0.");
+        return;
+      }
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveSessionEditPrompt === "function") {
+        resolveSessionEditPrompt({
+          dateInput: dateValue,
+          hours: hoursValue,
+          note: noteValue
+        });
+        resolveSessionEditPrompt = null;
+      }
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target !== modal) return;
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveSessionEditPrompt === "function") {
+        resolveSessionEditPrompt(null);
+        resolveSessionEditPrompt = null;
+      }
+    });
+    return modal;
+  }
+
+  function requestVideoGameSessionEdit(initial) {
+    const modal = ensureSessionEditModal();
+    const dateInput = modal.querySelector("#tracker-session-edit-date");
+    const hoursInput = modal.querySelector("#tracker-session-edit-hours");
+    const minutesInput = modal.querySelector("#tracker-session-edit-minutes");
+    const secondsInput = modal.querySelector("#tracker-session-edit-seconds");
+    const noteInput = modal.querySelector("#tracker-session-edit-note");
+    const initialTotalSeconds = Math.max(0, Math.round((Number(initial?.hours) || 0) * 3600));
+    const initialHours = Math.floor(initialTotalSeconds / 3600);
+    const initialMinutes = Math.floor((initialTotalSeconds % 3600) / 60);
+    const initialSeconds = initialTotalSeconds % 60;
+    if (dateInput) dateInput.value = String(initial?.dateInput || getTodayDateInputValue());
+    if (hoursInput) hoursInput.value = initialHours ? String(initialHours) : "";
+    if (minutesInput) minutesInput.value = initialMinutes ? String(initialMinutes) : "";
+    if (secondsInput) secondsInput.value = initialSeconds ? String(initialSeconds) : "";
+    if (noteInput) noteInput.value = String(initial?.note || "");
+    setSessionEditModalOpen(modal, true);
+    window.setTimeout(() => {
+      dateInput?.focus();
+    }, 0);
+    return new Promise((resolve) => {
+      resolveSessionEditPrompt = resolve;
     });
   }
 
@@ -1373,7 +1638,8 @@ export function initTrackerCard(config) {
     if (workoutWeightInput) workoutWeightInput.value = entry.workoutWeightLbs != null ? String(entry.workoutWeightLbs) : "";
     if (workoutWeatherEnabledInput) workoutWeatherEnabledInput.checked = false;
     setWorkoutWeatherStatus("");
-    const sessionHoursForEdit = Math.max(0, Number(entry.lastSessionHours) || Number(entry.sessionHours) || 0);
+    const latestGameSession = getLatestGameSession(getGameSessionHistory(entry));
+    const sessionHoursForEdit = Math.max(0, Number(latestGameSession?.hours) || Number(entry.lastSessionHours) || Number(entry.sessionHours) || 0);
     const sessionTotalSeconds = Math.round(sessionHoursForEdit * 3600);
     const sessionEditHours = Math.floor(sessionTotalSeconds / 3600);
     const sessionEditMinutes = Math.floor((sessionTotalSeconds % 3600) / 60);
@@ -1415,7 +1681,13 @@ export function initTrackerCard(config) {
     selectedPosterUrl = entry.posterUrl || "";
     selectedImdbId = entry.imdbID || "";
     const notesHistory = getEntryNotesHistory(entry);
-    notesInput.value = entry.notes || notesHistory[notesHistory.length - 1]?.note || "";
+    if (isVideoGameTracker) {
+      const hydratedSessions = hydrateVideoGameSessionNotes(entry, getGameSessionHistory(entry));
+      const latestSession = getLatestGameSession(hydratedSessions);
+      notesInput.value = String(latestSession?.note || entry.notes || notesHistory[notesHistory.length - 1]?.note || "");
+    } else {
+      notesInput.value = entry.notes || notesHistory[notesHistory.length - 1]?.note || "";
+    }
     ratingController.setRating(Number(entry.rating) || 0);
     setEditingMode(true);
     syncReadingModeUI();
@@ -1960,7 +2232,12 @@ export function initTrackerCard(config) {
       entries.forEach((entry) => {
         const key = normalizeGameKey(entry?.item);
         if (!key) return;
-        totalGameHours[key] = (totalGameHours[key] || 0) + Math.max(0, Number(entry?.sessionHours) || 0);
+        const hasStoredSessionHistory = Array.isArray(entry?.gameSessionHistory) && entry.gameSessionHistory.length > 0;
+        const history = getGameSessionHistory(entry);
+        const historyHours = Math.max(0, sumGameSessionHours(history));
+        const fallbackHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+        const totalHours = hasStoredSessionHistory ? historyHours : (historyHours > 0 ? historyHours : fallbackHours);
+        totalGameHours[key] = (totalGameHours[key] || 0) + totalHours;
       });
     }
     function getDueDateTimestamp(entry) {
@@ -2122,12 +2399,14 @@ export function initTrackerCard(config) {
         if (workoutWeatherSummary) metadataChips.push(workoutWeatherSummary);
       }
       if (isVideoGameTracker) {
-        const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+        const gameSessionHistory = getGameSessionHistory(entry);
+        const latestSession = getLatestGameSession(gameSessionHistory);
+        const sessionHours = Math.max(0, Number(latestSession?.hours) || Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
         const explicitTotalHours = Math.max(0, Number(entry?.totalHours) || 0);
+        const historyTotalHours = Math.max(0, sumGameSessionHours(gameSessionHistory));
         const aggregatedTotalHours = totalGameHours[normalizeGameKey(entry?.item)] || 0;
-        const totalHours = explicitTotalHours > 0 ? explicitTotalHours : aggregatedTotalHours;
+        const totalHours = historyTotalHours > 0 ? historyTotalHours : (explicitTotalHours > 0 ? explicitTotalHours : aggregatedTotalHours);
         if (sessionHours > 0 || totalHours > 0) {
-          metadataChips.push(`Session ${formatGameHours(sessionHours)}`);
           metadataChips.push(`Total ${formatGameHours(totalHours)}`);
         }
       }
@@ -2210,7 +2489,8 @@ export function initTrackerCard(config) {
       const coverHtml = hasMediaImage
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
         : "";
-      const notesHtml = renderNotesHtml(entry);
+      const notesHtml = isVideoGameTracker ? "" : renderNotesHtml(entry);
+      const gameSessionsHtml = isVideoGameTracker ? renderVideoGameSessionHistoryHtml(entry, idx) : "";
       if (isWaterTracker) {
         const { volumeUnit } = getWaterGoalSettings();
         const displayUnit = normalizeWaterVolumeUnit(volumeUnit || selectedWaterVolumeUnit);
@@ -2240,6 +2520,7 @@ export function initTrackerCard(config) {
               ${metadataHtml}
             </div>
           </div>
+          ${gameSessionsHtml}
           ${notesHtml}
           ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStaticStars(entry.rating || 0)}</div>` : ""}
           </div>
@@ -2321,6 +2602,62 @@ export function initTrackerCard(config) {
           renderEntries();
         });
       }
+      const sessionEditButtons = li.querySelectorAll("[data-action=\"edit-session\"]");
+      sessionEditButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const sessionIndex = Number(button.getAttribute("data-session-idx"));
+          const entries = getEntries();
+          const entryForEdit = ensureEntryIdentity(entries[entryIndex]);
+          if (!entryForEdit) return;
+          const sessionRows = getVideoGameSessionRows(entryForEdit);
+          const existingHistory = sessionRows.hydratedSessions;
+          const currentSession = existingHistory[sessionIndex];
+          if (!currentSession) return;
+          const editResult = await requestVideoGameSessionEdit({
+            dateInput: toDateInputValue(currentSession?.playedAt || entryForEdit?.date || ""),
+            hours: Number(currentSession?.hours) || 0,
+            note: String(currentSession?.note || "")
+          });
+          if (!editResult) return;
+          const nextPlayedAt = buildEntryDateIso(editResult.dateInput, currentSession?.playedAt || entryForEdit?.date || "");
+          existingHistory[sessionIndex] = createGameSession(editResult.hours, nextPlayedAt, editResult.note);
+          entries[entryIndex] = normalizeVideoGameEntryFromHistory(entryForEdit, existingHistory);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) clearForm();
+          renderEntries();
+        });
+      });
+      const sessionDeleteButtons = li.querySelectorAll("[data-action=\"delete-session\"]");
+      sessionDeleteButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const sessionIndex = Number(button.getAttribute("data-session-idx"));
+          const entries = getEntries();
+          const entryForDelete = ensureEntryIdentity(entries[entryIndex]);
+          if (!entryForDelete) return;
+          const sessionRows = getVideoGameSessionRows(entryForDelete);
+          const existingHistory = sessionRows.hydratedSessions;
+          const targetSession = existingHistory[sessionIndex];
+          if (!targetSession) return;
+          const confirmed = window.confirm("Delete this session?");
+          if (!confirmed) return;
+          existingHistory.splice(sessionIndex, 1);
+          if (!existingHistory.length) {
+            entries.splice(entryIndex, 1);
+            if (editingIdx === entryIndex) {
+              clearForm();
+            } else if (editingIdx > entryIndex) {
+              editingIdx -= 1;
+            }
+          } else {
+            entries[entryIndex] = normalizeVideoGameEntryFromHistory(entryForDelete, existingHistory);
+            if (editingIdx === entryIndex) clearForm();
+          }
+          saveEntries(entries);
+          renderEntries();
+        });
+      });
       list.appendChild(li);
     });
 
@@ -2501,7 +2838,12 @@ export function initTrackerCard(config) {
         date,
         updatedAt: Date.now()
       };
-      Object.assign(updatedEntry, withUpdatedNotes(entries[editingIdx], notes, { noteTimestamp: date }));
+      if (isVideoGameTracker) {
+        updatedEntry.notes = "";
+        updatedEntry.notesHistory = [];
+      } else {
+        Object.assign(updatedEntry, withUpdatedNotes(entries[editingIdx], notes, { noteTimestamp: date }));
+      }
       if (isSleepTracker) {
         updatedEntry.sleepHours = sleepHours;
         updatedEntry.sleepMinutes = sleepMinutes;
@@ -2563,9 +2905,16 @@ export function initTrackerCard(config) {
         }
       }
       if (isVideoGameTracker) {
-        updatedEntry.sessionHours = sessionHours;
-        updatedEntry.lastSessionHours = sessionHours;
-        updatedEntry.totalHours = sessionHours;
+        const updatedSessionDate = buildEntryDateIso(entryDateValue, updatedEntry.date || "");
+        const existingHistory = hydrateVideoGameSessionNotes(entries[editingIdx], getGameSessionHistory(entries[editingIdx]));
+        const editedLatestSession = createGameSession(sessionHours, updatedSessionDate, notes);
+        const nextHistory = updateLatestGameSession(existingHistory, editedLatestSession);
+        const latestSession = getLatestGameSession(nextHistory) || editedLatestSession;
+        updatedEntry.gameSessionHistory = nextHistory;
+        updatedEntry.sessionHours = Math.max(0, Number(latestSession?.hours) || 0);
+        updatedEntry.lastSessionHours = updatedEntry.sessionHours;
+        updatedEntry.totalHours = Math.max(0, sumGameSessionHours(nextHistory));
+        updatedEntry.date = latestSession?.playedAt || updatedSessionDate;
         updatedEntry.coverUrl = selectedCoverUrl || updatedEntry.coverUrl || "";
       }
       if (isWaterTracker) {
@@ -2704,26 +3053,27 @@ export function initTrackerCard(config) {
         const existingIdx = entries.findIndex((entry) => normalizeGameKey(entry?.item) === gameKey);
         if (existingIdx >= 0) {
           const existingEntry = entries[existingIdx] || {};
-          const priorTotal = Math.max(
-            0,
-            Number(existingEntry.totalHours) || Number(existingEntry.sessionHours) || 0
-          );
-          const mergedTotal = priorTotal + sessionHours;
           const mergedDate = buildEntryDateIso(entryDateValue, existingEntry.date || "");
+          const seededHistory = hydrateVideoGameSessionNotes(existingEntry, getGameSessionHistory(existingEntry));
+          const mergedHistory = [
+            ...seededHistory,
+            createGameSession(sessionHours, mergedDate, notes)
+          ];
+          const latestSession = getLatestGameSession(mergedHistory);
+          const mergedTotal = Math.max(0, sumGameSessionHours(mergedHistory));
           const mergedEntry = {
             ...ensureEntryIdentity(existingEntry),
             item,
             rating: rating || existingEntry.rating || 0,
-            date: mergedDate,
-            sessionHours: mergedTotal,
+            date: latestSession?.playedAt || mergedDate,
+            sessionHours: Math.max(0, Number(latestSession?.hours) || sessionHours),
             totalHours: mergedTotal,
-            lastSessionHours: sessionHours,
+            lastSessionHours: Math.max(0, Number(latestSession?.hours) || sessionHours),
+            gameSessionHistory: mergedHistory,
+            notes: "",
+            notesHistory: [],
             updatedAt: Date.now()
           };
-          Object.assign(mergedEntry, withUpdatedNotes(existingEntry, notes, {
-            preserveWhenBlank: true,
-            noteTimestamp: mergedDate
-          }));
           if (enablePublisherField && publisher) {
             mergedEntry.publisher = publisher;
           }
@@ -2745,7 +3095,12 @@ export function initTrackerCard(config) {
 
       const date = buildEntryDateIso(entryDateValue);
       const nextEntry = { id: createEntryId(), item, rating, date, updatedAt: Date.now() };
-      Object.assign(nextEntry, withUpdatedNotes({}, notes, { noteTimestamp: date }));
+      if (isVideoGameTracker) {
+        nextEntry.notes = "";
+        nextEntry.notesHistory = [];
+      } else {
+        Object.assign(nextEntry, withUpdatedNotes({}, notes, { noteTimestamp: date }));
+      }
       if (isSleepTracker) {
         nextEntry.sleepHours = sleepHours;
         nextEntry.sleepMinutes = sleepMinutes;
@@ -2809,9 +3164,11 @@ export function initTrackerCard(config) {
         }
       }
       if (isVideoGameTracker) {
-        nextEntry.sessionHours = sessionHours;
-        nextEntry.totalHours = sessionHours;
-        nextEntry.lastSessionHours = sessionHours;
+        const initialSession = createGameSession(sessionHours, date, notes);
+        nextEntry.gameSessionHistory = [initialSession];
+        nextEntry.sessionHours = Math.max(0, Number(initialSession?.hours) || 0);
+        nextEntry.totalHours = Math.max(0, sumGameSessionHours(nextEntry.gameSessionHistory));
+        nextEntry.lastSessionHours = nextEntry.sessionHours;
         nextEntry.coverUrl = selectedCoverUrl || "";
       }
       if (isWaterTracker) {

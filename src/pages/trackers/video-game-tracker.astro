@@ -91,6 +91,8 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
 </Layout>
 
 <script>
+  import { getGameSessionHistory, sumGameSessionHours } from '../../lib/tracker-card/game.js';
+
   const STORAGE_KEY = "simpletrackers.io";
   const VIDEO_GAME_KEY = "video-game-tracker-entries";
 
@@ -117,10 +119,13 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     const totals = new Map();
     for (const entry of entries) {
       const title = String(entry?.item || "").trim() || "Untitled Game";
-      const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
-      const totalHours = Math.max(0, Number(entry?.totalHours) || 0);
+      const hasStoredSessionHistory = Array.isArray(entry?.gameSessionHistory) && entry.gameSessionHistory.length > 0;
+      const history = getGameSessionHistory(entry);
+      const historyHours = Math.max(0, sumGameSessionHours(history));
+      const fallbackHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
+      const totalHours = hasStoredSessionHistory ? historyHours : (historyHours > 0 ? historyHours : fallbackHours);
       const current = totals.get(title) || { sumSessions: 0, maxTotal: 0 };
-      current.sumSessions += sessionHours;
+      current.sumSessions += totalHours;
       current.maxTotal = Math.max(current.maxTotal, totalHours);
       totals.set(title, current);
     }
@@ -144,13 +149,15 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     }));
 
     for (const entry of entries) {
-      const when = entry?.date ? new Date(entry.date) : null;
-      if (!when || Number.isNaN(when.getTime())) continue;
-      const dayStart = new Date(when.getFullYear(), when.getMonth(), when.getDate());
-      const idx = Math.floor((dayStart.getTime() - start.getTime()) / msPerDay);
-      if (idx < 0 || idx >= series.length) continue;
-      const value = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
-      series[idx].hours += value;
+      const history = getGameSessionHistory(entry);
+      for (const session of history) {
+        const when = session?.playedAt ? new Date(session.playedAt) : null;
+        if (!when || Number.isNaN(when.getTime())) continue;
+        const dayStart = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+        const idx = Math.floor((dayStart.getTime() - start.getTime()) / msPerDay);
+        if (idx < 0 || idx >= series.length) continue;
+        series[idx].hours += Math.max(0, Number(session?.hours) || 0);
+      }
     }
     return series;
   }

@@ -55,24 +55,41 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
           </div>
           <aside class="vg-side" aria-label="Video game insights">
             <h2 class="vg-side-title">Insights</h2>
-            <div class="vg-insight-card">
-              <h3 class="vg-insight-title">Hours by Game</h3>
-              <div id="vg-hours-bars" class="vg-bars"></div>
-            </div>
-            <div class="vg-insight-card">
-              <h3 class="vg-insight-title">Playtime Share</h3>
-              <div class="vg-pie-wrap">
-                <div id="vg-playtime-pie" class="vg-pie"></div>
-                <div id="vg-playtime-legend" class="vg-legend"></div>
+            <div id="vg-insights-list" class="vg-insights-list">
+              <div class="vg-insight-item" data-insight-id="hours-by-game">
+                <span class="vg-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="vg-insight-card">
+                  <h3 class="vg-insight-title">Hours by Game</h3>
+                  <div id="vg-hours-bars" class="vg-bars"></div>
+                </div>
+              </div>
+              <div class="vg-insight-item" data-insight-id="playtime-share">
+                <span class="vg-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="vg-insight-card">
+                  <h3 class="vg-insight-title">Playtime Share</h3>
+                  <div class="vg-pie-wrap">
+                    <div id="vg-playtime-pie" class="vg-pie"></div>
+                    <div id="vg-playtime-legend" class="vg-legend"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="vg-insight-item" data-insight-id="last-14-days">
+                <span class="vg-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="vg-insight-card">
+                  <h3 class="vg-insight-title">Last 14 Days</h3>
+                  <div id="vg-14d-chart" class="vg-14d"></div>
+                  <p class="vg-side-note">Session hours per day.</p>
+                </div>
+              </div>
+              <div class="vg-insight-item" data-insight-id="badges">
+                <span class="vg-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <TrackerBadgesCard storageKey="video-game-tracker-entries" />
+              </div>
+              <div class="vg-insight-item" data-insight-id="support">
+                <span class="vg-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <SupportButton />
               </div>
             </div>
-            <div class="vg-insight-card">
-              <h3 class="vg-insight-title">Last 14 Days</h3>
-              <div id="vg-14d-chart" class="vg-14d"></div>
-              <p class="vg-side-note">Session hours per day.</p>
-            </div>
-            <TrackerBadgesCard storageKey="video-game-tracker-entries" />
-            <SupportButton />
           </aside>
         </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -95,6 +112,7 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
 
   const STORAGE_KEY = "simpletrackers.io";
   const VIDEO_GAME_KEY = "video-game-tracker-entries";
+  const VIDEO_GAME_INSIGHTS_ORDER_KEY = "video-game-tracker-insights-order";
 
   function parseStore() {
     try {
@@ -222,8 +240,127 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
     }).join("");
   }
 
+  function getStoredInsightsOrder() {
+    try {
+      const raw = localStorage.getItem(VIDEO_GAME_INSIGHTS_ORDER_KEY);
+      const parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveInsightsOrder(container) {
+    if (!container) return;
+    const order = Array.from(container.querySelectorAll(".vg-insight-item"))
+      .map((item) => String(item?.dataset?.insightId || "").trim())
+      .filter(Boolean);
+    localStorage.setItem(VIDEO_GAME_INSIGHTS_ORDER_KEY, JSON.stringify(order));
+  }
+
+  function applyStoredInsightsOrder(container) {
+    if (!container) return;
+    const order = getStoredInsightsOrder();
+    if (!order.length) return;
+    const items = Array.from(container.querySelectorAll(".vg-insight-item"));
+    const map = new Map(items.map((item) => [String(item?.dataset?.insightId || "").trim(), item]));
+    const used = new Set();
+    order.forEach((id) => {
+      const item = map.get(id);
+      if (!item || used.has(id)) return;
+      container.appendChild(item);
+      used.add(id);
+    });
+    items.forEach((item) => {
+      const id = String(item?.dataset?.insightId || "").trim();
+      if (!used.has(id)) container.appendChild(item);
+    });
+  }
+
+  function getDropTargetAfter(container, y) {
+    const candidates = Array.from(container.querySelectorAll(".vg-insight-item:not(.is-dragging)"));
+    return candidates.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+  }
+
+  function initVideoGameInsightsDnD() {
+    const container = document.getElementById("vg-insights-list");
+    if (!container) return;
+
+    applyStoredInsightsOrder(container);
+    if (container.dataset.dndInitialized === "true") return;
+    container.dataset.dndInitialized = "true";
+
+    let draggedItem = null;
+    let dropTarget = null;
+
+    const enableDragOnItems = () => {
+      container.querySelectorAll(".vg-insight-item").forEach((item) => {
+        item.setAttribute("draggable", "true");
+      });
+    };
+    enableDragOnItems();
+
+    container.addEventListener("dragstart", (event) => {
+      const target = event.target;
+      const item = target instanceof Element ? target.closest(".vg-insight-item") : null;
+      if (!item) return;
+      if (target instanceof Element && target.closest("input, textarea, select, button, a, label")) {
+        event.preventDefault();
+        return;
+      }
+      draggedItem = item;
+      item.classList.add("is-dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.dataset.insightId || "");
+      }
+    });
+
+    container.addEventListener("dragover", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      const after = getDropTargetAfter(container, event.clientY);
+      if (dropTarget && dropTarget !== after) dropTarget.classList.remove("is-drop-before");
+      dropTarget = after || null;
+      if (dropTarget && dropTarget !== draggedItem) dropTarget.classList.add("is-drop-before");
+      if (!after) {
+        container.appendChild(draggedItem);
+        return;
+      }
+      if (after !== draggedItem) {
+        container.insertBefore(draggedItem, after);
+      }
+    });
+
+    container.addEventListener("drop", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      saveInsightsOrder(container);
+    });
+
+    container.addEventListener("dragend", () => {
+      if (!draggedItem) return;
+      draggedItem.classList.remove("is-dragging");
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      draggedItem = null;
+      saveInsightsOrder(container);
+      enableDragOnItems();
+    });
+  }
+
   function initVideoGameInsights() {
     renderVideoGameInsights();
+    initVideoGameInsightsDnD();
   }
 
   initVideoGameInsights();
@@ -262,6 +399,63 @@ const relatedCalculators = getRelatedCalculators("video-game-tracker");
   .vg-side {
     display: grid;
     gap: 0.75rem;
+  }
+  .vg-insights-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .vg-insight-item {
+    position: relative;
+    cursor: grab;
+  }
+  .vg-insight-item > *:not(.vg-insight-grip) {
+    position: relative;
+    z-index: 2;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .vg-insight-item:hover > *:not(.vg-insight-grip) {
+    box-shadow: inset 0 1.9rem 0 rgba(241, 245, 249, 0.75), 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+  }
+  .vg-insight-grip {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.5rem;
+    z-index: 4;
+    color: #64748b;
+    font-size: 0.95rem;
+    line-height: 1;
+    letter-spacing: -1px;
+    font-weight: 700;
+    user-select: none;
+    pointer-events: none;
+    opacity: 0.65;
+    transition: opacity 0.18s ease, color 0.18s ease;
+  }
+  .vg-insight-item:hover .vg-insight-grip {
+    opacity: 1;
+    color: #475569;
+  }
+  .vg-insight-item.is-dragging {
+    opacity: 0.72;
+  }
+  .vg-insight-item.is-dragging > *:not(.vg-insight-grip) {
+    box-shadow: 0 14px 28px -20px rgba(37, 99, 235, 0.65);
+    border-color: #93c5fd;
+  }
+  .vg-insight-item.is-drop-before::after {
+    content: "";
+    position: absolute;
+    top: -0.4rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    height: 3px;
+    border-radius: 999px;
+    background: #60a5fa;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .vg-insight-item:active {
+    cursor: grabbing;
   }
 
   @media (min-width: 1100px) {

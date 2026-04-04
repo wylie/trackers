@@ -56,21 +56,38 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
           </div>
           <aside class="mv-side" aria-label="Movie insights">
             <h2 class="mv-side-title">Insights</h2>
-            <div class="mv-card">
-              <h3 class="mv-title">Rating Breakdown</h3>
-              <div id="mv-rating-bars" class="mv-bars"></div>
+            <div id="mv-insights-list" class="mv-insights-list">
+              <div class="mv-insight-item" data-insight-id="rating-breakdown">
+                <span class="mv-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="mv-card">
+                  <h3 class="mv-title">Rating Breakdown</h3>
+                  <div id="mv-rating-bars" class="mv-bars"></div>
+                </div>
+              </div>
+              <div class="mv-insight-item" data-insight-id="top-directors">
+                <span class="mv-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="mv-card">
+                  <h3 class="mv-title">Top Directors</h3>
+                  <div id="mv-director-bars" class="mv-bars"></div>
+                </div>
+              </div>
+              <div class="mv-insight-item" data-insight-id="last-14-days">
+                <span class="mv-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <div class="mv-card">
+                  <h3 class="mv-title">Last 14 Days</h3>
+                  <div id="mv-14d" class="mv-14d"></div>
+                  <p class="mv-note">Days with a logged movie.</p>
+                </div>
+              </div>
+              <div class="mv-insight-item" data-insight-id="badges">
+                <span class="mv-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <TrackerBadgesCard storageKey="movie-watch-tracker-entries" />
+              </div>
+              <div class="mv-insight-item" data-insight-id="support">
+                <span class="mv-insight-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <SupportButton />
+              </div>
             </div>
-            <div class="mv-card">
-              <h3 class="mv-title">Top Directors</h3>
-              <div id="mv-director-bars" class="mv-bars"></div>
-            </div>
-            <div class="mv-card">
-              <h3 class="mv-title">Last 14 Days</h3>
-              <div id="mv-14d" class="mv-14d"></div>
-              <p class="mv-note">Days with a logged movie.</p>
-            </div>
-            <TrackerBadgesCard storageKey="movie-watch-tracker-entries" />
-            <SupportButton />
           </aside>
         </section>
         <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -91,6 +108,7 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
 <script>
   const STORAGE_KEY = "simpletrackers.io";
   const MOVIE_KEY = "movie-watch-tracker-entries";
+  const MOVIE_INSIGHTS_ORDER_KEY = "movie-watch-tracker-insights-order";
 
   function parseStore() {
     try {
@@ -187,8 +205,127 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
     }).join("");
   }
 
+  function getStoredInsightsOrder() {
+    try {
+      const raw = localStorage.getItem(MOVIE_INSIGHTS_ORDER_KEY);
+      const parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveInsightsOrder(container) {
+    if (!container) return;
+    const order = Array.from(container.querySelectorAll(".mv-insight-item"))
+      .map((item) => String(item?.dataset?.insightId || "").trim())
+      .filter(Boolean);
+    localStorage.setItem(MOVIE_INSIGHTS_ORDER_KEY, JSON.stringify(order));
+  }
+
+  function applyStoredInsightsOrder(container) {
+    if (!container) return;
+    const order = getStoredInsightsOrder();
+    if (!order.length) return;
+    const items = Array.from(container.querySelectorAll(".mv-insight-item"));
+    const map = new Map(items.map((item) => [String(item?.dataset?.insightId || "").trim(), item]));
+    const used = new Set();
+    order.forEach((id) => {
+      const item = map.get(id);
+      if (!item || used.has(id)) return;
+      container.appendChild(item);
+      used.add(id);
+    });
+    items.forEach((item) => {
+      const id = String(item?.dataset?.insightId || "").trim();
+      if (!used.has(id)) container.appendChild(item);
+    });
+  }
+
+  function getDropTargetAfter(container, y) {
+    const candidates = Array.from(container.querySelectorAll(".mv-insight-item:not(.is-dragging)"));
+    return candidates.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+  }
+
+  function initMovieInsightsDnD() {
+    const container = document.getElementById("mv-insights-list");
+    if (!container) return;
+
+    applyStoredInsightsOrder(container);
+    if (container.dataset.dndInitialized === "true") return;
+    container.dataset.dndInitialized = "true";
+
+    let draggedItem = null;
+    let dropTarget = null;
+
+    const enableDragOnItems = () => {
+      container.querySelectorAll(".mv-insight-item").forEach((item) => {
+        item.setAttribute("draggable", "true");
+      });
+    };
+    enableDragOnItems();
+
+    container.addEventListener("dragstart", (event) => {
+      const target = event.target;
+      const item = target instanceof Element ? target.closest(".mv-insight-item") : null;
+      if (!item) return;
+      if (target instanceof Element && target.closest("input, textarea, select, button, a, label")) {
+        event.preventDefault();
+        return;
+      }
+      draggedItem = item;
+      item.classList.add("is-dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.dataset.insightId || "");
+      }
+    });
+
+    container.addEventListener("dragover", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      const after = getDropTargetAfter(container, event.clientY);
+      if (dropTarget && dropTarget !== after) dropTarget.classList.remove("is-drop-before");
+      dropTarget = after || null;
+      if (dropTarget && dropTarget !== draggedItem) dropTarget.classList.add("is-drop-before");
+      if (!after) {
+        container.appendChild(draggedItem);
+        return;
+      }
+      if (after !== draggedItem) {
+        container.insertBefore(draggedItem, after);
+      }
+    });
+
+    container.addEventListener("drop", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      saveInsightsOrder(container);
+    });
+
+    container.addEventListener("dragend", () => {
+      if (!draggedItem) return;
+      draggedItem.classList.remove("is-dragging");
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      draggedItem = null;
+      saveInsightsOrder(container);
+      enableDragOnItems();
+    });
+  }
+
   function initMovieInsights() {
     renderMovieInsights();
+    initMovieInsightsDnD();
   }
 
   initMovieInsights();
@@ -206,6 +343,60 @@ const relatedCalculators = getRelatedCalculators("movie-watch-tracker");
   @media (min-width: 1100px) { .mv-layout { grid-template-columns: minmax(0, 4fr) minmax(250px, 1fr); gap: 1.25rem; } }
   .mv-main section[aria-labelledby="tracker-title"] { margin-bottom: 0; }
   .mv-side { display: grid; gap: 0.75rem; }
+  .mv-insights-list { display: grid; gap: 0.75rem; }
+  .mv-insight-item {
+    position: relative;
+    cursor: grab;
+  }
+  .mv-insight-item > *:not(.mv-insight-grip) {
+    position: relative;
+    z-index: 2;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .mv-insight-item:hover > *:not(.mv-insight-grip) {
+    box-shadow: inset 0 1.9rem 0 rgba(241, 245, 249, 0.75), 0 10px 28px -24px rgba(15, 23, 42, 0.7);
+  }
+  .mv-insight-grip {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.5rem;
+    z-index: 4;
+    color: #64748b;
+    font-size: 0.95rem;
+    line-height: 1;
+    letter-spacing: -1px;
+    font-weight: 700;
+    user-select: none;
+    pointer-events: none;
+    opacity: 0.65;
+    transition: opacity 0.18s ease, color 0.18s ease;
+  }
+  .mv-insight-item:hover .mv-insight-grip {
+    opacity: 1;
+    color: #475569;
+  }
+  .mv-insight-item.is-dragging {
+    opacity: 0.72;
+  }
+  .mv-insight-item.is-dragging > *:not(.mv-insight-grip) {
+    box-shadow: 0 14px 28px -20px rgba(37, 99, 235, 0.65);
+    border-color: #93c5fd;
+  }
+  .mv-insight-item.is-drop-before::after {
+    content: "";
+    position: absolute;
+    top: -0.4rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    height: 3px;
+    border-radius: 999px;
+    background: #60a5fa;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .mv-insight-item:active {
+    cursor: grabbing;
+  }
   @media (min-width: 1100px) { .mv-side { position: sticky; top: 5.25rem; } }
   .mv-side-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0; }
   .mv-card { border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; padding: 0.75rem; box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.7); }

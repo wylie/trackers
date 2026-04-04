@@ -8,6 +8,125 @@ export function initTrackerInsightsRail(config) {
     isWorkoutTracker
   } = config;
   let selectedWorkoutRange = "day";
+  const insightsOrderKey = `${storageKey}-insights-order`;
+
+  function getStoredInsightsOrder() {
+    try {
+      const raw = localStorage.getItem(insightsOrderKey);
+      const parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveInsightsOrder(container) {
+    if (!container) return;
+    const order = Array.from(container.querySelectorAll(".ti-insight-item"))
+      .map((item) => String(item?.dataset?.insightId || "").trim())
+      .filter(Boolean);
+    localStorage.setItem(insightsOrderKey, JSON.stringify(order));
+  }
+
+  function applyStoredInsightsOrder(container) {
+    if (!container) return;
+    const order = getStoredInsightsOrder();
+    if (!order.length) return;
+    const items = Array.from(container.querySelectorAll(".ti-insight-item"));
+    const map = new Map(items.map((item) => [String(item?.dataset?.insightId || "").trim(), item]));
+    const used = new Set();
+    order.forEach((id) => {
+      const item = map.get(id);
+      if (!item || used.has(id)) return;
+      container.appendChild(item);
+      used.add(id);
+    });
+    items.forEach((item) => {
+      const id = String(item?.dataset?.insightId || "").trim();
+      if (!used.has(id)) container.appendChild(item);
+    });
+  }
+
+  function getDropTargetAfter(container, y) {
+    const candidates = Array.from(container.querySelectorAll(".ti-insight-item:not(.is-dragging)"));
+    return candidates.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+  }
+
+  function initInsightsDnD() {
+    const container = document.getElementById(`${idPrefix}-insights-list`);
+    if (!container) return;
+
+    applyStoredInsightsOrder(container);
+    if (container.dataset.dndInitialized === "true") return;
+    container.dataset.dndInitialized = "true";
+
+    let draggedItem = null;
+    let dropTarget = null;
+
+    const enableDragOnItems = () => {
+      container.querySelectorAll(".ti-insight-item").forEach((item) => {
+        item.setAttribute("draggable", "true");
+      });
+    };
+    enableDragOnItems();
+
+    container.addEventListener("dragstart", (event) => {
+      const target = event.target;
+      const item = target instanceof Element ? target.closest(".ti-insight-item") : null;
+      if (!item) return;
+      if (target instanceof Element && target.closest("input, textarea, select, button, a, label")) {
+        event.preventDefault();
+        return;
+      }
+      draggedItem = item;
+      item.classList.add("is-dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.dataset.insightId || "");
+      }
+    });
+
+    container.addEventListener("dragover", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      const after = getDropTargetAfter(container, event.clientY);
+      if (dropTarget && dropTarget !== after) dropTarget.classList.remove("is-drop-before");
+      dropTarget = after || null;
+      if (dropTarget && dropTarget !== draggedItem) dropTarget.classList.add("is-drop-before");
+      if (!after) {
+        container.appendChild(draggedItem);
+        return;
+      }
+      if (after !== draggedItem) {
+        container.insertBefore(draggedItem, after);
+      }
+    });
+
+    container.addEventListener("drop", (event) => {
+      if (!draggedItem) return;
+      event.preventDefault();
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      saveInsightsOrder(container);
+    });
+
+    container.addEventListener("dragend", () => {
+      if (!draggedItem) return;
+      draggedItem.classList.remove("is-dragging");
+      if (dropTarget) dropTarget.classList.remove("is-drop-before");
+      dropTarget = null;
+      draggedItem = null;
+      saveInsightsOrder(container);
+      enableDragOnItems();
+    });
+  }
 
   function getEntries() {
     return getEntriesForKey(storageKey);
@@ -169,6 +288,7 @@ export function initTrackerInsightsRail(config) {
   }
 
   function initInsights() {
+    initInsightsDnD();
     if (isWorkoutTracker) {
       const toggleRoot = document.getElementById(`${idPrefix}-range-toggle`);
       if (toggleRoot && !toggleRoot.dataset.bound) {

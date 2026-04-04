@@ -200,6 +200,7 @@ export function initTrackerCard(config) {
   let workoutWeatherRequestId = 0;
   let resolveDeletePrompt = null;
   let resolveSessionEditPrompt = null;
+  let resolveNoteEditPrompt = null;
   const notesViewStateByEntryId = new Map();
   const LIST_PAGE_SIZE = 20;
 
@@ -422,6 +423,22 @@ export function initTrackerCard(config) {
     };
   }
 
+  function withNotesHistory(entry, nextHistory) {
+    const history = [...(Array.isArray(nextHistory) ? nextHistory : [])]
+      .map((item) => ({
+        note: String(item?.note || "").trim(),
+        createdAt: normalizeNoteTimestamp(item?.createdAt, entry?.date || "")
+      }))
+      .filter((item) => item.note)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    return {
+      ...entry,
+      notesHistory: history,
+      notes: history[history.length - 1]?.note || "",
+      updatedAt: Date.now()
+    };
+  }
+
   function formatNoteTimestamp(timestamp) {
     const date = new Date(timestamp);
     return date.toLocaleString(undefined, {
@@ -453,19 +470,26 @@ export function initTrackerCard(config) {
     return history.filter((item) => Number(item?.createdAt) >= cutoff);
   }
 
-  function renderNotesHtml(entry) {
+  function renderNotesHtml(entry, entryIdx) {
     const history = getEntryNotesHistory(entry);
     if (!history.length) {
       const fallback = String(entry?.notes || "").trim();
       return fallback ? `<div class=\"text-gray-700 text-sm leading-relaxed\">${escapeHtml(fallback).replace(/\n/g, "<br />")}</div>` : "";
     }
+    const indexedHistory = history.map((item, sourceIdx) => ({ ...item, sourceIdx }));
     const state = getNotesViewState(entry);
-    const filtered = filterNotesByRange(history, state.range);
+    const filtered = filterNotesByRange(indexedHistory, state.range);
     const sorted = [...filtered].sort((a, b) => state.sort === "oldest" ? (a.createdAt - b.createdAt) : (b.createdAt - a.createdAt));
     const rows = sorted
       .map((item) => `
         <div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
-          <div class="text-[11px] text-gray-500">${formatNoteTimestamp(item.createdAt)}</div>
+          <div class="flex items-start justify-between gap-2">
+            <div class="text-[11px] text-gray-500">${formatNoteTimestamp(item.createdAt)}</div>
+            <div class="flex items-center gap-1">
+              <button class="p-1 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center" aria-label="Edit note" data-action="edit-note" data-idx="${entryIdx}" data-note-idx="${item.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">edit</span></button>
+              <button class="p-1 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center" aria-label="Delete note" data-action="delete-note" data-idx="${entryIdx}" data-note-idx="${item.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">delete</span></button>
+            </div>
+          </div>
           <div class="text-gray-700 text-sm leading-relaxed">${escapeHtml(item.note).replace(/\n/g, "<br />")}</div>
         </div>
       `)
@@ -696,6 +720,70 @@ export function initTrackerCard(config) {
     }, 0);
     return new Promise((resolve) => {
       resolveSessionEditPrompt = resolve;
+    });
+  }
+
+  function ensureNoteEditModal() {
+    let modal = document.getElementById("tracker-note-edit-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "tracker-note-edit-modal";
+    modal.className = "fixed inset-0 z-[80] hidden items-center justify-center bg-black/35 px-4";
+    modal.innerHTML = `
+      <div class="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-4">
+        <h3 class="text-base font-semibold text-gray-800 mb-3">Edit Note</h3>
+        <label class="block text-sm text-gray-600 mb-1" for="tracker-note-edit-value">Note</label>
+        <textarea id="tracker-note-edit-value" rows="4" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-4"></textarea>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" id="tracker-note-edit-cancel" class="px-3 py-1.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">Cancel</button>
+          <button type="button" id="tracker-note-edit-save" class="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const cancelButton = modal.querySelector("#tracker-note-edit-cancel");
+    const saveButton = modal.querySelector("#tracker-note-edit-save");
+    cancelButton?.addEventListener("click", () => {
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveNoteEditPrompt === "function") {
+        resolveNoteEditPrompt(null);
+        resolveNoteEditPrompt = null;
+      }
+    });
+    saveButton?.addEventListener("click", () => {
+      const noteInput = modal?.querySelector("#tracker-note-edit-value");
+      const noteValue = String(noteInput?.value || "").trim();
+      if (!noteValue) {
+        window.alert("Note cannot be empty.");
+        return;
+      }
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveNoteEditPrompt === "function") {
+        resolveNoteEditPrompt(noteValue);
+        resolveNoteEditPrompt = null;
+      }
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target !== modal) return;
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveNoteEditPrompt === "function") {
+        resolveNoteEditPrompt(null);
+        resolveNoteEditPrompt = null;
+      }
+    });
+    return modal;
+  }
+
+  function requestNoteEdit(initialValue = "") {
+    const modal = ensureNoteEditModal();
+    const input = modal.querySelector("#tracker-note-edit-value");
+    if (input) input.value = String(initialValue || "");
+    setSessionEditModalOpen(modal, true);
+    window.setTimeout(() => {
+      input?.focus();
+    }, 0);
+    return new Promise((resolve) => {
+      resolveNoteEditPrompt = resolve;
     });
   }
 
@@ -2489,7 +2577,7 @@ export function initTrackerCard(config) {
       const coverHtml = hasMediaImage
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
         : "";
-      const notesHtml = isVideoGameTracker ? "" : renderNotesHtml(entry);
+      const notesHtml = isVideoGameTracker ? "" : renderNotesHtml(entry, idx);
       const gameSessionsHtml = isVideoGameTracker ? renderVideoGameSessionHistoryHtml(entry, idx) : "";
       if (isWaterTracker) {
         const { volumeUnit } = getWaterGoalSettings();
@@ -2602,6 +2690,51 @@ export function initTrackerCard(config) {
           renderEntries();
         });
       }
+      const noteEditButtons = li.querySelectorAll("[data-action=\"edit-note\"]");
+      noteEditButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const noteIndex = Number(button.getAttribute("data-note-idx"));
+          const entries = getEntries();
+          const currentEntry = ensureEntryIdentity(entries[entryIndex]);
+          if (!currentEntry) return;
+          const history = getEntryNotesHistory(currentEntry);
+          const targetNote = history[noteIndex];
+          if (!targetNote) return;
+          const nextValue = await requestNoteEdit(targetNote.note);
+          if (!nextValue) return;
+          history[noteIndex] = { ...targetNote, note: nextValue };
+          entries[entryIndex] = withNotesHistory(currentEntry, history);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) {
+            const refreshedHistory = getEntryNotesHistory(entries[entryIndex]);
+            notesInput.value = entries[entryIndex].notes || refreshedHistory[refreshedHistory.length - 1]?.note || "";
+          }
+          renderEntries();
+        });
+      });
+      const noteDeleteButtons = li.querySelectorAll("[data-action=\"delete-note\"]");
+      noteDeleteButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const noteIndex = Number(button.getAttribute("data-note-idx"));
+          const entries = getEntries();
+          const currentEntry = ensureEntryIdentity(entries[entryIndex]);
+          if (!currentEntry) return;
+          const history = getEntryNotesHistory(currentEntry);
+          if (!history[noteIndex]) return;
+          const confirmed = await requestDeleteConfirmation();
+          if (!confirmed) return;
+          history.splice(noteIndex, 1);
+          entries[entryIndex] = withNotesHistory(currentEntry, history);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) {
+            const refreshedHistory = getEntryNotesHistory(entries[entryIndex]);
+            notesInput.value = entries[entryIndex].notes || refreshedHistory[refreshedHistory.length - 1]?.note || "";
+          }
+          renderEntries();
+        });
+      });
       const sessionEditButtons = li.querySelectorAll("[data-action=\"edit-session\"]");
       sessionEditButtons.forEach((button) => {
         button.addEventListener("click", async () => {

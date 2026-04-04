@@ -390,6 +390,20 @@ export function initTrackerCard(config) {
     return Date.now();
   }
 
+  function normalizeDateInputValue(rawValue) {
+    const value = String(rawValue || "").trim();
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!year || !month || !day) return "";
+    const parsed = new Date(year, month - 1, day);
+    if (Number.isNaN(parsed.getTime())) return "";
+    if (parsed.getFullYear() !== year || (parsed.getMonth() + 1) !== month || parsed.getDate() !== day) return "";
+    return value;
+  }
+
   function getEntryNotesHistory(entry) {
     const history = [];
     const rawHistory = Array.isArray(entry?.notesHistory) ? entry.notesHistory : [];
@@ -806,7 +820,7 @@ export function initTrackerCard(config) {
       <div class="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-4">
         <h3 class="text-base font-semibold text-gray-800 mb-3">Edit Reading Session</h3>
         <label class="block text-sm text-gray-600 mb-1" for="tracker-reading-session-edit-date">Date</label>
-        <input id="tracker-reading-session-edit-date" type="date" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3" />
+        <input id="tracker-reading-session-edit-date" type="date" class="w-full border border-gray-300 rounded px-3 py-2 text-base sm:text-sm mb-3" />
         <div id="tracker-reading-session-edit-page-wrap">
           <label id="tracker-reading-session-edit-metric-label" class="block text-sm text-gray-600 mb-1" for="tracker-reading-session-edit-metric">Current Page</label>
           <input id="tracker-reading-session-edit-metric" type="number" min="0" step="1" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3" />
@@ -844,13 +858,14 @@ export function initTrackerCard(config) {
       const leftMinutesInput = modal?.querySelector("#tracker-reading-session-edit-left-minutes");
       const noteInput = modal?.querySelector("#tracker-reading-session-edit-note");
       const mode = String(metricInput?.getAttribute("data-mode") || "pages");
-      const dateValue = String(dateInput?.value || "").trim();
+      const dateValueRaw = String(dateInput?.value || "").trim();
+      const dateValue = normalizeDateInputValue(dateValueRaw);
       const metricValue = Math.max(0, Number(metricInput?.value) || 0);
       const leftHours = Math.max(0, Number(leftHoursInput?.value) || 0);
       const leftMinutes = Math.max(0, Math.min(59, Number(leftMinutesInput?.value) || 0));
       const noteValue = String(noteInput?.value || "").trim();
       if (!dateValue) {
-        window.alert("Please enter a valid date.");
+        window.alert("Please enter a valid date in YYYY-MM-DD format.");
         return;
       }
       setSessionEditModalOpen(modal, false);
@@ -887,7 +902,13 @@ export function initTrackerCard(config) {
     const helpText = modal.querySelector("#tracker-reading-session-edit-help");
     const noteInput = modal.querySelector("#tracker-reading-session-edit-note");
     const isAudiobookSession = Boolean(initial?.isAudiobook);
-    if (dateInput) dateInput.value = String(initial?.dateInput || getTodayDateInputValue());
+    if (dateInput) {
+      const usePlainDateInput = window.matchMedia("(max-width: 640px)").matches;
+      dateInput.type = usePlainDateInput ? "text" : "date";
+      dateInput.inputMode = usePlainDateInput ? "numeric" : "";
+      dateInput.placeholder = usePlainDateInput ? "YYYY-MM-DD" : "";
+      dateInput.value = String(initial?.dateInput || getTodayDateInputValue());
+    }
     if (metricInput) {
       metricInput.value = String(initial?.currentPage ?? "");
       metricInput.setAttribute("data-mode", isAudiobookSession ? "left" : "pages");
@@ -1138,6 +1159,41 @@ export function initTrackerCard(config) {
     return {
       hydratedSessions: sessions,
       visibleSessions: sorted.slice(0, 5)
+    };
+  }
+
+  function applyReadingEntryProgressFromSessions(entry) {
+    const sessionRows = getReadingSessionRows(entry);
+    const sortedSessions = [...sessionRows.hydratedSessions].sort((a, b) => {
+      return normalizeNoteTimestamp(b?.createdAt, entry?.date || "") - normalizeNoteTimestamp(a?.createdAt, entry?.date || "");
+    });
+    if (entry?.isAudiobook) {
+      const latestWithLeft = sortedSessions.find((session) => session?.leftMinutes !== null && session?.leftMinutes !== undefined);
+      if (!latestWithLeft) return entry;
+      const totalAudioMinutes = totalMinutesFromParts(entry?.totalHours, entry?.totalMinutes);
+      const requestedLeftMinutes = Math.max(0, Number(latestWithLeft?.leftMinutes) || 0);
+      const normalizedLeftMinutes = totalAudioMinutes > 0
+        ? Math.min(totalAudioMinutes, requestedLeftMinutes)
+        : requestedLeftMinutes;
+      const listenedAudioMinutes = totalAudioMinutes > 0
+        ? Math.max(0, totalAudioMinutes - normalizedLeftMinutes)
+        : totalMinutesFromParts(entry?.currentHours, entry?.currentMinutes);
+      return {
+        ...entry,
+        leftHours: Math.floor(normalizedLeftMinutes / 60),
+        leftMinutes: normalizedLeftMinutes % 60,
+        currentHours: Math.floor(listenedAudioMinutes / 60),
+        currentMinutes: listenedAudioMinutes % 60
+      };
+    }
+    const latestWithPage = sortedSessions.find((session) => session?.currentPage !== null && session?.currentPage !== undefined);
+    if (!latestWithPage) return entry;
+    const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
+    const requestedPage = Math.max(0, Number(latestWithPage?.currentPage) || 0);
+    const normalizedPage = totalPages > 0 ? Math.min(totalPages, requestedPage) : requestedPage;
+    return {
+      ...entry,
+      currentPage: normalizedPage
     };
   }
 
@@ -2929,7 +2985,7 @@ export function initTrackerCard(config) {
         ? `this.onerror=null;this.src='${fallbackMediaUrl}';`
         : "";
       const coverHtml = hasMediaImage
-        ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
+        ? `<div class=\"tracker-media-shell reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"tracker-media-image reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
         : "";
       const readingSessionsHtml = isReadingTracker ? renderReadingSessionsHtml(entry, idx) : "";
       const notesHtml = (isVideoGameTracker || isReadingTracker) ? "" : renderNotesHtml(entry, idx);
@@ -2949,10 +3005,10 @@ export function initTrackerCard(config) {
           ${coverHtml}
           <div class=\"${hasMediaImage ? "w-full sm:flex-1 sm:min-w-0" : ""}\">
           <div class=\"${hasMediaImage ? "flex-1 min-w-0" : ""}\">
-          <div class=\"absolute top-3 right-3 flex items-center gap-1\">
+          <div class=\"absolute top-4 right-5 sm:top-3 sm:right-3 flex items-center gap-1\">
             ${isTaskTracker ? `<button class=\"p-1.5 bg-gray-200 rounded hover:bg-green-100 text-green-700 inline-flex items-center justify-center\" aria-label=\"Toggle completion\" data-action=\"toggle-complete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">${entry?.completed ? "task_alt" : "check_circle"}</span></button>` : ""}
             <div class=\"relative\">
-              <button class=\"p-1 text-gray-600 hover:text-gray-800 inline-flex items-center justify-center\" aria-label=\"More actions\" data-action=\"entry-menu-toggle\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">more_vert</span></button>
+              <button class=\"tracker-entry-menu-toggle inline-flex items-center justify-center\" aria-label=\"More actions\" data-action=\"entry-menu-toggle\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">more_vert</span></button>
               <div class=\"hidden absolute right-0 mt-1 min-w-[120px] rounded-md border border-gray-200 bg-white shadow-lg z-20\" data-role=\"entry-menu\">
                 <button class=\"w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 inline-flex items-center gap-2\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:18px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span><span>Edit</span></button>
                 <button class=\"w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 inline-flex items-center gap-2\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:18px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span><span>Delete</span></button>
@@ -3196,7 +3252,9 @@ export function initTrackerCard(config) {
             leftMinutes: isAudio ? (editResult?.leftMinutes ?? null) : null,
             note: String(editResult?.note || "").trim()
           };
-          entries[entryIndex] = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          let nextEntry = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          nextEntry = applyReadingEntryProgressFromSessions(nextEntry);
+          entries[entryIndex] = nextEntry;
           saveEntries(entries);
           if (editingIdx === entryIndex) {
             notesInput.value = entries[entryIndex].notes || "";
@@ -3233,25 +3291,8 @@ export function initTrackerCard(config) {
             leftMinutes: isAudio ? (editResult?.leftMinutes ?? null) : null,
             note: String(editResult?.note || "").trim()
           });
-          const nextEntry = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
-          if (isAudio && editResult?.leftMinutes !== null && editResult?.leftMinutes !== undefined) {
-            const totalAudioMinutes = totalMinutesFromParts(nextEntry?.totalHours, nextEntry?.totalMinutes);
-            const normalizedLeft = totalAudioMinutes > 0
-              ? Math.min(totalAudioMinutes, Math.max(0, Number(editResult.leftMinutes) || 0))
-              : Math.max(0, Number(editResult.leftMinutes) || 0);
-            const listenedMinutes = totalAudioMinutes > 0
-              ? Math.max(0, totalAudioMinutes - normalizedLeft)
-              : 0;
-            nextEntry.leftHours = Math.floor(normalizedLeft / 60);
-            nextEntry.leftMinutes = normalizedLeft % 60;
-            nextEntry.currentHours = Math.floor(listenedMinutes / 60);
-            nextEntry.currentMinutes = listenedMinutes % 60;
-          }
-          if (!isAudio && editResult?.currentPage !== null && editResult?.currentPage !== undefined) {
-            const totalPages = Math.max(0, Number(nextEntry?.totalPages) || 0);
-            const normalizedPage = Math.max(0, Number(editResult.currentPage) || 0);
-            nextEntry.currentPage = totalPages > 0 ? Math.min(totalPages, normalizedPage) : normalizedPage;
-          }
+          let nextEntry = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          nextEntry = applyReadingEntryProgressFromSessions(nextEntry);
           entries[entryIndex] = nextEntry;
           saveEntries(entries);
           if (editingIdx === entryIndex) {
@@ -3304,7 +3345,9 @@ export function initTrackerCard(config) {
           const confirmed = await requestDeleteConfirmation();
           if (!confirmed) return;
           existingHistory.splice(sessionIndex, 1);
-          entries[entryIndex] = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          let nextEntry = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          nextEntry = applyReadingEntryProgressFromSessions(nextEntry);
+          entries[entryIndex] = nextEntry;
           saveEntries(entries);
           if (editingIdx === entryIndex) {
             notesInput.value = entries[entryIndex].notes || "";

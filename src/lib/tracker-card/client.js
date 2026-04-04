@@ -201,6 +201,7 @@ export function initTrackerCard(config) {
   let resolveDeletePrompt = null;
   let resolveSessionEditPrompt = null;
   let resolveNoteEditPrompt = null;
+  let resolveReadingSessionEditPrompt = null;
   const notesViewStateByEntryId = new Map();
   const LIST_PAGE_SIZE = 20;
 
@@ -345,25 +346,33 @@ export function initTrackerCard(config) {
   function renderVideoGameSessionHistoryHtml(entry, entryIdx) {
     const { visibleSessions } = getVideoGameSessionRows(entry);
     const sessions = visibleSessions;
-    if (!sessions.length) return "";
+    const headerActions = `
+      <button class="inline-flex items-center gap-1 text-[12px] font-medium text-green-700 hover:text-green-800" aria-label="Add video game session" data-action="add-session" data-idx="${entryIdx}">
+        <span>add session</span>
+        <span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">add_circle</span>
+      </button>
+    `;
+    if (!sessions.length) {
+      return `<div class="mt-2"><div class="flex items-center justify-between gap-2 mb-1"><div class="text-sm text-gray-700">Sessions (0)</div>${headerActions}</div></div>`;
+    }
     const rows = sessions.map((session) => {
       const dateLabel = formatGameSessionDateLabel(session?.playedAt);
       const hoursLabel = formatGameHours(session?.hours);
       const noteText = String(session?.note || "").trim();
       const sessionActions = `
         <div class="flex items-center gap-1">
-          <button class="p-1 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center" aria-label="Edit session" data-action="edit-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">edit</span></button>
-          <button class="p-1 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center" aria-label="Delete session" data-action="delete-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">delete</span></button>
+          <button class="p-1 rounded text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center" aria-label="Edit session" data-action="edit-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:15px;font-variation-settings:'opsz' 20;" aria-hidden="true">edit</span></button>
+          <button class="p-1 rounded text-red-600 hover:bg-red-100 inline-flex items-center justify-center" aria-label="Delete session" data-action="delete-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:15px;font-variation-settings:'opsz' 20;" aria-hidden="true">delete</span></button>
         </div>
       `;
       const noteHtml = noteText
         ? `<div class="mt-1.5"><div class="text-xs font-medium text-gray-500">Note</div><div class="text-sm text-gray-700 leading-relaxed">${escapeHtml(noteText).replace(/\n/g, "<br />")}</div></div>`
         : "";
-      return `<div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5"><div class="flex items-start justify-between gap-2"><div class="text-sm text-gray-600">${escapeHtml(dateLabel)}</div>${sessionActions}</div><div class="text-sm text-gray-700">Hours played: ${escapeHtml(hoursLabel)}</div>${noteHtml}</div>`;
+      return `<div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5"><div class="flex items-start justify-between gap-2"><div class="text-sm text-gray-500">${escapeHtml(dateLabel)}</div>${sessionActions}</div><div class="text-sm text-gray-700">Hours played: ${escapeHtml(hoursLabel)}</div>${noteHtml}</div>`;
     }).join("");
     return `
       <div class="mt-2">
-        <div class="text-sm text-gray-700 mb-1">Sessions (${sessions.length})</div>
+        <div class="flex items-center justify-between gap-2 mb-1"><div class="text-sm text-gray-700">Sessions (${sessions.length})</div>${headerActions}</div>
         <div class="space-y-2 max-h-56 overflow-y-auto pr-1">${rows}</div>
       </div>
     `;
@@ -787,6 +796,129 @@ export function initTrackerCard(config) {
     });
   }
 
+  function ensureReadingSessionEditModal() {
+    let modal = document.getElementById("tracker-reading-session-edit-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "tracker-reading-session-edit-modal";
+    modal.className = "fixed inset-0 z-[80] hidden items-center justify-center bg-black/35 px-4";
+    modal.innerHTML = `
+      <div class="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-4">
+        <h3 class="text-base font-semibold text-gray-800 mb-3">Edit Reading Session</h3>
+        <label class="block text-sm text-gray-600 mb-1" for="tracker-reading-session-edit-date">Date</label>
+        <input id="tracker-reading-session-edit-date" type="date" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3" />
+        <div id="tracker-reading-session-edit-page-wrap">
+          <label id="tracker-reading-session-edit-metric-label" class="block text-sm text-gray-600 mb-1" for="tracker-reading-session-edit-metric">Current Page</label>
+          <input id="tracker-reading-session-edit-metric" type="number" min="0" step="1" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3" />
+        </div>
+        <div id="tracker-reading-session-edit-left-wrap" class="hidden">
+          <label class="block text-sm text-gray-600 mb-1">Time Left (h:m)</label>
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <input id="tracker-reading-session-edit-left-hours" type="number" min="0" step="1" placeholder="hours" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            <input id="tracker-reading-session-edit-left-minutes" type="number" min="0" max="59" step="1" placeholder="minutes" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <p id="tracker-reading-session-edit-help" class="text-xs text-gray-500 mb-3"></p>
+        <label class="block text-sm text-gray-600 mb-1" for="tracker-reading-session-edit-note">Note (optional)</label>
+        <textarea id="tracker-reading-session-edit-note" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-4"></textarea>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" id="tracker-reading-session-edit-cancel" class="px-3 py-1.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">Cancel</button>
+          <button type="button" id="tracker-reading-session-edit-save" class="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const cancelButton = modal.querySelector("#tracker-reading-session-edit-cancel");
+    const saveButton = modal.querySelector("#tracker-reading-session-edit-save");
+    cancelButton?.addEventListener("click", () => {
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveReadingSessionEditPrompt === "function") {
+        resolveReadingSessionEditPrompt(null);
+        resolveReadingSessionEditPrompt = null;
+      }
+    });
+    saveButton?.addEventListener("click", () => {
+      const dateInput = modal?.querySelector("#tracker-reading-session-edit-date");
+      const metricInput = modal?.querySelector("#tracker-reading-session-edit-metric");
+      const leftHoursInput = modal?.querySelector("#tracker-reading-session-edit-left-hours");
+      const leftMinutesInput = modal?.querySelector("#tracker-reading-session-edit-left-minutes");
+      const noteInput = modal?.querySelector("#tracker-reading-session-edit-note");
+      const mode = String(metricInput?.getAttribute("data-mode") || "pages");
+      const dateValue = String(dateInput?.value || "").trim();
+      const metricValue = Math.max(0, Number(metricInput?.value) || 0);
+      const leftHours = Math.max(0, Number(leftHoursInput?.value) || 0);
+      const leftMinutes = Math.max(0, Math.min(59, Number(leftMinutesInput?.value) || 0));
+      const noteValue = String(noteInput?.value || "").trim();
+      if (!dateValue) {
+        window.alert("Please enter a valid date.");
+        return;
+      }
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveReadingSessionEditPrompt === "function") {
+        resolveReadingSessionEditPrompt({
+          dateInput: dateValue,
+          currentPage: mode === "pages" ? metricValue : null,
+          leftMinutes: mode === "left" ? ((Math.round(leftHours) * 60) + Math.round(leftMinutes)) : null,
+          note: noteValue
+        });
+        resolveReadingSessionEditPrompt = null;
+      }
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target !== modal) return;
+      setSessionEditModalOpen(modal, false);
+      if (typeof resolveReadingSessionEditPrompt === "function") {
+        resolveReadingSessionEditPrompt(null);
+        resolveReadingSessionEditPrompt = null;
+      }
+    });
+    return modal;
+  }
+
+  function requestReadingSessionEdit(initial) {
+    const modal = ensureReadingSessionEditModal();
+    const dateInput = modal.querySelector("#tracker-reading-session-edit-date");
+    const pageWrap = modal.querySelector("#tracker-reading-session-edit-page-wrap");
+    const leftWrap = modal.querySelector("#tracker-reading-session-edit-left-wrap");
+    const metricLabel = modal.querySelector("#tracker-reading-session-edit-metric-label");
+    const metricInput = modal.querySelector("#tracker-reading-session-edit-metric");
+    const leftHoursInput = modal.querySelector("#tracker-reading-session-edit-left-hours");
+    const leftMinutesInput = modal.querySelector("#tracker-reading-session-edit-left-minutes");
+    const helpText = modal.querySelector("#tracker-reading-session-edit-help");
+    const noteInput = modal.querySelector("#tracker-reading-session-edit-note");
+    const isAudiobookSession = Boolean(initial?.isAudiobook);
+    if (dateInput) dateInput.value = String(initial?.dateInput || getTodayDateInputValue());
+    if (metricInput) {
+      metricInput.value = String(initial?.currentPage ?? "");
+      metricInput.setAttribute("data-mode", isAudiobookSession ? "left" : "pages");
+      metricInput.step = "1";
+      metricInput.placeholder = "current page";
+    }
+    if (metricLabel) {
+      metricLabel.textContent = "Current Page";
+    }
+    if (pageWrap) pageWrap.classList.toggle("hidden", isAudiobookSession);
+    if (leftWrap) leftWrap.classList.toggle("hidden", !isAudiobookSession);
+    const initialLeftMinutes = Math.max(0, Number(initial?.leftMinutes) || 0);
+    const initialLeftHours = Math.floor(initialLeftMinutes / 60);
+    const initialLeftRemain = initialLeftMinutes % 60;
+    if (leftHoursInput) leftHoursInput.value = initialLeftHours ? String(initialLeftHours) : "";
+    if (leftMinutesInput) leftMinutesInput.value = initialLeftRemain ? String(initialLeftRemain) : "";
+    if (helpText) {
+      helpText.textContent = isAudiobookSession
+        ? "Enter remaining time in the audiobook."
+        : "Enter current page in the book.";
+    }
+    if (noteInput) noteInput.value = String(initial?.note || "");
+    setSessionEditModalOpen(modal, true);
+    window.setTimeout(() => {
+      dateInput?.focus();
+    }, 0);
+    return new Promise((resolve) => {
+      resolveReadingSessionEditPrompt = resolve;
+    });
+  }
+
   function syncWorkoutMetricsUI() {
     syncWorkoutMetricsUIHelper({
       isWorkoutTracker,
@@ -867,31 +999,57 @@ export function initTrackerCard(config) {
   }
 
   function getReadingSessionHistory(entry) {
+    const normalizeOptionalNonNegative = (value) => {
+      if (value === null || value === undefined || value === "") return null;
+      const num = Number(value);
+      if (!Number.isFinite(num) || num < 0) return null;
+      return num;
+    };
     const raw = Array.isArray(entry?.readingSessionHistory) ? entry.readingSessionHistory : [];
     const normalized = raw
       .map((item) => ({
         createdAt: normalizeNoteTimestamp(item?.createdAt, entry?.date || ""),
-        minutes: Math.max(0, Number(item?.minutes) || 0)
+        minutes: Math.max(0, Number(item?.minutes) || 0),
+        pagesRead: Math.max(0, Number(item?.pagesRead) || 0),
+        currentPage: normalizeOptionalNonNegative(item?.currentPage),
+        leftMinutes: normalizeOptionalNonNegative(item?.leftMinutes),
+        note: String(item?.note || "").trim()
       }))
-      .filter((item) => item.minutes > 0);
+      .filter((item) => item.minutes > 0 || item.pagesRead > 0 || item.currentPage !== null || item.leftMinutes !== null || item.note);
     if (normalized.length) return normalized;
     const fallback = Math.max(0, Number(entry?.readingSessionMinutes) || 0);
     if (fallback > 0) {
       return [{
         createdAt: normalizeNoteTimestamp(entry?.updatedAt, entry?.date || ""),
-        minutes: fallback
+        minutes: fallback,
+        pagesRead: 0,
+        currentPage: null,
+        leftMinutes: null,
+        note: ""
       }];
     }
     return [];
   }
 
-  function appendReadingSession(entry, minutes, atValue) {
+  function appendReadingSession(entry, { minutes = 0, pagesRead = 0, currentPage = null, leftMinutes = null, note = "", createdAt } = {}) {
     const safeMinutes = Math.max(0, Number(minutes) || 0);
-    if (safeMinutes <= 0) return entry;
+    const safePagesRead = Math.max(0, Number(pagesRead) || 0);
+    const safeCurrentPage = currentPage === null || currentPage === undefined || currentPage === ""
+      ? null
+      : Math.max(0, Number(currentPage) || 0);
+    const safeLeftMinutes = leftMinutes === null || leftMinutes === undefined || leftMinutes === ""
+      ? null
+      : Math.max(0, Number(leftMinutes) || 0);
+    const safeNote = String(note || "").trim();
+    if (safeMinutes <= 0 && safePagesRead <= 0 && safeCurrentPage === null && safeLeftMinutes === null && !safeNote) return entry;
     const history = getReadingSessionHistory(entry);
     history.push({
-      createdAt: normalizeNoteTimestamp(atValue, entry?.date || ""),
-      minutes: safeMinutes
+      createdAt: normalizeNoteTimestamp(createdAt, entry?.date || ""),
+      minutes: safeMinutes,
+      pagesRead: safePagesRead,
+      currentPage: safeCurrentPage,
+      leftMinutes: safeLeftMinutes,
+      note: safeNote
     });
     return {
       ...entry,
@@ -915,6 +1073,209 @@ export function initTrackerCard(config) {
         return entrySum + Math.max(0, Number(item?.minutes) || 0);
       }, 0);
     }, 0);
+  }
+
+  function getReadingActivityMetricHistory(entry) {
+    const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
+    const rawHistory = Array.isArray(entry?.readingActivityHistory) ? entry.readingActivityHistory : [];
+    return rawHistory
+      .map((item) => {
+        const createdAt = normalizeNoteTimestamp(item?.createdAt, entry?.date || "");
+        const deltaPercent = Math.max(0, Number(item?.deltaPercent) || 0);
+        if (!(deltaPercent > 0)) return null;
+        if (entry?.isAudiobook) {
+          const totalAudioMinutes = totalMinutesFromParts(entry?.totalHours, entry?.totalMinutes);
+          const minutes = totalAudioMinutes > 0 ? Math.round((deltaPercent / 100) * totalAudioMinutes) : 0;
+          return { createdAt, minutes: Math.max(0, minutes), pagesRead: 0 };
+        }
+        const pagesRead = totalPages > 0 ? ((deltaPercent / 100) * totalPages) : 0;
+        return { createdAt, minutes: 0, pagesRead: Math.max(0, pagesRead) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  function getReadingSessionRows(entry) {
+    const sessions = hydrateReadingSessions(entry).map((session, sourceIdx) => ({
+      ...session,
+      sourceIdx,
+      minutes: Math.max(0, Number(session?.minutes) || 0),
+      pagesRead: Math.max(0, Number(session?.pagesRead) || 0),
+      currentPage: session?.currentPage === null || session?.currentPage === undefined
+        ? null
+        : Math.max(0, Number(session?.currentPage) || 0),
+      leftMinutes: session?.leftMinutes === null || session?.leftMinutes === undefined
+        ? null
+        : Math.max(0, Number(session?.leftMinutes) || 0),
+      note: String(session?.note || "").trim(),
+      createdAt: normalizeNoteTimestamp(session?.createdAt, entry?.date || "")
+    }));
+    const openMetricIndexes = sessions
+      .map((session, idx) => ({ session, idx }))
+      .filter(({ session }) => (session.minutes <= 0 && session.pagesRead <= 0 && session.currentPage === null && session.leftMinutes === null))
+      .map(({ idx }) => idx);
+    const activityMetrics = getReadingActivityMetricHistory(entry);
+    activityMetrics.forEach((metric) => {
+      if (!openMetricIndexes.length) return;
+      let bestIdx = openMetricIndexes[0];
+      let bestDistance = Number.POSITIVE_INFINITY;
+      openMetricIndexes.forEach((idx) => {
+        const distance = Math.abs((sessions[idx]?.createdAt || 0) - metric.createdAt);
+        if (distance < bestDistance) {
+          bestIdx = idx;
+          bestDistance = distance;
+        }
+      });
+      sessions[bestIdx] = {
+        ...sessions[bestIdx],
+        minutes: Math.max(0, Number(metric?.minutes) || 0),
+        pagesRead: Math.max(0, Number(metric?.pagesRead) || 0)
+      };
+      const usedIdx = openMetricIndexes.indexOf(bestIdx);
+      if (usedIdx >= 0) openMetricIndexes.splice(usedIdx, 1);
+    });
+    const sorted = [...sessions].sort((a, b) => b.createdAt - a.createdAt);
+    return {
+      hydratedSessions: sessions,
+      visibleSessions: sorted.slice(0, 5)
+    };
+  }
+
+  function normalizeReadingEntryFromSessions(entry, sessions) {
+    const nextSessions = [...(Array.isArray(sessions) ? sessions : [])]
+      .map((session) => ({
+        createdAt: normalizeNoteTimestamp(session?.createdAt, entry?.date || ""),
+        minutes: Math.max(0, Number(session?.minutes) || 0),
+        pagesRead: Math.max(0, Number(session?.pagesRead) || 0),
+        currentPage: session?.currentPage === null || session?.currentPage === undefined || session?.currentPage === ""
+          ? null
+          : Math.max(0, Number(session?.currentPage) || 0),
+        leftMinutes: session?.leftMinutes === null || session?.leftMinutes === undefined || session?.leftMinutes === ""
+          ? null
+          : Math.max(0, Number(session?.leftMinutes) || 0),
+        note: String(session?.note || "").trim()
+      }))
+      .filter((session) => session.minutes > 0 || session.pagesRead > 0 || session.currentPage !== null || session.leftMinutes !== null || session.note)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const notesHistory = nextSessions
+      .filter((session) => session.note)
+      .map((session) => ({
+        note: session.note,
+        createdAt: session.createdAt
+      }));
+    return {
+      ...entry,
+      readingSessionHistory: nextSessions,
+      readingSessionMinutes: Math.max(0, Number(nextSessions[nextSessions.length - 1]?.minutes) || 0),
+      notes: notesHistory[notesHistory.length - 1]?.note || "",
+      notesHistory,
+      updatedAt: Date.now()
+    };
+  }
+
+  function hydrateReadingSessions(entry) {
+    const sessions = [...getReadingSessionHistory(entry)]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((session) => ({ ...session, note: String(session?.note || "").trim() }));
+    const legacyNotes = [...getEntryNotesHistory(entry)]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .filter((item) => String(item?.note || "").trim());
+    if (!sessions.length) {
+      if (!legacyNotes.length) return [];
+      return legacyNotes.map((item) => ({
+        createdAt: normalizeNoteTimestamp(item?.createdAt, entry?.date || ""),
+        minutes: 0,
+        pagesRead: 0,
+        currentPage: null,
+        leftMinutes: null,
+        note: String(item?.note || "").trim()
+      }));
+    }
+    if (!legacyNotes.length) return sessions;
+    const noteDatesUsed = new Set(
+      sessions
+        .filter((session) => session.note)
+        .map((session) => `${session.createdAt}:${session.note}`)
+    );
+    const openSessionIndexes = sessions
+      .map((session, idx) => ({ session, idx }))
+      .filter(({ session }) => !session.note)
+      .map(({ idx }) => idx);
+    legacyNotes.forEach((legacy) => {
+      const noteText = String(legacy?.note || "").trim();
+      if (!noteText || !openSessionIndexes.length) return;
+      const syntheticKey = `${Number(legacy?.createdAt) || 0}:${noteText}`;
+      if (noteDatesUsed.has(syntheticKey)) return;
+      let bestIdx = openSessionIndexes[0];
+      let bestDistance = Number.POSITIVE_INFINITY;
+      openSessionIndexes.forEach((idx) => {
+        const distance = Math.abs((sessions[idx]?.createdAt || 0) - (Number(legacy?.createdAt) || 0));
+        if (distance < bestDistance) {
+          bestIdx = idx;
+          bestDistance = distance;
+        }
+      });
+      sessions[bestIdx] = { ...sessions[bestIdx], note: noteText };
+      noteDatesUsed.add(syntheticKey);
+      const usedAt = openSessionIndexes.indexOf(bestIdx);
+      if (usedAt >= 0) openSessionIndexes.splice(usedAt, 1);
+    });
+    return sessions;
+  }
+
+  function formatReadingSessionMetric(session) {
+    const leftMinutes = session?.leftMinutes === null || session?.leftMinutes === undefined
+      ? null
+      : Math.max(0, Number(session?.leftMinutes) || 0);
+    const currentPage = session?.currentPage === null || session?.currentPage === undefined
+      ? null
+      : Math.max(0, Number(session?.currentPage) || 0);
+    if (leftMinutes !== null) {
+      return `Time left: ${formatDurationLabel(Math.floor(leftMinutes / 60), leftMinutes % 60)}`;
+    }
+    if (currentPage !== null) {
+      const pageLabel = currentPage.toFixed(1).replace(/\.0$/, "");
+      return `Current page: ${pageLabel}`;
+    }
+    const minutes = Math.max(0, Number(session?.minutes) || 0);
+    const pagesRead = Math.max(0, Number(session?.pagesRead) || 0);
+    if (minutes > 0) {
+      return `Minutes listened: ${Math.round(minutes)} min`;
+    }
+    if (pagesRead > 0) {
+      const pagesLabel = pagesRead.toFixed(1).replace(/\.0$/, "");
+      return `Pages read: ${pagesLabel} pages`;
+    }
+    return "Session logged";
+  }
+
+  function renderReadingSessionsHtml(entry, entryIdx) {
+    const { visibleSessions } = getReadingSessionRows(entry);
+    const sessions = visibleSessions;
+    const headerActions = `
+      <button class="inline-flex items-center gap-1 text-[12px] font-medium text-green-700 hover:text-green-800" aria-label="Add reading session" data-action="add-reading-session" data-idx="${entryIdx}">
+        <span>add session</span>
+        <span class="material-symbols-outlined leading-none" style="font-size:16px;font-variation-settings:'opsz' 20;" aria-hidden="true">add_circle</span>
+      </button>
+    `;
+    if (!sessions.length) {
+      return `<div class="mt-2"><div class="flex items-center justify-between gap-2 mb-1"><div class="text-sm text-gray-700">Sessions (0)</div>${headerActions}</div></div>`;
+    }
+    const rows = sessions.map((session) => {
+      const noteText = String(session?.note || "").trim();
+      const metricLabel = formatReadingSessionMetric(session);
+      const actionButtons = `
+        <div class="flex items-center gap-1">
+          <button class="p-1 rounded text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center" aria-label="Edit reading session" data-action="edit-reading-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:15px;font-variation-settings:'opsz' 20;" aria-hidden="true">edit</span></button>
+          <button class="p-1 rounded text-red-600 hover:bg-red-100 inline-flex items-center justify-center" aria-label="Delete reading session" data-action="delete-reading-session" data-idx="${entryIdx}" data-session-idx="${session.sourceIdx}"><span class="material-symbols-outlined leading-none" style="font-size:15px;font-variation-settings:'opsz' 20;" aria-hidden="true">delete</span></button>
+        </div>
+      `;
+      const noteHtml = noteText
+        ? `<div class="mt-1.5"><div class="text-xs font-medium text-gray-500">Note</div><div class="text-sm text-gray-700 leading-relaxed">${escapeHtml(noteText).replace(/\n/g, "<br />")}</div></div>`
+        : "";
+      return `<div class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5"><div class="flex items-start justify-between gap-2"><div class="text-sm text-gray-500">${formatNoteTimestamp(session.createdAt)}</div>${actionButtons}</div><div class="text-sm text-gray-700">${escapeHtml(metricLabel)}</div>${noteHtml}</div>`;
+    }).join("");
+    return `<div class="mt-2"><div class="flex items-center justify-between gap-2 mb-1"><div class="text-sm text-gray-700">Sessions (${sessions.length})</div>${headerActions}</div><div class="space-y-2 max-h-56 overflow-y-auto pr-1">${rows}</div></div>`;
   }
 
   function getReadingDayTotalPages(entries, dateValue) {
@@ -2548,13 +2909,6 @@ export function initTrackerCard(config) {
         metadataChips.push(`Progress ${progress.current}${progress.total ? ` / ${progress.total}` : ""} ${progress.unit}`);
         if (progress.total) metadataChips.push(`${progress.percent}%`);
       }
-      if (isReadingTracker) {
-        const readingSessionHistory = getReadingSessionHistory(entry);
-        const totalReadingMinutes = readingSessionHistory.reduce((sum, item) => sum + Math.max(0, Number(item?.minutes) || 0), 0);
-        if (totalReadingMinutes > 0) {
-          metadataChips.push(`Reading time ${totalReadingMinutes} min`);
-        }
-      }
       const metadataChipsHtml = formatMetadataChips(metadataChips);
       const metricsHtml = workoutMetricBadges
         ? `<div class="text-gray-600 text-sm mt-1">Metrics:${workoutMetricBadges}</div>`
@@ -2577,7 +2931,8 @@ export function initTrackerCard(config) {
       const coverHtml = hasMediaImage
         ? `<div class=\"reading-cover-shell\"><img src=\"${finalMediaUrl}\" alt=\"Cover of ${entry.item}\" class=\"reading-cover-image\" loading=\"lazy\" referrerpolicy=\"no-referrer\" ${imageOnError ? `onerror=\"${imageOnError}\"` : ""} data-fallback-src=\"${fallbackMediaUrl || ""}\" /></div>`
         : "";
-      const notesHtml = isVideoGameTracker ? "" : renderNotesHtml(entry, idx);
+      const readingSessionsHtml = isReadingTracker ? renderReadingSessionsHtml(entry, idx) : "";
+      const notesHtml = (isVideoGameTracker || isReadingTracker) ? "" : renderNotesHtml(entry, idx);
       const gameSessionsHtml = isVideoGameTracker ? renderVideoGameSessionHistoryHtml(entry, idx) : "";
       if (isWaterTracker) {
         const { volumeUnit } = getWaterGoalSettings();
@@ -2596,8 +2951,13 @@ export function initTrackerCard(config) {
           <div class=\"${hasMediaImage ? "flex-1 min-w-0" : ""}\">
           <div class=\"absolute top-3 right-3 flex items-center gap-1\">
             ${isTaskTracker ? `<button class=\"p-1.5 bg-gray-200 rounded hover:bg-green-100 text-green-700 inline-flex items-center justify-center\" aria-label=\"Toggle completion\" data-action=\"toggle-complete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">${entry?.completed ? "task_alt" : "check_circle"}</span></button>` : ""}
-            <button class=\"p-1.5 bg-gray-200 rounded hover:bg-gray-300 text-gray-700 inline-flex items-center justify-center\" aria-label=\"Edit\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span></button>
-            <button class=\"p-1.5 bg-gray-200 rounded hover:bg-red-100 text-red-600 inline-flex items-center justify-center\" aria-label=\"Delete\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span></button>
+            <div class=\"relative\">
+              <button class=\"p-1 text-gray-600 hover:text-gray-800 inline-flex items-center justify-center\" aria-label=\"More actions\" data-action=\"entry-menu-toggle\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:20px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">more_vert</span></button>
+              <div class=\"hidden absolute right-0 mt-1 min-w-[120px] rounded-md border border-gray-200 bg-white shadow-lg z-20\" data-role=\"entry-menu\">
+                <button class=\"w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 inline-flex items-center gap-2\" data-action=\"edit\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:18px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">edit</span><span>Edit</span></button>
+                <button class=\"w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 inline-flex items-center gap-2\" data-action=\"delete\" data-idx=\"${idx}\"><span class=\"material-symbols-outlined leading-none\" style=\"font-size:18px;font-variation-settings:'opsz' 20;\" aria-hidden=\"true\">delete</span><span>Delete</span></button>
+              </div>
+            </div>
           </div>
           <div class=\"mb-2 pr-12\">
             <span class=\"text-[11px] sm:text-xs text-gray-500 leading-tight\" title=\"${dateDesktop}\">${dateMobile}</span>
@@ -2608,6 +2968,7 @@ export function initTrackerCard(config) {
               ${metadataHtml}
             </div>
           </div>
+          ${readingSessionsHtml}
           ${gameSessionsHtml}
           ${notesHtml}
           ${showRating ? `<div class=\"flex items-center gap-1 mt-2\">${renderStaticStars(entry.rating || 0)}</div>` : ""}
@@ -2616,6 +2977,8 @@ export function initTrackerCard(config) {
         </div>
       `;
       const deleteButton = li.querySelector("[data-action=\"delete\"]");
+      const entryMenuToggleButton = li.querySelector("[data-action=\"entry-menu-toggle\"]");
+      const entryMenu = li.querySelector("[data-role=\"entry-menu\"]");
       const coverImageEl = li.querySelector(".reading-cover-image");
       if (coverImageEl instanceof HTMLImageElement) {
         const fallbackSrc = String(coverImageEl.getAttribute("data-fallback-src") || "").trim();
@@ -2635,6 +2998,7 @@ export function initTrackerCard(config) {
       }
       if (deleteButton) {
         deleteButton.onclick = async () => {
+          if (entryMenu) entryMenu.classList.add("hidden");
           const confirmed = await requestDeleteConfirmation();
           if (!confirmed) return;
           const entries = getEntries();
@@ -2651,8 +3015,21 @@ export function initTrackerCard(config) {
       const editButton = li.querySelector("[data-action=\"edit\"]");
       if (editButton) {
         editButton.onclick = () => {
+          if (entryMenu) entryMenu.classList.add("hidden");
           startEditing(idx);
         };
+      }
+      if (entryMenuToggleButton && entryMenu) {
+        entryMenuToggleButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const shouldOpen = entryMenu.classList.contains("hidden");
+          document.querySelectorAll("[data-role=\"entry-menu\"]").forEach((menuEl) => {
+            menuEl.classList.add("hidden");
+          });
+          if (shouldOpen) {
+            entryMenu.classList.remove("hidden");
+          }
+        });
       }
       const toggleCompleteButton = li.querySelector("[data-action=\"toggle-complete\"]");
       if (toggleCompleteButton) {
@@ -2761,6 +3138,128 @@ export function initTrackerCard(config) {
           renderEntries();
         });
       });
+      const addGameSessionButtons = li.querySelectorAll("[data-action=\"add-session\"]");
+      addGameSessionButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const entries = getEntries();
+          const entryForEdit = ensureEntryIdentity(entries[entryIndex]);
+          if (!entryForEdit) return;
+          const editResult = await requestVideoGameSessionEdit({
+            dateInput: getTodayDateInputValue(),
+            hours: 0,
+            note: ""
+          });
+          if (!editResult) return;
+          const sessionRows = getVideoGameSessionRows(entryForEdit);
+          const existingHistory = sessionRows.hydratedSessions;
+          const nextPlayedAt = buildEntryDateIso(editResult.dateInput, entryForEdit?.date || "");
+          existingHistory.push(createGameSession(editResult.hours, nextPlayedAt, editResult.note));
+          entries[entryIndex] = normalizeVideoGameEntryFromHistory(entryForEdit, existingHistory);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) clearForm();
+          renderEntries();
+        });
+      });
+      const readingSessionEditButtons = li.querySelectorAll("[data-action=\"edit-reading-session\"]");
+      readingSessionEditButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const sessionIndex = Number(button.getAttribute("data-session-idx"));
+          const entries = getEntries();
+          const currentEntry = ensureEntryIdentity(entries[entryIndex]);
+          if (!currentEntry) return;
+          const sessionRows = getReadingSessionRows(currentEntry);
+          const existingHistory = sessionRows.hydratedSessions;
+          const targetSession = existingHistory[sessionIndex];
+          if (!targetSession) return;
+          const isAudio = Boolean(currentEntry?.isAudiobook);
+          const editResult = await requestReadingSessionEdit({
+            isAudiobook: isAudio,
+            dateInput: toDateInputValue(targetSession?.createdAt || currentEntry?.date || ""),
+            currentPage: isAudio
+              ? null
+              : (targetSession?.currentPage ?? Math.max(0, Number(currentEntry?.currentPage) || 0)),
+            leftMinutes: isAudio
+              ? (targetSession?.leftMinutes ?? totalMinutesFromParts(currentEntry?.leftHours, currentEntry?.leftMinutes))
+              : null,
+            note: String(targetSession?.note || "")
+          });
+          if (!editResult) return;
+          existingHistory[sessionIndex] = {
+            ...targetSession,
+            createdAt: normalizeNoteTimestamp(
+              buildEntryDateIso(editResult.dateInput, currentEntry?.date || ""),
+              currentEntry?.date || ""
+            ),
+            currentPage: isAudio ? null : (editResult?.currentPage ?? null),
+            leftMinutes: isAudio ? (editResult?.leftMinutes ?? null) : null,
+            note: String(editResult?.note || "").trim()
+          };
+          entries[entryIndex] = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) {
+            notesInput.value = entries[entryIndex].notes || "";
+          }
+          renderEntries();
+        });
+      });
+      const addReadingSessionButtons = li.querySelectorAll("[data-action=\"add-reading-session\"]");
+      addReadingSessionButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const entries = getEntries();
+          const currentEntry = ensureEntryIdentity(entries[entryIndex]);
+          if (!currentEntry) return;
+          const isAudio = Boolean(currentEntry?.isAudiobook);
+          const editResult = await requestReadingSessionEdit({
+            isAudiobook: isAudio,
+            dateInput: getTodayDateInputValue(),
+            currentPage: isAudio ? null : Math.max(0, Number(currentEntry?.currentPage) || 0),
+            leftMinutes: isAudio ? totalMinutesFromParts(currentEntry?.leftHours, currentEntry?.leftMinutes) : null,
+            note: ""
+          });
+          if (!editResult) return;
+          const sessionRows = getReadingSessionRows(currentEntry);
+          const existingHistory = sessionRows.hydratedSessions;
+          existingHistory.push({
+            createdAt: normalizeNoteTimestamp(
+              buildEntryDateIso(editResult.dateInput, currentEntry?.date || ""),
+              currentEntry?.date || ""
+            ),
+            minutes: 0,
+            pagesRead: 0,
+            currentPage: isAudio ? null : (editResult?.currentPage ?? null),
+            leftMinutes: isAudio ? (editResult?.leftMinutes ?? null) : null,
+            note: String(editResult?.note || "").trim()
+          });
+          const nextEntry = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          if (isAudio && editResult?.leftMinutes !== null && editResult?.leftMinutes !== undefined) {
+            const totalAudioMinutes = totalMinutesFromParts(nextEntry?.totalHours, nextEntry?.totalMinutes);
+            const normalizedLeft = totalAudioMinutes > 0
+              ? Math.min(totalAudioMinutes, Math.max(0, Number(editResult.leftMinutes) || 0))
+              : Math.max(0, Number(editResult.leftMinutes) || 0);
+            const listenedMinutes = totalAudioMinutes > 0
+              ? Math.max(0, totalAudioMinutes - normalizedLeft)
+              : 0;
+            nextEntry.leftHours = Math.floor(normalizedLeft / 60);
+            nextEntry.leftMinutes = normalizedLeft % 60;
+            nextEntry.currentHours = Math.floor(listenedMinutes / 60);
+            nextEntry.currentMinutes = listenedMinutes % 60;
+          }
+          if (!isAudio && editResult?.currentPage !== null && editResult?.currentPage !== undefined) {
+            const totalPages = Math.max(0, Number(nextEntry?.totalPages) || 0);
+            const normalizedPage = Math.max(0, Number(editResult.currentPage) || 0);
+            nextEntry.currentPage = totalPages > 0 ? Math.min(totalPages, normalizedPage) : normalizedPage;
+          }
+          entries[entryIndex] = nextEntry;
+          saveEntries(entries);
+          if (editingIdx === entryIndex) {
+            notesInput.value = entries[entryIndex].notes || "";
+          }
+          renderEntries();
+        });
+      });
       const sessionDeleteButtons = li.querySelectorAll("[data-action=\"delete-session\"]");
       sessionDeleteButtons.forEach((button) => {
         button.addEventListener("click", () => {
@@ -2791,8 +3290,47 @@ export function initTrackerCard(config) {
           renderEntries();
         });
       });
+      const readingSessionDeleteButtons = li.querySelectorAll("[data-action=\"delete-reading-session\"]");
+      readingSessionDeleteButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const entryIndex = Number(button.getAttribute("data-idx"));
+          const sessionIndex = Number(button.getAttribute("data-session-idx"));
+          const entries = getEntries();
+          const currentEntry = ensureEntryIdentity(entries[entryIndex]);
+          if (!currentEntry) return;
+          const sessionRows = getReadingSessionRows(currentEntry);
+          const existingHistory = sessionRows.hydratedSessions;
+          if (!existingHistory[sessionIndex]) return;
+          const confirmed = await requestDeleteConfirmation();
+          if (!confirmed) return;
+          existingHistory.splice(sessionIndex, 1);
+          entries[entryIndex] = normalizeReadingEntryFromSessions(currentEntry, existingHistory);
+          saveEntries(entries);
+          if (editingIdx === entryIndex) {
+            notesInput.value = entries[entryIndex].notes || "";
+          }
+          renderEntries();
+        });
+      });
       list.appendChild(li);
     });
+    if (!list.dataset.entryMenuBound) {
+      list.dataset.entryMenuBound = "1";
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.closest("[data-action=\"entry-menu-toggle\"]") || target.closest("[data-role=\"entry-menu\"]")) return;
+        document.querySelectorAll("[data-role=\"entry-menu\"]").forEach((menuEl) => {
+          menuEl.classList.add("hidden");
+        });
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        document.querySelectorAll("[data-role=\"entry-menu\"]").forEach((menuEl) => {
+          menuEl.classList.add("hidden");
+        });
+      });
+    }
 
     const LOOKAHEAD_BUFFER = 5;
     const readingVisibleIndices = isReadingTracker
@@ -3093,8 +3631,24 @@ export function initTrackerCard(config) {
         updatedEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
         const nextReadingPercent = getReadingProgressPercentForEntry(updatedEntry);
         const readingDeltaPercent = Math.max(0, nextReadingPercent - previousReadingPercent);
+        const sessionPagesRead = (!isAudiobook && totalPages > 0 && readingDeltaPercent > 0)
+          ? ((readingDeltaPercent / 100) * totalPages)
+          : 0;
+        const inferredSessionMinutes = (isAudiobook && totalAudioMinutes > 0 && readingDeltaPercent > 0)
+          ? Math.round((readingDeltaPercent / 100) * totalAudioMinutes)
+          : 0;
+        const sessionMinutes = isAudiobook
+          ? Math.max(0, readingSessionMinutes || inferredSessionMinutes)
+          : 0;
         Object.assign(updatedEntry, appendReadingActivity(updatedEntry, readingDeltaPercent, Date.now()));
-        Object.assign(updatedEntry, appendReadingSession(updatedEntry, readingSessionMinutes, Date.now()));
+        Object.assign(updatedEntry, appendReadingSession(updatedEntry, {
+          minutes: sessionMinutes,
+          pagesRead: sessionPagesRead,
+          currentPage: isAudiobook ? null : currentPage,
+          leftMinutes: isAudiobook ? leftAudioMinutes : null,
+          note: notes,
+          createdAt: Date.now()
+        }));
       }
       if (isMovieTracker) {
         updatedEntry.imdbID = selectedImdbId;
@@ -3346,8 +3900,24 @@ export function initTrackerCard(config) {
         nextEntry.totalHours = isAudiobook ? totalHours : 0;
         nextEntry.totalMinutes = isAudiobook ? totalMinutes : 0;
         const initialReadingPercent = getReadingProgressPercentForEntry(nextEntry);
+        const sessionPagesRead = (!isAudiobook && totalPages > 0 && initialReadingPercent > 0)
+          ? ((initialReadingPercent / 100) * totalPages)
+          : 0;
+        const inferredSessionMinutes = (isAudiobook && totalAudioMinutes > 0 && initialReadingPercent > 0)
+          ? Math.round((initialReadingPercent / 100) * totalAudioMinutes)
+          : 0;
+        const sessionMinutes = isAudiobook
+          ? Math.max(0, readingSessionMinutes || inferredSessionMinutes)
+          : 0;
         Object.assign(nextEntry, appendReadingActivity(nextEntry, initialReadingPercent, Date.now()));
-        Object.assign(nextEntry, appendReadingSession(nextEntry, readingSessionMinutes, Date.now()));
+        Object.assign(nextEntry, appendReadingSession(nextEntry, {
+          minutes: sessionMinutes,
+          pagesRead: sessionPagesRead,
+          currentPage: isAudiobook ? null : currentPage,
+          leftMinutes: isAudiobook ? leftAudioMinutes : null,
+          note: notes,
+          createdAt: Date.now()
+        }));
       }
       if (isMovieTracker) {
         nextEntry.imdbID = selectedImdbId;

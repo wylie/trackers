@@ -26,7 +26,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
 <header class="sticky top-0 z-40 w-full bg-white border-b border-gray-200 shadow-sm">
   <div class="max-w-5xl mx-auto px-4 py-3 border-b" style="border-color: rgb(241, 245, 249);">
     <div class="flex items-center justify-between md:block">
-      <a href="/" class="block text-left md:text-center text-[24px] leading-none font-bold text-slate-900 tracking-tight">SimpleTrackers</a>
+      <a href="/" data-home-link="true" class="block text-left md:text-center text-[24px] leading-none font-bold text-slate-900 tracking-tight">SimpleTrackers</a>
       <button
         id="mobile-nav-toggle"
         type="button"
@@ -43,7 +43,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
   <div class="max-w-5xl mx-auto px-4 py-2.5 hidden md:block">
     <nav aria-label="Main navigation">
       <ul class="flex flex-wrap justify-center gap-3 sm:gap-4">
-        <li><a href="/" class={navClass("/")}>Home</a></li>
+        <li><a href="/" data-home-link="true" class={navClass("/")}>Home</a></li>
         <li><a href="/dashboard" class={navClass("/dashboard")}>Dashboard</a></li>
         <li class="relative group desktop-trackers">
           <button class={navClass("/trackers")} type="button">
@@ -100,7 +100,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
   <div id="mobile-nav-panel" class="hidden md:hidden border-t border-slate-100">
     <nav aria-label="Mobile navigation" class="px-4 py-3">
       <ul class="flex flex-col gap-1.5">
-        <li><a href="/" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">Home</a></li>
+        <li><a href="/" data-home-link="true" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">Home</a></li>
         <li><a href="/dashboard" class="block rounded-md px-3 py-2 text-[15px] font-semibold text-slate-700 hover:bg-slate-100">Dashboard</a></li>
         <li>
           <button
@@ -147,8 +147,33 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     const authSyncStatus = document.getElementById("auth-sync-status");
     const logoutButton = document.getElementById("auth-logout-btn");
     const LAST_SYNC_AT_KEY = "simpletrackers:last-sync-at";
+    const HOME_NAV_PREF_KEY = "simpletrackers:nav-home-preference";
+    let isSyncAuthenticated = false;
 
     if (!mobileToggle || !mobilePanel) return;
+
+    function getHomeNavPreference() {
+      try {
+        const raw = localStorage.getItem(HOME_NAV_PREF_KEY);
+        if (!raw) return true;
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "boolean") return parsed;
+        if (parsed && typeof parsed === "object" && typeof parsed.homeToDashboardWhenSignedIn === "boolean") {
+          return parsed.homeToDashboardWhenSignedIn;
+        }
+      } catch {
+        // Fall back to default.
+      }
+      return true;
+    }
+
+    function applyHomeLinkRouting() {
+      const prefersDashboardHome = getHomeNavPreference();
+      const nextHref = (isSyncAuthenticated && prefersDashboardHome) ? "/dashboard" : "/";
+      document.querySelectorAll("a[data-home-link=\"true\"]").forEach((link) => {
+        link.setAttribute("href", nextHref);
+      });
+    }
 
     function setMobileMenu(open) {
       mobilePanel.classList.toggle("hidden", !open);
@@ -219,8 +244,10 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     }
 
     function hideAuthStatus() {
+      isSyncAuthenticated = false;
       authStatusBar?.classList.add("hidden");
       if (authStatusEmail) authStatusEmail.textContent = "";
+      applyHomeLinkRouting();
     }
 
     function getPreviewAuthFromUrl() {
@@ -260,9 +287,11 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
 
     function showAuthStatus(email) {
       if (!authStatusBar || !authStatusEmail) return;
+      isSyncAuthenticated = true;
       authStatusEmail.textContent = String(email || "");
       authStatusBar.classList.remove("hidden");
       refreshSyncStatusFromStorage();
+      applyHomeLinkRouting();
     }
 
     function formatRelativeTime(timestamp) {
@@ -373,6 +402,15 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
       refreshSyncStatusFromStorage();
     }, 60000);
 
+    window.addEventListener("storage", (event) => {
+      if (event.key === HOME_NAV_PREF_KEY) {
+        applyHomeLinkRouting();
+      }
+    });
+
+    document.addEventListener("simpletrackers:nav-home-preference-updated", applyHomeLinkRouting);
+
+    applyHomeLinkRouting();
     void refreshAuthStatus();
   });
 </script>

@@ -1178,12 +1178,23 @@ export function initTrackerCard(config) {
       const listenedAudioMinutes = totalAudioMinutes > 0
         ? Math.max(0, totalAudioMinutes - normalizedLeftMinutes)
         : totalMinutesFromParts(entry?.currentHours, entry?.currentMinutes);
+      const nextLeftHours = Math.floor(normalizedLeftMinutes / 60);
+      const nextLeftMinutes = normalizedLeftMinutes % 60;
+      const nextCurrentHours = Math.floor(listenedAudioMinutes / 60);
+      const nextCurrentMinutes = listenedAudioMinutes % 60;
+      const sameAsCurrent = (
+        Math.max(0, Number(entry?.leftHours) || 0) === nextLeftHours
+        && Math.max(0, Number(entry?.leftMinutes) || 0) === nextLeftMinutes
+        && Math.max(0, Number(entry?.currentHours) || 0) === nextCurrentHours
+        && Math.max(0, Number(entry?.currentMinutes) || 0) === nextCurrentMinutes
+      );
+      if (sameAsCurrent) return entry;
       return {
         ...entry,
-        leftHours: Math.floor(normalizedLeftMinutes / 60),
-        leftMinutes: normalizedLeftMinutes % 60,
-        currentHours: Math.floor(listenedAudioMinutes / 60),
-        currentMinutes: listenedAudioMinutes % 60
+        leftHours: nextLeftHours,
+        leftMinutes: nextLeftMinutes,
+        currentHours: nextCurrentHours,
+        currentMinutes: nextCurrentMinutes
       };
     }
     const latestWithPage = sortedSessions.find((session) => session?.currentPage !== null && session?.currentPage !== undefined);
@@ -1191,6 +1202,8 @@ export function initTrackerCard(config) {
     const totalPages = Math.max(0, Number(entry?.totalPages) || 0);
     const requestedPage = Math.max(0, Number(latestWithPage?.currentPage) || 0);
     const normalizedPage = totalPages > 0 ? Math.min(totalPages, requestedPage) : requestedPage;
+    const currentPageNow = Math.max(0, Number(entry?.currentPage) || 0);
+    if (currentPageNow === normalizedPage) return entry;
     return {
       ...entry,
       currentPage: normalizedPage
@@ -2274,28 +2287,31 @@ export function initTrackerCard(config) {
     let changed = false;
     const normalizedEntries = entries.map((entry) => {
       if (!entry || typeof entry !== "object") return entry;
+      let nextEntry = entry;
       if ("coverUrl" in entry && entry.coverUrl && typeof entry.coverUrl !== "string") {
-        changed = true;
-        return {
-          ...entry,
+        nextEntry = {
+          ...nextEntry,
           coverUrl: ""
         };
       }
-      if (typeof entry.coverUrl === "string" && entry.coverUrl && isPlaceholderCoverUrl(entry.coverUrl)) {
-        changed = true;
-        return {
-          ...entry,
+      if (typeof nextEntry.coverUrl === "string" && nextEntry.coverUrl && isPlaceholderCoverUrl(nextEntry.coverUrl)) {
+        nextEntry = {
+          ...nextEntry,
           coverUrl: ""
         };
       }
-      if (entry.coverEditionKey && typeof entry.coverEditionKey !== "string") {
-        changed = true;
-        return {
-          ...entry,
+      if (nextEntry.coverEditionKey && typeof nextEntry.coverEditionKey !== "string") {
+        nextEntry = {
+          ...nextEntry,
           coverEditionKey: ""
         };
       }
-      return entry;
+      const syncedProgressEntry = applyReadingEntryProgressFromSessions(nextEntry);
+      if (syncedProgressEntry !== nextEntry) {
+        nextEntry = syncedProgressEntry;
+      }
+      if (nextEntry !== entry) changed = true;
+      return nextEntry;
     });
 
     if (changed) {

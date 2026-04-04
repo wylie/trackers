@@ -2968,16 +2968,19 @@ export function initTrackerCard(config) {
           displayItemTitle = `${entry.item} • $${financeAmount.toFixed(2)}`;
         }
       }
-      if (enableReadingProgress && (entry.startedDate || entry.finishedDate)) {
-        const started = entry.startedDate ? `Started ${formatSimpleDate(entry.startedDate)}` : "";
-        const finished = entry.currentlyReading
+      const progressEntry = (enableReadingProgress && isReadingTracker)
+        ? applyReadingEntryProgressFromSessions(entry)
+        : entry;
+      if (enableReadingProgress && (progressEntry.startedDate || progressEntry.finishedDate)) {
+        const started = progressEntry.startedDate ? `Started ${formatSimpleDate(progressEntry.startedDate)}` : "";
+        const finished = progressEntry.currentlyReading
           ? "Currently reading"
-          : (entry.finishedDate ? `Finished ${formatSimpleDate(entry.finishedDate)}` : "");
+          : (progressEntry.finishedDate ? `Finished ${formatSimpleDate(progressEntry.finishedDate)}` : "");
         if (started) metadataChips.push(started);
         if (finished) metadataChips.push(finished);
       }
-      if (enableReadingProgress && (entry.currentPage || entry.totalPages || entry.currentHours || entry.currentMinutes || entry.totalHours || entry.totalMinutes)) {
-        const progress = formatProgressValue(entry);
+      if (enableReadingProgress && (progressEntry.currentPage || progressEntry.totalPages || progressEntry.currentHours || progressEntry.currentMinutes || progressEntry.totalHours || progressEntry.totalMinutes)) {
+        const progress = formatProgressValue(progressEntry);
         metadataChips.push(`Progress ${progress.current}${progress.total ? ` / ${progress.total}` : ""} ${progress.unit}`);
         if (progress.total) metadataChips.push(`${progress.percent}%`);
       }

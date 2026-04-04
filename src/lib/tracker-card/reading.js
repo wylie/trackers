@@ -81,6 +81,17 @@ export function isPlaceholderCoverUrl(url) {
     (coverHost.includes("gr-assets.com") || coverHost.includes("goodreads.com"))
     && (coverPath.includes("nophoto") || normalizedCoverUrl.includes("nophoto"))
   );
+  const isOpenLibraryPlaceholder = (
+    (coverHost.includes("openlibrary.org") || coverHost.includes("covers.openlibrary.org"))
+    && (
+      coverPath.includes("avatar_book")
+      || coverPath.includes("avatar-book")
+      || coverPath.includes("default-book")
+      || coverPath.includes("no-cover")
+      || coverPath.includes("nocover")
+      || normalizedCoverUrl.includes("image-not-available")
+    )
+  );
   return (
     normalizedCoverUrl.includes("no+image") ||
     normalizedCoverUrl.includes("no%20image") ||
@@ -97,6 +108,7 @@ export function isPlaceholderCoverUrl(url) {
     coverHost.includes("amazonaws.com") ||
     coverHost.includes("ssl-images-amazon.com") ||
     coverHost.includes("images-amazon.com") ||
-    coverHost.includes("media-amazon.com")
+    coverHost.includes("media-amazon.com") ||
+    isOpenLibraryPlaceholder
   );
 }

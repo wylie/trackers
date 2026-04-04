@@ -68,11 +68,14 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
               </div>
               <div class="rd-14d-wrap">
                 <div id="rd-14d" class="rd-14d"></div>
-                <div id="rd-14d-goal-line" class="rd-goal-line hidden">
-                  <span id="rd-14d-goal-label" class="rd-goal-line-label"></span>
+                <div id="rd-14d-goal-pages-line" class="rd-goal-line rd-goal-line--pages hidden">
+                  <span id="rd-14d-goal-pages-label" class="rd-goal-line-label rd-goal-line-label--pages"></span>
+                </div>
+                <div id="rd-14d-goal-minutes-line" class="rd-goal-line rd-goal-line--minutes hidden">
+                  <span id="rd-14d-goal-minutes-label" class="rd-goal-line-label rd-goal-line-label--minutes"></span>
                 </div>
               </div>
-              <p class="rd-note">Blue = pages read, green = audiobook time listened.</p>
+              <p class="rd-note">Blue = pages read, green = audiobook time listened. Dashed lines show daily goals.</p>
             </div>
             <div class="rd-card">
               <h3 class="rd-title">Goal Hits (30 Days)</h3>
@@ -406,8 +409,10 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const pie = document.getElementById("rd-status-pie");
     const legend = document.getElementById("rd-status-legend");
     const trend = document.getElementById("rd-14d");
-    const goalLine = document.getElementById("rd-14d-goal-line");
-    const goalLabel = document.getElementById("rd-14d-goal-label");
+    const goalPagesLine = document.getElementById("rd-14d-goal-pages-line");
+    const goalPagesLabel = document.getElementById("rd-14d-goal-pages-label");
+    const goalMinutesLine = document.getElementById("rd-14d-goal-minutes-line");
+    const goalMinutesLabel = document.getElementById("rd-14d-goal-minutes-label");
     const challenge = document.getElementById("rd-yearly-challenge");
     const goalHits = document.getElementById("rd-goal-hits");
     if (!bars || !pie || !legend || !trend || !goalHits) return;
@@ -457,14 +462,7 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
     const dailyPagesGoal = Math.max(0, Number(settings?.dailyGoalPages) || 0);
     const hasPageGoal = dailyPagesGoal > 0;
     const hasMinuteGoal = dailyAudioGoalMinutes > 0;
-    const singleGoalType = hasPageGoal && !hasMinuteGoal
-      ? "pages"
-      : (hasMinuteGoal && !hasPageGoal ? "minutes" : "");
-    const singleGoalValue = singleGoalType === "pages" ? dailyPagesGoal : (singleGoalType === "minutes" ? dailyAudioGoalMinutes : 0);
-    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), singleGoalType === "minutes" ? singleGoalValue : 0, 1);
-    const maxGoalScale = singleGoalType === "pages"
-      ? Math.max(maxPages, singleGoalValue, 1)
-      : Math.max(maxAudio, singleGoalValue, 1);
+    const maxAudio = Math.max(...last14.map((day) => day.audioMinutes), hasMinuteGoal ? dailyAudioGoalMinutes : 0, 1);
     trend.innerHTML = last14.map((day) => {
       const pages = Math.round(day.pages * 10) / 10;
       const audioMinutes = Math.round(day.audioMinutes);
@@ -475,18 +473,47 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
       const hAudio = day.audioMinutes > 0 ? Math.max(8, Math.round((day.audioMinutes / maxAudio) * 68)) : 0;
       const d = day.day.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
       const pageLabel = pages.toFixed(1).replace(/\\.0$/, "");
-      return `<div class="rd-day-col"><span class="rd-day-bars" title="${d}: ${pageLabel} pages, ${audioLabel} listened"><span class="rd-day-bar rd-day-bar--pages" style="height:${hPages}px"></span><span class="rd-day-bar rd-day-bar--audio" style="height:${hAudio}px"></span></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
+      const pageDelta = hasPageGoal
+        ? Math.round((pages - dailyPagesGoal) * 10) / 10
+        : 0;
+      const minuteDelta = hasMinuteGoal
+        ? Math.round(audioMinutes - dailyAudioGoalMinutes)
+        : 0;
+      const pageDeltaLabel = hasPageGoal
+        ? (pageDelta >= 0
+          ? `pages hit (+${pageDelta.toFixed(1).replace(/\\.0$/, "")})`
+          : `pages miss (${pageDelta.toFixed(1).replace(/\\.0$/, "")})`)
+        : "";
+      const minuteDeltaLabel = hasMinuteGoal
+        ? (minuteDelta >= 0
+          ? `minutes hit (+${minuteDelta})`
+          : `minutes miss (${minuteDelta})`)
+        : "";
+      const deltaSegments = [pageDeltaLabel, minuteDeltaLabel].filter(Boolean).join(" • ");
+      const titleText = `${d}: ${pageLabel} pages, ${audioLabel} listened${deltaSegments ? ` • ${deltaSegments}` : ""}`;
+      return `<div class="rd-day-col"><span class="rd-day-bars" title="${titleText}"><span class="rd-day-bar rd-day-bar--pages" style="height:${hPages}px"></span><span class="rd-day-bar rd-day-bar--audio" style="height:${hAudio}px"></span></span><span class="rd-day-label">${d.split("/")[1] || d}</span></div>`;
     }).join("");
 
-    if (goalLine && singleGoalValue > 0) {
+    if (goalPagesLine && hasPageGoal) {
       const barHeight = 68;
       const baselineOffset = 12;
-      const lineBottom = baselineOffset + Math.round((singleGoalValue / maxGoalScale) * barHeight);
-      goalLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
-      goalLine.classList.remove("hidden");
-      if (goalLabel) goalLabel.textContent = singleGoalType === "pages" ? `Goal ${singleGoalValue} pages` : `Goal ${singleGoalValue}m`;
-    } else if (goalLine) {
-      goalLine.classList.add("hidden");
+      const lineBottom = baselineOffset + Math.round((dailyPagesGoal / Math.max(maxPages, dailyPagesGoal, 1)) * barHeight);
+      goalPagesLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
+      goalPagesLine.classList.remove("hidden");
+      if (goalPagesLabel) goalPagesLabel.textContent = `Pages goal ${dailyPagesGoal}`;
+    } else if (goalPagesLine) {
+      goalPagesLine.classList.add("hidden");
+    }
+
+    if (goalMinutesLine && hasMinuteGoal) {
+      const barHeight = 68;
+      const baselineOffset = 12;
+      const lineBottom = baselineOffset + Math.round((dailyAudioGoalMinutes / Math.max(maxAudio, dailyAudioGoalMinutes, 1)) * barHeight);
+      goalMinutesLine.style.bottom = `${Math.max(baselineOffset, Math.min(90, lineBottom))}px`;
+      goalMinutesLine.classList.remove("hidden");
+      if (goalMinutesLabel) goalMinutesLabel.textContent = `Minutes goal ${dailyAudioGoalMinutes}m`;
+    } else if (goalMinutesLine) {
+      goalMinutesLine.classList.add("hidden");
     }
     renderGoalHits(goalHits, entries, settings);
   }
@@ -599,8 +626,12 @@ const relatedCalculators = getRelatedCalculators("reading-tracker");
   .rd-leg-val { color: #64748b; font-weight: 700; }
   .rd-14d { height: 96px; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: 3px; }
   .rd-14d-wrap { position: relative; }
-  .rd-goal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(22, 163, 74, 0.85); pointer-events: none; z-index: 1; }
-  .rd-goal-line-label { position: absolute; left: 0; top: -0.78rem; font-size: 0.58rem; line-height: 1; color: #166534; background: rgba(240, 253, 244, 0.96); border: 1px solid rgba(22, 163, 74, 0.45); border-radius: 999px; padding: 0.08rem 0.32rem; }
+  .rd-goal-line { position: absolute; left: 0; right: 0; pointer-events: none; z-index: 1; border-top-width: 1px; border-top-style: dashed; }
+  .rd-goal-line--pages { border-top-color: rgba(37, 99, 235, 0.8); }
+  .rd-goal-line--minutes { border-top-color: rgba(22, 163, 74, 0.85); }
+  .rd-goal-line-label { position: absolute; left: 0; top: -0.78rem; font-size: 0.58rem; line-height: 1; border-radius: 999px; padding: 0.08rem 0.32rem; border: 1px solid transparent; }
+  .rd-goal-line-label--pages { color: #1d4ed8; background: rgba(239, 246, 255, 0.96); border-color: rgba(59, 130, 246, 0.45); }
+  .rd-goal-line-label--minutes { color: #166534; background: rgba(240, 253, 244, 0.96); border-color: rgba(22, 163, 74, 0.45); }
   .rd-day-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
   .rd-legend-inline { display: flex; align-items: center; gap: 0.65rem; margin: -0.2rem 0 0.45rem; font-size: 0.62rem; color: #64748b; font-weight: 700; }
   .rd-legend-inline span { display: inline-flex; align-items: center; gap: 0.25rem; }

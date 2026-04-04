@@ -187,6 +187,7 @@ export function initTrackerCard(config) {
   let selectedReadingIsbn = "";
   let isEnrichingReadingCovers = false;
   const readingCoverLookupAttemptedAt = new Map();
+  const readingBrokenCoverAttemptedAt = new Map();
   const READING_COVER_RETRY_MS = 10 * 60 * 1000;
   let selectedPosterUrl = "";
   let selectedImdbId = "";
@@ -1735,6 +1736,45 @@ export function initTrackerCard(config) {
     }
   }
 
+  async function recoverBrokenReadingCover(idx, failedSrc = "") {
+    if (!isReadingTracker) return;
+    const entries = getEntries();
+    const entry = ensureEntryIdentity(entries[idx]);
+    if (!entry || !entry.item) return;
+    const lookupKey = `${getReadingCoverLookupKey(entry, idx)}::${String(failedSrc || "").trim()}`;
+    const now = Date.now();
+    const lastAttempt = Number(readingBrokenCoverAttemptedAt.get(lookupKey)) || 0;
+    if (lastAttempt && (now - lastAttempt) < READING_COVER_RETRY_MS) return;
+    readingBrokenCoverAttemptedAt.set(lookupKey, now);
+
+    let changed = false;
+    const nextEntry = { ...entry };
+    if (String(nextEntry.coverUrl || "").trim()) {
+      nextEntry.coverUrl = "";
+      changed = true;
+    }
+    const normalizedFailedSrc = String(failedSrc || "").toLowerCase();
+    if (
+      normalizedFailedSrc.includes("covers.openlibrary.org")
+      || normalizedFailedSrc.includes("openlibrary.org")
+    ) {
+      if (Number(nextEntry.coverId) > 0 || String(nextEntry.coverEditionKey || "").trim()) {
+        nextEntry.coverId = 0;
+        nextEntry.coverEditionKey = "";
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    entries[idx] = {
+      ...nextEntry,
+      updatedAt: Date.now()
+    };
+    saveEntries(entries);
+    await enrichReadingCovers(new Set([idx]));
+    renderEntries(false, true);
+  }
+
   if (isSleepTracker) {
     const { goalHours, goalMinutes } = getSleepGoalSettings();
     if (goalHoursInput) goalHoursInput.value = String(goalHours);
@@ -2213,8 +2253,10 @@ export function initTrackerCard(config) {
         if (fallbackSrc) {
           const applyFallback = () => {
             if (coverImageEl.dataset.usedFallback === "1") return;
+            const failedSrc = String(coverImageEl.currentSrc || coverImageEl.src || "").trim();
             coverImageEl.dataset.usedFallback = "1";
             coverImageEl.src = fallbackSrc;
+            void recoverBrokenReadingCover(idx, failedSrc);
           };
           coverImageEl.addEventListener("error", applyFallback, { once: true });
           if (coverImageEl.complete && coverImageEl.naturalWidth === 0) {

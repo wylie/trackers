@@ -148,7 +148,8 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     const logoutButton = document.getElementById("auth-logout-btn");
     const LAST_SYNC_AT_KEY = "simpletrackers:last-sync-at";
     const HOME_NAV_PREF_KEY = "simpletrackers:nav-home-preference";
-    let isSyncAuthenticated = false;
+    const SYNC_AUTH_CACHE_KEY = "simpletrackers:sync-authenticated";
+    let isSyncAuthenticated = String(localStorage.getItem(SYNC_AUTH_CACHE_KEY) || "") === "1";
 
     if (!mobileToggle || !mobilePanel) return;
 
@@ -173,6 +174,18 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
       document.querySelectorAll("a[data-home-link=\"true\"]").forEach((link) => {
         link.setAttribute("href", nextHref);
       });
+    }
+
+    function shouldRouteHomeToDashboard() {
+      return isSyncAuthenticated && getHomeNavPreference();
+    }
+
+    function persistAuthCache(authenticated) {
+      try {
+        localStorage.setItem(SYNC_AUTH_CACHE_KEY, authenticated ? "1" : "0");
+      } catch {
+        // Ignore localStorage write failures.
+      }
     }
 
     function setMobileMenu(open) {
@@ -245,6 +258,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
 
     function hideAuthStatus() {
       isSyncAuthenticated = false;
+      persistAuthCache(false);
       authStatusBar?.classList.add("hidden");
       if (authStatusEmail) authStatusEmail.textContent = "";
       applyHomeLinkRouting();
@@ -288,6 +302,7 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     function showAuthStatus(email) {
       if (!authStatusBar || !authStatusEmail) return;
       isSyncAuthenticated = true;
+      persistAuthCache(true);
       authStatusEmail.textContent = String(email || "");
       authStatusBar.classList.remove("hidden");
       refreshSyncStatusFromStorage();
@@ -409,6 +424,22 @@ const navClass = (href) => `block px-2 py-2 text-[14px] font-semibold transition
     });
 
     document.addEventListener("simpletrackers:nav-home-preference-updated", applyHomeLinkRouting);
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest("a[data-home-link=\"true\"]");
+      if (!(link instanceof HTMLAnchorElement)) return;
+      if (!shouldRouteHomeToDashboard()) return;
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const href = String(link.getAttribute("href") || "");
+      const isHomeHref = href === "/" || href === "";
+      if (!isHomeHref) return;
+      event.preventDefault();
+      if (window.location.pathname === "/dashboard") return;
+      window.location.assign("/dashboard");
+    });
 
     applyHomeLinkRouting();
     void refreshAuthStatus();

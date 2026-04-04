@@ -221,19 +221,9 @@ const trackerCardConfig = {
       <div id="tracker-reading-goal-editor" class="flex flex-col gap-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">Daily Reading Goal</h3>
-          <p class="text-sm text-slate-600">Set your daily target as minutes or pages.</p>
+          <p class="text-sm text-slate-600">Set daily targets for minutes and/or pages.</p>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)_auto] gap-2 items-end">
-          <div class="flex flex-col gap-1">
-            <label for="tracker-reading-goal-mode" class="text-sm text-gray-700">Goal Type</label>
-            <div class="relative">
-              <select id="tracker-reading-goal-mode" class="tracker-select border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 w-full">
-                <option value="minutes">Minutes/day</option>
-                <option value="pages">Pages/day</option>
-              </select>
-              <span class="tracker-select-icon material-symbols-outlined" aria-hidden="true">expand_more</span>
-            </div>
-          </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
           <div id="tracker-reading-goal-minutes-field" class="flex flex-col gap-1">
             <label for="tracker-reading-goal-minutes" class="text-sm text-gray-700">Goal (min/day)</label>
             <input
@@ -245,7 +235,7 @@ const trackerCardConfig = {
               class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
           </div>
-          <div id="tracker-reading-goal-pages-field" class="flex flex-col gap-1 hidden">
+          <div id="tracker-reading-goal-pages-field" class="flex flex-col gap-1">
             <label for="tracker-reading-goal-pages" class="text-sm text-gray-700">Goal (pages/day)</label>
             <input
               id="tracker-reading-goal-pages"
@@ -256,6 +246,7 @@ const trackerCardConfig = {
               class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
           </div>
+          <div class="sm:col-span-2">
           <button
             id="tracker-save-reading-goal"
             type="button"
@@ -263,6 +254,7 @@ const trackerCardConfig = {
           >
             Save Goal
           </button>
+          </div>
         </div>
         <p id="tracker-reading-goal-summary" class="text-sm text-slate-600"></p>
         <p id="tracker-reading-goal-message" class="hidden text-sm font-medium text-green-700"></p>
@@ -646,35 +638,42 @@ const trackerCardConfig = {
       </div>
     )}
     {isWorkoutTracker && (
-      <div id="tracker-workout-metrics" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        <div id="tracker-workout-duration-wrap" class="flex flex-col gap-1">
-          <label class="text-sm text-gray-700">Duration (h:m:s)</label>
-          <div class="grid grid-cols-3 gap-2">
-            <input type="number" id="tracker-workout-duration-hours" min="0" step="1" placeholder="h" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-            <input type="number" id="tracker-workout-duration-minutes" min="0" max="59" step="1" placeholder="m" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-            <input type="number" id="tracker-workout-duration-seconds" min="0" max="59" step="1" placeholder="s" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      <div class="flex flex-col gap-2">
+        <div id="tracker-workout-metrics" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div id="tracker-workout-duration-wrap" class="flex flex-col gap-1">
+            <label class="text-sm text-gray-700">Duration (h:m:s)</label>
+            <div class="grid grid-cols-3 gap-2">
+              <input type="number" id="tracker-workout-duration-hours" min="0" step="1" placeholder="h" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <input type="number" id="tracker-workout-duration-minutes" min="0" max="59" step="1" placeholder="m" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <input type="number" id="tracker-workout-duration-seconds" min="0" max="59" step="1" placeholder="s" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            </div>
+          </div>
+          <div id="tracker-workout-distance-wrap" class="flex flex-col gap-1">
+            <label for="tracker-workout-distance" class="text-sm text-gray-700">Distance (miles)</label>
+            <input type="number" id="tracker-workout-distance" min="0" step="0.01" placeholder="Example: 3.04" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div id="tracker-workout-laps-wrap" class="flex flex-col gap-1">
+            <label for="tracker-workout-laps" class="text-sm text-gray-700">Laps</label>
+            <input type="number" id="tracker-workout-laps" min="0" step="1" placeholder="Example: 20" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div id="tracker-workout-sets-wrap" class="flex flex-col gap-1">
+            <label for="tracker-workout-sets" class="text-sm text-gray-700">Sets</label>
+            <input type="number" id="tracker-workout-sets" min="0" step="1" placeholder="Example: 5" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div id="tracker-workout-reps-wrap" class="flex flex-col gap-1">
+            <label for="tracker-workout-reps" class="text-sm text-gray-700">Reps</label>
+            <input type="number" id="tracker-workout-reps" min="0" step="1" placeholder="Example: 10" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div id="tracker-workout-weight-wrap" class="flex flex-col gap-1">
+            <label for="tracker-workout-weight" class="text-sm text-gray-700">Weight (lbs)</label>
+            <input type="number" id="tracker-workout-weight" min="0" step="1" placeholder="Example: 135" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
         </div>
-        <div id="tracker-workout-distance-wrap" class="flex flex-col gap-1">
-          <label for="tracker-workout-distance" class="text-sm text-gray-700">Distance (miles)</label>
-          <input type="number" id="tracker-workout-distance" min="0" step="0.01" placeholder="Example: 3.04" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </div>
-        <div id="tracker-workout-laps-wrap" class="flex flex-col gap-1">
-          <label for="tracker-workout-laps" class="text-sm text-gray-700">Laps</label>
-          <input type="number" id="tracker-workout-laps" min="0" step="1" placeholder="Example: 20" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </div>
-        <div id="tracker-workout-sets-wrap" class="flex flex-col gap-1">
-          <label for="tracker-workout-sets" class="text-sm text-gray-700">Sets</label>
-          <input type="number" id="tracker-workout-sets" min="0" step="1" placeholder="Example: 5" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </div>
-        <div id="tracker-workout-reps-wrap" class="flex flex-col gap-1">
-          <label for="tracker-workout-reps" class="text-sm text-gray-700">Reps</label>
-          <input type="number" id="tracker-workout-reps" min="0" step="1" placeholder="Example: 10" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </div>
-        <div id="tracker-workout-weight-wrap" class="flex flex-col gap-1">
-          <label for="tracker-workout-weight" class="text-sm text-gray-700">Weight (lbs)</label>
-          <input type="number" id="tracker-workout-weight" min="0" step="1" placeholder="Example: 135" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </div>
+        <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+          <input type="checkbox" id="tracker-workout-weather-enabled" class="mt-0.5 h-4 w-4 accent-blue-600" />
+          <span>Add weather from my current location (optional)</span>
+        </label>
+        <p id="tracker-workout-weather-status" class="hidden text-xs text-gray-500"></p>
       </div>
     )}
     {isVideoGameTracker && (

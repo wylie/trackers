@@ -2,7 +2,7 @@ import { formatDurationLabel, totalMinutesFromParts, getIntValue, getFloatValue,
 import { createEntryId, ensureEntryIdentity } from './ids.js';
 import { parseSleepDuration, formatSleepDuration, getSleepGrade } from './sleep.js';
 import { formatGameHours, normalizeGameKey } from './game.js';
-import { getWorkoutDurationParts, formatWorkoutMetricBadges, syncWorkoutMetricsUI as syncWorkoutMetricsUIHelper } from './workout.js';
+import { getWorkoutDurationParts, formatWorkoutMetricBadges, formatWorkoutWeatherSummary, getWorkoutWeatherLabel, syncWorkoutMetricsUI as syncWorkoutMetricsUIHelper } from './workout.js';
 import { getAudiobookLeftMinutes, formatProgressValue, getReadingCoverUrl, getFallbackMediaUrl, isPlaceholderCoverUrl } from './reading.js';
 import { getMoviePosterUrl, getVideoGameCoverUrl } from './media.js';
 import { getTodayDateInputValue, toDateInputValue, buildEntryDateIso, formatSimpleDate } from './dates.js';
@@ -69,7 +69,6 @@ export function initTrackerCard(config) {
   const waterGoalCompactText = document.getElementById("tracker-water-goal-compact-text");
   const waterGoalEditButton = document.getElementById("tracker-water-goal-edit");
   const waterGoalEditor = document.getElementById("tracker-water-goal-editor");
-  const readingGoalModeInput = document.getElementById("tracker-reading-goal-mode");
   const readingGoalMinutesInput = document.getElementById("tracker-reading-goal-minutes");
   const readingGoalPagesInput = document.getElementById("tracker-reading-goal-pages");
   const readingGoalMinutesField = document.getElementById("tracker-reading-goal-minutes-field");
@@ -120,6 +119,8 @@ export function initTrackerCard(config) {
   const workoutSetsInput = document.getElementById("tracker-workout-sets");
   const workoutRepsInput = document.getElementById("tracker-workout-reps");
   const workoutWeightInput = document.getElementById("tracker-workout-weight");
+  const workoutWeatherEnabledInput = document.getElementById("tracker-workout-weather-enabled");
+  const workoutWeatherStatus = document.getElementById("tracker-workout-weather-status");
   const sessionDurationHoursInput = document.getElementById("tracker-session-duration-hours");
   const sessionDurationMinutesInput = document.getElementById("tracker-session-duration-minutes");
   const sessionDurationSecondsInput = document.getElementById("tracker-session-duration-seconds");
@@ -193,9 +194,9 @@ export function initTrackerCard(config) {
   let hasNormalizedReadingEntries = false;
   let hasNormalizedWaterEntries = false;
   let selectedWaterVolumeUnit = "oz";
-  let selectedReadingGoalMode = "minutes";
   let selectedReadingListFilter = "all";
   let visibleEntriesCount = 0;
+  let workoutWeatherRequestId = 0;
   let resolveDeletePrompt = null;
   const notesViewStateByEntryId = new Map();
   const LIST_PAGE_SIZE = 20;
@@ -391,10 +392,9 @@ export function initTrackerCard(config) {
     const allEntries = getAllEntries();
     const settings = allEntries?.[readingSettingsKey];
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
-    const goalMode = String(settings.goalMode || "").trim().toLowerCase() === "pages" ? "pages" : "minutes";
     const dailyGoalMinutes = Math.max(0, Number(settings.dailyGoalMinutes) || 0);
     const dailyGoalPages = Math.max(0, Number(settings.dailyGoalPages) || 0);
-    return goalMode === "pages" ? dailyGoalPages > 0 : dailyGoalMinutes > 0;
+    return dailyGoalMinutes > 0 || dailyGoalPages > 0;
   }
 
   function setSleepGoalCollapsed(collapsed) {
@@ -478,24 +478,14 @@ export function initTrackerCard(config) {
     return resolveReadingGoalSettings({ allEntries, readingSettingsKey });
   }
 
-  function saveReadingGoalSettings({ goalMode, dailyGoalMinutes, dailyGoalPages }) {
+  function saveReadingGoalSettings({ dailyGoalMinutes, dailyGoalPages }) {
     const allEntries = getAllEntries();
     persistReadingGoalSettings({
       allEntries,
       readingSettingsKey,
-      goalMode,
       dailyGoalMinutes,
       dailyGoalPages
     });
-  }
-
-  function syncReadingGoalModeUI() {
-    if (!isReadingTracker) return;
-    selectedReadingGoalMode = String(readingGoalModeInput?.value || "minutes").trim().toLowerCase() === "pages"
-      ? "pages"
-      : "minutes";
-    if (readingGoalMinutesField) readingGoalMinutesField.classList.toggle("hidden", selectedReadingGoalMode !== "minutes");
-    if (readingGoalPagesField) readingGoalPagesField.classList.toggle("hidden", selectedReadingGoalMode !== "pages");
   }
 
   function updateSleepGoalSummary() {
@@ -619,30 +609,18 @@ export function initTrackerCard(config) {
   function updateReadingGoalSummary() {
     if (!isReadingTracker || !readingGoalSummary) return;
     const currentDate = entryDateInput?.value || getTodayDateInputValue();
-    const goalMode = String(readingGoalModeInput?.value || selectedReadingGoalMode || "minutes").trim().toLowerCase() === "pages"
-      ? "pages"
-      : "minutes";
-    let summaryText = "";
-    if (goalMode === "pages") {
-      const goalPages = Math.max(0, Number(readingGoalPagesInput?.value || 0));
-      const todayPages = Math.round(getReadingDayTotalPages(getEntries(), currentDate) * 10) / 10;
-      const todayPagesLabel = todayPages.toFixed(1).replace(/\.0$/, "");
-      if (goalPages > 0) {
-        const pct = Math.min(999, Math.round((todayPages / goalPages) * 100));
-        summaryText = `Reading today: ${todayPagesLabel} / ${goalPages} pages (${pct}%)`;
-      } else {
-        summaryText = `Reading today: ${todayPagesLabel} pages`;
-      }
-    } else {
-      const goalMinutes = Math.max(0, Number(readingGoalMinutesInput?.value || 0));
-      const todayTotalMinutes = getReadingDayTotalMinutes(getEntries(), currentDate);
-      if (goalMinutes > 0) {
-        const pct = Math.min(999, Math.round((todayTotalMinutes / goalMinutes) * 100));
-        summaryText = `Reading today: ${todayTotalMinutes} / ${goalMinutes} min (${pct}%)`;
-      } else {
-        summaryText = `Reading today: ${todayTotalMinutes} min`;
-      }
-    }
+    const goalMinutes = Math.max(0, Number(readingGoalMinutesInput?.value || 0));
+    const goalPages = Math.max(0, Number(readingGoalPagesInput?.value || 0));
+    const todayTotalMinutes = getReadingDayTotalMinutes(getEntries(), currentDate);
+    const todayPages = Math.round(getReadingDayTotalPages(getEntries(), currentDate) * 10) / 10;
+    const todayPagesLabel = todayPages.toFixed(1).replace(/\.0$/, "");
+    const minuteSegment = goalMinutes > 0
+      ? `${todayTotalMinutes}/${goalMinutes} min (${Math.min(999, Math.round((todayTotalMinutes / goalMinutes) * 100))}%)`
+      : `${todayTotalMinutes} min`;
+    const pageSegment = goalPages > 0
+      ? `${todayPagesLabel}/${goalPages} pages (${Math.min(999, Math.round((todayPages / goalPages) * 100))}%)`
+      : `${todayPagesLabel} pages`;
+    const summaryText = `Reading today: ${minuteSegment} • ${pageSegment}`;
     readingGoalSummary.textContent = summaryText;
     if (readingGoalCompactText) readingGoalCompactText.textContent = summaryText;
   }
@@ -677,6 +655,177 @@ export function initTrackerCard(config) {
       .map((tag) => tag.trim())
       .filter(Boolean)
       .slice(0, 20);
+  }
+
+  function setWorkoutWeatherStatus(message, tone = "muted") {
+    if (!workoutWeatherStatus) return;
+    const text = String(message || "").trim();
+    if (!text) {
+      workoutWeatherStatus.textContent = "";
+      workoutWeatherStatus.classList.add("hidden");
+      workoutWeatherStatus.classList.remove("text-gray-500", "text-red-600", "text-green-700");
+      return;
+    }
+    workoutWeatherStatus.textContent = text;
+    workoutWeatherStatus.classList.remove("hidden");
+    workoutWeatherStatus.classList.remove("text-gray-500", "text-red-600", "text-green-700");
+    if (tone === "error") {
+      workoutWeatherStatus.classList.add("text-red-600");
+    } else if (tone === "success") {
+      workoutWeatherStatus.classList.add("text-green-700");
+    } else {
+      workoutWeatherStatus.classList.add("text-gray-500");
+    }
+  }
+
+  function roundNumber(value, digits = 1) {
+    const safe = Number(value);
+    if (!Number.isFinite(safe)) return null;
+    const factor = 10 ** digits;
+    return Math.round(safe * factor) / factor;
+  }
+
+  function getWorkoutWeatherHourIndex({ hourlyTimes = [], entryDateValue = "", targetHour = 12 }) {
+    if (!Array.isArray(hourlyTimes) || !hourlyTimes.length) return -1;
+    const normalizedDateValue = String(entryDateValue || "").trim();
+    let bestIndex = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let idx = 0; idx < hourlyTimes.length; idx += 1) {
+      const timeValue = String(hourlyTimes[idx] || "");
+      if (!timeValue) continue;
+      const dayValue = timeValue.slice(0, 10);
+      if (normalizedDateValue && dayValue !== normalizedDateValue) continue;
+      const hourRaw = Number(timeValue.slice(11, 13));
+      if (!Number.isFinite(hourRaw)) continue;
+      const distance = Math.abs(hourRaw - targetHour);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = idx;
+      }
+    }
+    if (bestIndex >= 0) return bestIndex;
+    return 0;
+  }
+
+  async function fetchOpenMeteoWorkoutWeather({ latitude, longitude, entryDateIso }) {
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const targetDate = new Date(entryDateIso);
+    const targetHour = Number.isFinite(targetDate.getTime()) ? targetDate.getHours() : 12;
+    const entryDateValue = toDateInputValue(entryDateIso);
+    const todayValue = getTodayDateInputValue();
+    const isFutureDate = entryDateValue > todayValue;
+    const baseUrl = isFutureDate
+      ? "https://api.open-meteo.com/v1/forecast"
+      : "https://archive-api.open-meteo.com/v1/archive";
+    const endpoint = new URL(baseUrl);
+    endpoint.searchParams.set("latitude", String(lat));
+    endpoint.searchParams.set("longitude", String(lon));
+    endpoint.searchParams.set("start_date", entryDateValue);
+    endpoint.searchParams.set("end_date", entryDateValue);
+    endpoint.searchParams.set("hourly", "temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code");
+    endpoint.searchParams.set("temperature_unit", "fahrenheit");
+    endpoint.searchParams.set("wind_speed_unit", "mph");
+    endpoint.searchParams.set("precipitation_unit", "inch");
+    endpoint.searchParams.set("timezone", "auto");
+
+    const weatherRes = await fetch(endpoint.toString());
+    if (!weatherRes.ok) return null;
+    const weatherData = await weatherRes.json();
+    const hourly = weatherData?.hourly;
+    const hourlyTimes = Array.isArray(hourly?.time) ? hourly.time : [];
+    if (!hourlyTimes.length) return null;
+    const idx = getWorkoutWeatherHourIndex({ hourlyTimes, entryDateValue, targetHour });
+    if (idx < 0) return null;
+
+    const temperatures = Array.isArray(hourly?.temperature_2m) ? hourly.temperature_2m : [];
+    const apparentTemperatures = Array.isArray(hourly?.apparent_temperature) ? hourly.apparent_temperature : [];
+    const windSpeeds = Array.isArray(hourly?.wind_speed_10m) ? hourly.wind_speed_10m : [];
+    const precipitations = Array.isArray(hourly?.precipitation) ? hourly.precipitation : [];
+    const weatherCodes = Array.isArray(hourly?.weather_code) ? hourly.weather_code : [];
+    const weatherCode = Number(weatherCodes[idx]);
+
+    return {
+      provider: "open-meteo",
+      latitude: roundNumber(lat, 4),
+      longitude: roundNumber(lon, 4),
+      observedAtLocal: String(hourlyTimes[idx] || ""),
+      temperatureF: roundNumber(temperatures[idx], 1),
+      apparentTemperatureF: roundNumber(apparentTemperatures[idx], 1),
+      windMph: roundNumber(windSpeeds[idx], 1),
+      precipitationInches: roundNumber(precipitations[idx], 2),
+      weatherCode: Number.isFinite(weatherCode) ? weatherCode : null,
+      weatherLabel: getWorkoutWeatherLabel(weatherCode),
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
+  function getCurrentPositionPromise({ timeoutMs = 12000 } = {}) {
+    return new Promise((resolve, reject) => {
+      if (!("geolocation" in navigator) || !navigator.geolocation) {
+        reject(new Error("geolocation_not_supported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: timeoutMs,
+        maximumAge: 10 * 60 * 1000
+      });
+    });
+  }
+
+  async function attachWeatherToWorkoutEntry({ entryId, entryDateIso }) {
+    if (!isWorkoutTracker || !entryId) return;
+    const requestId = ++workoutWeatherRequestId;
+    try {
+      setWorkoutWeatherStatus("Saved workout. Getting your location...");
+      const position = await getCurrentPositionPromise();
+      if (requestId !== workoutWeatherRequestId) return;
+      const latitude = Number(position?.coords?.latitude);
+      const longitude = Number(position?.coords?.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        setWorkoutWeatherStatus("Workout saved, but location was unavailable.", "error");
+        return;
+      }
+
+      setWorkoutWeatherStatus("Location captured. Fetching weather...");
+      const weatherSnapshot = await fetchOpenMeteoWorkoutWeather({
+        latitude,
+        longitude,
+        entryDateIso
+      });
+      if (requestId !== workoutWeatherRequestId) return;
+      if (!weatherSnapshot) {
+        setWorkoutWeatherStatus("Workout saved, but weather data was unavailable.", "error");
+        return;
+      }
+
+      const entries = getEntries();
+      const targetIdx = entries.findIndex((entry) => String(entry?.id || "") === String(entryId));
+      if (targetIdx < 0) return;
+      const updatedEntry = {
+        ...ensureEntryIdentity(entries[targetIdx]),
+        workoutWeather: weatherSnapshot,
+        updatedAt: Date.now()
+      };
+      entries[targetIdx] = updatedEntry;
+      saveEntries(entries);
+      renderEntries(false, true);
+      setWorkoutWeatherStatus("Weather added to this workout.", "success");
+    } catch (error) {
+      if (requestId !== workoutWeatherRequestId) return;
+      const code = Number(error?.code);
+      if (code === 1) {
+        setWorkoutWeatherStatus("Workout saved. Location permission was denied, so weather was skipped.", "error");
+      } else if (code === 2) {
+        setWorkoutWeatherStatus("Workout saved. Could not determine location, so weather was skipped.", "error");
+      } else if (code === 3) {
+        setWorkoutWeatherStatus("Workout saved. Location request timed out, so weather was skipped.", "error");
+      } else {
+        setWorkoutWeatherStatus("Workout saved. Weather lookup failed.", "error");
+      }
+    }
   }
 
   function normalizeReadingIsbn(value) {
@@ -1105,6 +1254,8 @@ export function initTrackerCard(config) {
     if (workoutSetsInput) workoutSetsInput.value = "";
     if (workoutRepsInput) workoutRepsInput.value = "";
     if (workoutWeightInput) workoutWeightInput.value = "";
+    if (workoutWeatherEnabledInput) workoutWeatherEnabledInput.checked = false;
+    setWorkoutWeatherStatus("");
     if (sessionDurationHoursInput) sessionDurationHoursInput.value = "";
     if (sessionDurationMinutesInput) sessionDurationMinutesInput.value = "";
     if (sessionDurationSecondsInput) sessionDurationSecondsInput.value = "";
@@ -1219,6 +1370,8 @@ export function initTrackerCard(config) {
     if (workoutSetsInput) workoutSetsInput.value = entry.workoutSets != null ? String(entry.workoutSets) : "";
     if (workoutRepsInput) workoutRepsInput.value = entry.workoutReps != null ? String(entry.workoutReps) : "";
     if (workoutWeightInput) workoutWeightInput.value = entry.workoutWeightLbs != null ? String(entry.workoutWeightLbs) : "";
+    if (workoutWeatherEnabledInput) workoutWeatherEnabledInput.checked = false;
+    setWorkoutWeatherStatus("");
     const sessionHoursForEdit = Math.max(0, Number(entry.lastSessionHours) || Number(entry.sessionHours) || 0);
     const sessionTotalSeconds = Math.round(sessionHoursForEdit * 3600);
     const sessionEditHours = Math.floor(sessionTotalSeconds / 3600);
@@ -1689,44 +1842,27 @@ export function initTrackerCard(config) {
   }
 
   if (isReadingTracker) {
-    const { goalMode, dailyGoalMinutes, dailyGoalPages } = getReadingGoalSettings();
-    selectedReadingGoalMode = goalMode === "pages" ? "pages" : "minutes";
-    if (readingGoalModeInput) readingGoalModeInput.value = selectedReadingGoalMode;
+    const { dailyGoalMinutes, dailyGoalPages } = getReadingGoalSettings();
     if (readingGoalMinutesInput) readingGoalMinutesInput.value = String(dailyGoalMinutes);
     if (readingGoalPagesInput) readingGoalPagesInput.value = String(dailyGoalPages);
-    syncReadingGoalModeUI();
     updateReadingGoalSummary();
     setReadingGoalCollapsed(hasPersistedReadingGoalSettings());
-    readingGoalModeInput?.addEventListener("change", function() {
-      syncReadingGoalModeUI();
-      updateReadingGoalSummary();
-    });
     readingGoalMinutesInput?.addEventListener("change", updateReadingGoalSummary);
     readingGoalPagesInput?.addEventListener("change", updateReadingGoalSummary);
     readingGoalEditButton?.addEventListener("click", function() {
       setReadingGoalCollapsed(false);
-      if (selectedReadingGoalMode === "pages") {
-        readingGoalPagesInput?.focus();
-      } else {
-        readingGoalMinutesInput?.focus();
-      }
+      readingGoalMinutesInput?.focus();
     });
     readingGoalSaveButton?.addEventListener("click", function() {
       const nextGoalMinutes = Math.max(0, getIntValue(readingGoalMinutesInput, 0));
       const nextGoalPages = Math.max(0, getIntValue(readingGoalPagesInput, 0));
-      const nextGoalMode = String(readingGoalModeInput?.value || selectedReadingGoalMode || "minutes").trim().toLowerCase() === "pages"
-        ? "pages"
-        : "minutes";
       saveReadingGoalSettings({
-        goalMode: nextGoalMode,
         dailyGoalMinutes: nextGoalMinutes,
         dailyGoalPages: nextGoalPages
       });
-      selectedReadingGoalMode = nextGoalMode;
       updateReadingGoalSummary();
-      const goalValue = nextGoalMode === "pages" ? nextGoalPages : nextGoalMinutes;
-      showReadingGoalMessage(`Saved goal: ${goalValue} ${nextGoalMode === "pages" ? "pages/day" : "min/day"}`);
-      setReadingGoalCollapsed(goalValue > 0);
+      showReadingGoalMessage(`Saved goals: ${nextGoalMinutes} min/day, ${nextGoalPages} pages/day`);
+      setReadingGoalCollapsed(nextGoalMinutes > 0 || nextGoalPages > 0);
       renderEntries(false);
     });
     entryDateInput?.addEventListener("change", updateReadingGoalSummary);
@@ -1942,6 +2078,8 @@ export function initTrackerCard(config) {
       }
       if (isWorkoutTracker) {
         workoutMetricBadges = formatWorkoutMetricBadges(entry, isWorkoutTracker);
+        const workoutWeatherSummary = formatWorkoutWeatherSummary(entry, isWorkoutTracker);
+        if (workoutWeatherSummary) metadataChips.push(workoutWeatherSummary);
       }
       if (isVideoGameTracker) {
         const sessionHours = Math.max(0, Number(entry?.lastSessionHours) || Number(entry?.sessionHours) || 0);
@@ -2254,6 +2392,7 @@ export function initTrackerCard(config) {
     const workoutSets = Math.max(0, getIntValue(workoutSetsInput, 0));
     const workoutReps = Math.max(0, getIntValue(workoutRepsInput, 0));
     const workoutWeightLbs = Math.max(0, getIntValue(workoutWeightInput, 0));
+    const shouldAttachWorkoutWeather = isWorkoutTracker && Boolean(workoutWeatherEnabledInput?.checked);
     const sessionDurationHours = Math.max(0, getIntValue(sessionDurationHoursInput, 0));
     const sessionDurationMinutes = Math.max(0, Math.min(59, getIntValue(sessionDurationMinutesInput, 0)));
     const sessionDurationSeconds = Math.max(0, Math.min(59, getIntValue(sessionDurationSecondsInput, 0)));
@@ -2307,6 +2446,7 @@ export function initTrackerCard(config) {
       (isWaterTracker && (waterOunces <= 0 || !waterDrinkLabel))
     ) return;
     const entries = getEntries();
+    let pendingWorkoutWeather = null;
     if (editingIdx >= 0 && entries[editingIdx]) {
       const date = buildEntryDateIso(entryDateValue, entries[editingIdx]?.date || "");
       const previousReadingPercent = enableReadingProgress
@@ -2373,6 +2513,12 @@ export function initTrackerCard(config) {
         updatedEntry.workoutSets = workoutSets;
         updatedEntry.workoutReps = workoutReps;
         updatedEntry.workoutWeightLbs = workoutWeightLbs;
+        if (shouldAttachWorkoutWeather) {
+          pendingWorkoutWeather = {
+            entryId: updatedEntry.id,
+            entryDateIso: date
+          };
+        }
       }
       if (isVideoGameTracker) {
         updatedEntry.sessionHours = sessionHours;
@@ -2613,6 +2759,12 @@ export function initTrackerCard(config) {
         nextEntry.workoutSets = workoutSets;
         nextEntry.workoutReps = workoutReps;
         nextEntry.workoutWeightLbs = workoutWeightLbs;
+        if (shouldAttachWorkoutWeather) {
+          pendingWorkoutWeather = {
+            entryId: nextEntry.id,
+            entryDateIso: date
+          };
+        }
       }
       if (isVideoGameTracker) {
         nextEntry.sessionHours = sessionHours;
@@ -2675,6 +2827,9 @@ export function initTrackerCard(config) {
     clearForm();
     renderEntries();
     updateReadingGoalSummary();
+    if (pendingWorkoutWeather) {
+      void attachWeatherToWorkoutEntry(pendingWorkoutWeather);
+    }
   };
 
   if (entryDateInput && !entryDateInput.value) {

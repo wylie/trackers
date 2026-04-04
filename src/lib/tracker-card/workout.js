@@ -136,3 +136,63 @@ export function formatWorkoutMetricBadges(entry, isWorkoutTracker) {
   if (!parts.length) return "";
   return `<div class="tracker-metric-badges">${parts.map((part) => `<span class="tracker-metric-pill">${part}</span>`).join("")}</div>`;
 }
+
+const WORKOUT_WEATHER_CODE_LABELS = {
+  0: "Clear",
+  1: "Mainly clear",
+  2: "Partly cloudy",
+  3: "Overcast",
+  45: "Fog",
+  48: "Rime fog",
+  51: "Light drizzle",
+  53: "Drizzle",
+  55: "Dense drizzle",
+  56: "Freezing drizzle",
+  57: "Dense freezing drizzle",
+  61: "Light rain",
+  63: "Rain",
+  65: "Heavy rain",
+  66: "Freezing rain",
+  67: "Heavy freezing rain",
+  71: "Light snow",
+  73: "Snow",
+  75: "Heavy snow",
+  77: "Snow grains",
+  80: "Rain showers",
+  81: "Rain showers",
+  82: "Violent rain showers",
+  85: "Snow showers",
+  86: "Heavy snow showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm with hail",
+  99: "Thunderstorm with heavy hail"
+};
+
+function formatNumber(value, digits = 1) {
+  const safe = Number(value);
+  if (!Number.isFinite(safe)) return "";
+  return safe.toFixed(digits).replace(/\.0$/, "");
+}
+
+export function getWorkoutWeatherLabel(code) {
+  const safeCode = Number(code);
+  if (!Number.isFinite(safeCode)) return "";
+  return WORKOUT_WEATHER_CODE_LABELS[safeCode] || `Code ${safeCode}`;
+}
+
+export function formatWorkoutWeatherSummary(entry, isWorkoutTracker) {
+  if (!isWorkoutTracker) return "";
+  const weather = entry?.workoutWeather;
+  if (!weather || typeof weather !== "object") return "";
+  const tempLabel = formatNumber(weather?.temperatureF, 1);
+  const windLabel = formatNumber(weather?.windMph, 1);
+  const precip = Math.max(0, Number(weather?.precipitationInches) || 0);
+  const condition = String(weather?.weatherLabel || "").trim() || getWorkoutWeatherLabel(weather?.weatherCode);
+  const segments = [];
+  if (tempLabel) segments.push(`${tempLabel}F`);
+  if (condition) segments.push(condition);
+  if (windLabel) segments.push(`Wind ${windLabel} mph`);
+  if (precip > 0.01) segments.push(`Rain ${precip.toFixed(2)} in`);
+  if (!segments.length) return "";
+  return `Weather ${segments.join(" • ")}`;
+}
